@@ -1,0 +1,11 @@
+# Bundle patch: one Host row. The `dsh.client` section of package.json makes
+# the Web app load ./client.js as the browser half.
+#
+# Config:
+#   maxBytes – UTF-8 byte budget of one rules message (default 65536; 0 turns
+#              rule injection off).
+- insert:
+    - id: loadout
+      name: dsh-loadout
+      config:
+        maxBytes: 65536

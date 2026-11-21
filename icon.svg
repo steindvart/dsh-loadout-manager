@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36" fill="none">
+  <defs>
+    <linearGradient id="loadout-body" x1="9" y1="10" x2="27" y2="29" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#69B9FF"/>
+      <stop offset="1" stop-color="#324DE2"/>
+    </linearGradient>
+    <linearGradient id="loadout-pocket" x1="18" y1="21" x2="18" y2="27" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#45E7A4"/>
+      <stop offset="1" stop-color="#05909D"/>
+    </linearGradient>
+  </defs>
+  <path d="M15.5 10.5V8.75a2.5 2.5 0 0 1 5 0v1.75" stroke="#3F63E8" stroke-width="1.75" stroke-linecap="round"/>
+  <rect x="8.5" y="10" width="19" height="19" rx="6" fill="url(#loadout-body)"/>
+  <path d="M8.5 16a6 6 0 0 1 6-6h7a6 6 0 0 1 6 6v.5c-2.6 1.6-5.8 2.4-9.5 2.4s-6.9-.8-9.5-2.4V16Z" fill="#2A3FC0" fill-opacity="0.5"/>
+  <rect x="16.75" y="16.75" width="2.5" height="3.5" rx="1" fill="#E8F2FF"/>
+  <rect x="12" y="21.5" width="12" height="5" rx="2" fill="url(#loadout-pocket)"/>
+</svg>

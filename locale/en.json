@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Loadout",
+    "description": "Choose which skills and rules your agents carry. In Settings → Loadout, set each skill to On, Manual (hidden from the model, still available as /name), or Off, and switch rule files on or off: global ones from ~/.dsh/rules and ~/.agents/rules, and per-workspace ones from .agents/rules. Enabled rules are added to the agent context next to AGENTS.md, subagents included. Choices are saved to ~/.agents/loadout.json and <project>/.agents/loadout.json, so they can be committed. Delete moves a skill or rule to the trash after confirmation. Agents can list and switch items with the loadout tool. Limitation: the / menu of a session whose agent has not started yet still lists Off skills."
+  }
+}
