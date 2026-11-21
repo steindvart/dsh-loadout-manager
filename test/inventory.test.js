@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
-import { scanInventory, shadowCandidates } from '../src/host/inventory.js'
+import { scanInventory, shadowsFor } from '../src/host/inventory.js'
 
 function tree(files) {
   const base = mkdtempSync(join(tmpdir(), 'loadout-'))
@@ -53,24 +53,32 @@ test('takes skill states from the loadout.json of the level the skill lives on',
   assert.deepEqual(states(inventory), { local: 'on', omarchy: 'off', tdd: 'manual', grilling: 'on' })
 })
 
-test('produces shadow candidates only where loadout.json narrows the file policy', async (t) => {
-  const base = tree({
-    'agents/skills/tdd/SKILL.md': skill('tdd', 'Test first.'),
-    'agents/skills/off-one/SKILL.md': skill('off-one'),
-    'agents/skills/on-one/SKILL.md': skill('on-one'),
-    'agents/skills/file-manual/SKILL.md': skill('file-manual', 'm', 'disable-model-invocation: true\n'),
-    'agents/loadout.json': JSON.stringify({ skills: { tdd: 'manual', 'off-one': 'off', 'file-manual': 'manual' } }),
+test('shadows registry winners only where the loadout.json of their level narrows the policy', () => {
+  const on = { modelInvocable: true, userInvocable: true }
+  const winner = (name, source, invocation = on) => ({ name, description: `${name} d`, invocation, source, provider: 'filesystem', path: `/x/${name}/SKILL.md` })
+  const winners = [
+    winner('tdd', 'user-agents'),
+    winner('off-one', 'custom'),
+    winner('on-one', 'user-dsh'),
+    winner('file-manual', 'user-agents', { modelInvocable: false, userInvocable: true }),
+    winner('local', 'project-agents'),
+    winner('global-says-off', 'project-dsh'),
+  ]
+  const shadows = shadowsFor(winners, {
+    global: { skills: { tdd: 'manual', 'off-one': 'off', 'file-manual': 'manual', 'global-says-off': 'off' } },
+    project: { skills: { local: 'off' } },
   })
-  t.after(() => rmSync(base, { recursive: true }))
-  const inventory = await scanInventory(homes(base))
-  const shadows = shadowCandidates(inventory)
-  assert.deepEqual(shadows.map(s => [s.name, s.invocation]), [
-    ['off-one', { modelInvocable: false, userInvocable: false }],
-    ['tdd', { modelInvocable: false, userInvocable: true }],
+  assert.deepEqual(shadows.map(s => [s.name, s.source, s.invocation]), [
+    ['local', 'project-agents', { modelInvocable: false, userInvocable: false }],
+    ['off-one', 'custom', { modelInvocable: false, userInvocable: false }],
+    ['tdd', 'user-agents', { modelInvocable: false, userInvocable: true }],
   ])
-  assert.equal(shadows[1].description, 'Test first.')
-  assert.equal(shadows[1].file, join(base, 'agents/skills/tdd/SKILL.md'))
-  assert.equal(shadows[1].source, 'user-agents')
+  assert.deepEqual(shadows[2], { name: 'tdd', description: 'tdd d', invocation: { modelInvocable: false, userInvocable: true }, source: 'user-agents', path: '/x/tdd/SKILL.md' })
+})
+
+test('project skills are never shadowed without a project loadout', () => {
+  const winners = [{ name: 'local', description: 'd', invocation: { modelInvocable: true, userInvocable: true }, source: 'project-agents' }]
+  assert.deepEqual(shadowsFor(winners, { global: { skills: { local: 'off' } } }), [])
 })
 
 test('a skill marked disable-model-invocation in its file is manual and cannot be raised to on', async (t) => {
@@ -96,7 +104,8 @@ test('a same-named skill with a lower rank wins; the loser is marked overridden 
   assert.equal(byDescription['same root, later entry'].overriddenBy, join(base, 'repo/.agents/skills/tdd/SKILL.md'))
   assert.equal(byDescription.project.overriddenBy, undefined)
   assert.equal(byDescription.global.overriddenBy, join(base, 'repo/.agents/skills/tdd/SKILL.md'))
-  assert.deepEqual(shadowCandidates(inventory), [])
+  assert.equal(byDescription.global.state, 'off')
+  assert.equal(byDescription.project.state, 'on')
 })
 
 test('lists flat rule files from all rule roots with ids by file name and switches from their level', async (t) => {
@@ -142,6 +151,16 @@ test('scans custom roots as global, flat skill files, and skips $DSH_HOME/skills
   assert.deepEqual(inventory.skills.map(s => [s.name, s.level, s.source, s.entry]), [
     ['flat', 'global', 'custom', join(base, 'custom/flat.md')],
   ])
+})
+
+test('marks skills inside an .asar archive as read-only', async (t) => {
+  const base = tree({
+    'app.asar/skills/dsh-doc/SKILL.md': skill('dsh-doc'),
+    'agents/skills/tdd/SKILL.md': skill('tdd'),
+  })
+  t.after(() => rmSync(base, { recursive: true }))
+  const inventory = await scanInventory({ ...homes(base), customSkillDirs: [join(base, 'app.asar/skills')] })
+  assert.deepEqual(inventory.skills.map(s => [s.name, s.readOnly]), [['dsh-doc', true], ['tdd', false]])
 })
 
 function states(inventory) {

@@ -23,9 +23,19 @@ export async function scanInventory(options) {
   const skills = []
   for (const root of skillRoots(options)) skills.push(...await scanSkillRoot(root, levels[root.level].loadout))
   markOverridden(skills)
+  return { levels, skills, rules: await scanRules(options, levels) }
+}
+
+/**
+ * Rules alone, in context order (`dsh`, `agents`, then `project`).
+ * @param {{ dshHome, agentsHome, projectRoot? }} options
+ * @param {object} [levels] - result of {@link readLevels}; read when omitted
+ */
+export async function scanRules(options, levels) {
+  levels ??= await readLevels(options)
   const rules = []
   for (const root of ruleRoots(options)) rules.push(...await scanRuleRoot(root, levels[root.level].loadout))
-  return { levels, skills, rules }
+  return rules
 }
 
 /** Rule roots in context order: the global chain first, then the project. */
@@ -65,17 +75,37 @@ async function scanRuleRoot(root, loadout) {
 }
 
 /**
- * Candidates the shadow provider registers: winning skills whose
- * `loadout.json` state is narrower than the policy in their own file.
- * @returns {Array<{ name, description, whenToUse?, invocation, source, file, entry }>} sorted by name
+ * Shadow candidates for the agent-layer provider: registry winners whose
+ * `loadout.json` state, read from the winner's own level, is narrower than
+ * the policy the winner already has. `project-*` sources use the project
+ * loadout; every other source is global.
+ * @param {Array<{ name, description, whenToUse?, invocation, source, path?, resourceBase? }>} winners
+ * @param {{ global: object, project?: object }} loadouts - parsed loadout objects
+ * @returns shadow summaries sorted by name, with the narrowed `invocation`
  */
-export function shadowCandidates(inventory) {
-  return inventory.skills
-    .filter(item => item.overriddenBy === undefined && !samePolicy(item.invocation, item.fileInvocation))
-    .map(({ name, description, whenToUse, invocation, source, file, entry }) => ({
-      name, description, ...whenToUse !== undefined ? { whenToUse } : {}, invocation, source, file, entry,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+export function shadowsFor(winners, loadouts) {
+  const shadows = []
+  for (const winner of winners) {
+    const loadout = winner.source.startsWith('project-') ? loadouts.project : loadouts.global
+    if (loadout === undefined) continue
+    const requested = POLICY[skillState(loadout, winner.name)]
+    const invocation = {
+      modelInvocable: winner.invocation.modelInvocable && requested.modelInvocable,
+      userInvocable: winner.invocation.userInvocable && requested.userInvocable,
+    }
+    if (samePolicy(invocation, winner.invocation)) continue
+    const { name, description, whenToUse, source, path, resourceBase } = winner
+    shadows.push({
+      name,
+      description,
+      ...whenToUse !== undefined ? { whenToUse } : {},
+      invocation,
+      source,
+      ...path !== undefined ? { path } : {},
+      ...resourceBase !== undefined ? { resourceBase } : {},
+    })
+  }
+  return shadows.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /** Same-named skills: the lowest rank wins, then root order, then entry order, as in `dsh-skill`. */
@@ -93,7 +123,11 @@ export function loadoutPath({ agentsHome, projectRoot }, level) {
   return level === 'project' ? join(projectRoot, '.agents', 'loadout.json') : join(agentsHome, 'loadout.json')
 }
 
-async function readLevels(options) {
+/**
+ * Both `loadout.json` files: `{ global, project? }`, each `{ loadoutPath, loadout, error? }`.
+ * A malformed file reads as empty and carries `error`.
+ */
+export async function readLevels(options) {
   const levels = { global: await readLevel(loadoutPath(options, 'global')) }
   if (options.projectRoot !== undefined) {
     levels.project = { projectRoot: options.projectRoot, ...await readLevel(loadoutPath(options, 'project')) }
@@ -195,9 +229,14 @@ async function scanSkillRoot(root, loadout) {
       fileInvocation,
       file,
       entry: entry.path,
+      readOnly: isInsideArchive(entry.path),
     })
   }
   return skills
+}
+
+function isInsideArchive(path) {
+  return /\.asar([\\/]|$)/.test(path)
 }
 
 async function listEntries(dir) {
