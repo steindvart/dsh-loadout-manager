@@ -26,7 +26,7 @@ export function registerShadows(ctx, homes) {
     providers.clear()
   }, 'dsh-loadout: shadow providers')
 
-  ctx.on('agent/created', ({ agent }) => {
+  function attach(agent) {
     if (ctx.get('skills') === undefined || providers.has(agent)) return
     // Through agent.ctx, so the registry files the provider under the Agent's scope.
     const skills = agent.ctx.skills
@@ -43,7 +43,17 @@ export function registerShadows(ctx, homes) {
       if (typeof disposer === 'function') void Promise.resolve(disposer()).catch(() => {})
     }
     providers.set(agent, entry)
-  })
+  }
+
+  ctx.on('agent/created', ({ agent }) => { attach(agent) })
+  // Agents that were already live when the plugin activated (installation through HMR).
+  for (const agent of ctx.get('agents')?.list() ?? []) {
+    try {
+      attach(agent)
+    } catch (error) {
+      ctx.logger?.warn?.(`dsh-loadout: could not attach to a live agent: ${error?.message ?? error}`)
+    }
+  }
 
   ctx.on('agent/disposed', ({ agent }) => {
     providers.get(agent)?.dispose()
