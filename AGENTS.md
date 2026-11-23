@@ -13,6 +13,7 @@ DSH-плагин (бандл профиля): переключает скилл�
 
 - Ни зависимостей, ни сборки, ни голых импортов (`import x from 'pkg'`). Бандл ставится ссылкой на этот каталог, и голое имя разрешается от реального пути репозитория, где `node_modules` нет. Только `node:*` и относительные пути.
 - Синтаксис не выше Node 24 (Host DSH – Electron 44 / Node 24), хотя системный `node` новее. Декораторов нет.
+- Сервисы DSH бери через `ctx.get('name')`, в том числе на `agent.ctx`. Без объявленного `inject` Cordis бросает исключение на `ctx.name`. Исключение в serial-слушателе `agent/created` обрывает создание агента, поэтому всё внутри него оборачивай в `try/catch`.
 - Исходники DSH лежат в `/usr/lib/deepseek-harness-desktop/resources/app.asar/dsh/node_modules/@deepseek-ai/<pkg>/`. Инструмент read их читает, а `ls`, grep и glob – нет; для листинга и поиска: `cd /tmp; ELECTRON_RUN_AS_NODE=1 "$DSH_NODE_EXECUTABLE" -e "..."`.
 - Перед опорой на метод или событие DSH сверь его с `docs/research/` или исходником, факты бери через скилл `dsh-doc`.
 
