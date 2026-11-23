@@ -146,7 +146,7 @@ function ruleView(item) {
 async function customRoots(ctx, cwd) {
   if (ctx.get('skills') === undefined) return []
   try {
-    const winners = await withPresetScope(ctx, undefined, scope => ctx.skills.list({ cwd, scope }))
+    const winners = await withPresetScope(ctx, undefined, scope => ctx.get('skills').list({ cwd, scope }))
     const roots = new Set()
     for (const winner of winners) {
       if (winner.source !== 'custom' || typeof winner.path !== 'string') continue

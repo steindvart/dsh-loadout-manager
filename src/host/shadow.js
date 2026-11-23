@@ -28,8 +28,11 @@ export function registerShadows(ctx, homes) {
 
   function attach(agent) {
     if (ctx.get('skills') === undefined || providers.has(agent)) return
-    // Through agent.ctx, so the registry files the provider under the Agent's scope.
-    const skills = agent.ctx.skills
+    // `get()` binds the service to agent.ctx, so the registry files the provider
+    // under the Agent's scope. Property access (`agent.ctx.skills`) needs an inject
+    // declaration this context does not have.
+    const skills = agent.ctx.get('skills')
+    if (skills === undefined) return
     const entry = { control: undefined, dispose: () => {} }
     const disposer = skills.registerProvider((control) => {
       entry.control = control
@@ -45,15 +48,18 @@ export function registerShadows(ctx, homes) {
     providers.set(agent, entry)
   }
 
-  ctx.on('agent/created', ({ agent }) => { attach(agent) })
-  // Agents that were already live when the plugin activated (installation through HMR).
-  for (const agent of ctx.get('agents')?.list() ?? []) {
+  // A throwing `agent/created` listener fails agent creation, so nothing escapes it.
+  function safeAttach(agent) {
     try {
       attach(agent)
     } catch (error) {
-      ctx.logger?.warn?.(`dsh-loadout: could not attach to a live agent: ${error?.message ?? error}`)
+      ctx.logger?.warn?.(`dsh-loadout: skill states are not applied to this agent: ${error?.message ?? error}`)
     }
   }
+
+  ctx.on('agent/created', ({ agent }) => { safeAttach(agent) })
+  // Agents that were already live when the plugin activated (installation through HMR).
+  for (const agent of ctx.get('agents')?.list() ?? []) safeAttach(agent)
 
   ctx.on('agent/disposed', ({ agent }) => {
     providers.get(agent)?.dispose()
@@ -93,7 +99,7 @@ function createProvider(ctx, agent, homes) {
     async list(options) {
       const cwd = options.cwd
       const winners = await withPresetScope(ctx, agent, scope =>
-        ctx.skills.list({ cwd, signal: options.signal, scope }))
+        ctx.get('skills').list({ cwd, signal: options.signal, scope }))
       const projectRoot = cwd === undefined ? undefined : await findProjectRoot(cwd)
       const levels = await readLevels({ ...homes, projectRoot })
       const shadows = shadowsFor(winners.filter(isFromOtherProvider), {
@@ -105,7 +111,7 @@ function createProvider(ctx, agent, homes) {
     async get(candidate, options) {
       if (!candidate.invocation.userInvocable && !candidate.invocation.modelInvocable) return undefined
       const original = await withPresetScope(ctx, agent, scope =>
-        ctx.skills.get(candidate.name, { cwd: options.cwd, signal: options.signal, scope }))
+        ctx.get('skills').get(candidate.name, { cwd: options.cwd, signal: options.signal, scope }))
       if (original === undefined) return undefined
       return { ...original, invocation: candidate.invocation, provider: PROVIDER_NAME }
     },
