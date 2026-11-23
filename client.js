@@ -1,4 +1,4 @@
-/* dsh-loadout Client half: the Settings → Loadout page. Classic script for the DSH module loader. */
+/* dsh-loadout Client half: the Loadout page in the left sidebar panel list. Classic script for the DSH module loader. */
 window.__ModuleLoader__.load({
   id: 'dsh-loadout',
   factory(require) {
@@ -7,7 +7,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useState } = React
 
     const NS = 'loadout'
-    const SECTION_ID = 'loadout'
+    const PANEL_ID = 'loadout'
     const WORKSPACE_KEY = 'dsh-loadout.workspace'
 
     const DICT = {
@@ -98,10 +98,13 @@ window.__ModuleLoader__.load({
     }
 
     const CSS = `
-.dshlo { display: flex; flex-direction: column; gap: 16px; color: var(--dsw-alias-label-primary); }
-.dshlo h2 { margin: 0; font-size: 18px; line-height: 26px; font-weight: 600; }
+.dshlo-page { --dshlo-inset: clamp(24px, 4vw, 48px); box-sizing: border-box; height: 100%; overflow-x: hidden; overflow-y: auto; display: flex; flex-direction: column; align-items: center; padding: 0 var(--dshlo-inset) 48px; color: var(--dsw-alias-label-primary); }
+@media (max-width: 767px) { .dshlo-page { --dshlo-inset: 20px; } }
+.dshlo-head { flex: none; width: 100%; max-width: 960px; box-sizing: border-box; padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px)); padding-bottom: 8px; display: flex; flex-direction: column; gap: 4px; }
+.dshlo-head h1 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 500; }
+.dshlo { flex: none; width: 100%; max-width: 960px; display: flex; flex-direction: column; gap: 24px; padding-top: 16px; }
 .dshlo-intro { margin: 0; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary)); }
-.dshlo-group { display: flex; flex-direction: column; gap: 10px; border-top: 0.5px solid var(--dsw-alias-border-l2); padding-top: 14px; }
+.dshlo-group { display: flex; flex-direction: column; gap: 10px; border-top: 0.5px solid var(--dsw-alias-border-l2); padding-top: 20px; }
 .dshlo-group:first-of-type { border-top: 0; padding-top: 0; }
 .dshlo-groupHead { display: flex; flex-direction: column; gap: 2px; }
 .dshlo-groupTitle { font-size: 14px; line-height: 22px; font-weight: 500; }
@@ -136,7 +139,7 @@ window.__ModuleLoader__.load({
   .dshlo-btn[data-tone='danger']:not(:disabled):hover { background: var(--dsw-alias-interactive-bg-hover-danger, var(--dsw-alias-bg-layer-2)); }
   .dshlo-btn[data-tone='primary']:not(:disabled):hover { background: var(--dsw-alias-state-error-primary); opacity: .9; }
 }
-.dshlo :is(button, select):focus-visible { outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
+.dshlo-page :is(button, select):focus-visible { outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
 .dshlo-confirm { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dsw-alias-label-secondary); }
 .dshlo-error { font-size: 12px; line-height: 18px; color: var(--dsw-alias-state-error-primary); overflow-wrap: anywhere; }
 .dshlo-empty { font-size: 12px; line-height: 18px; padding: 8px 2px; color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary)); }
@@ -158,11 +161,6 @@ window.__ModuleLoader__.load({
       }
       if (!data.ok) throw new Error(data.error?.message ?? `HTTP ${response.status}`)
       return data.value
-    }
-
-    function sessionFileAddress(sessionId, path) {
-      const encode = segment => encodeURIComponent(segment).replace(/%3A/gi, ':')
-      return `dsh-resource://file/session/${encode(sessionId)}/${path.replace(/\\/g, '/').split('/').map(encode).join('/')}`
     }
 
     function groupBy(items, key) {
@@ -215,7 +213,7 @@ window.__ModuleLoader__.load({
       })
     }
 
-    function Row({ t, item, kind, scope, locked, openFile, reload }) {
+    function Row({ t, item, kind, scope, locked, reload }) {
       const [busy, setBusy] = useState(false)
       const [error, setError] = useState(undefined)
       const [confirming, setConfirming] = useState(false)
@@ -236,7 +234,6 @@ window.__ModuleLoader__.load({
 
       const onOpen = async () => {
         if (preview !== undefined) return setPreview(undefined)
-        if (openFile(item.file)) return
         setError(undefined)
         try {
           setPreview(await call('read', { ...scope.body, path: item.file }))
@@ -299,14 +296,14 @@ window.__ModuleLoader__.load({
         : null)
     }
 
-    function Items({ t, kind, items, scope, locked, openFile, reload, emptyText }) {
+    function Items({ t, kind, items, scope, locked, reload, emptyText }) {
       if (items.length === 0) return h('div', { className: 'dshlo-empty' }, emptyText)
       return groupBy(items, 'source').map(([source, group]) => h('div', { key: source, className: 'dshlo-sub' },
         h('div', { className: 'dshlo-mono dshlo-source' }, t(`source.${source}`)),
-        group.map(item => h(Row, { key: `${item.file}`, t, item, kind, scope, locked, openFile, reload }))))
+        group.map(item => h(Row, { key: item.file, t, item, kind, scope, locked, reload }))))
     }
 
-    function Group({ t, title, header, group, scope, openFile, reload, rulesHint }) {
+    function Group({ t, title, header, group, scope, reload, rulesHint }) {
       const locked = group.error !== undefined
       return h('section', { className: 'dshlo-group' },
         h('div', { className: 'dshlo-groupHead' },
@@ -315,15 +312,15 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dshlo-mono' }, t('savedTo', { path: group.loadoutPath }))),
         locked ? h('div', { className: 'dshlo-error', role: 'alert' }, t('malformed', { path: group.loadoutPath, error: group.error })) : null,
         h('div', { className: 'dshlo-subTitle' }, t('skills')),
-        h(Items, { t, kind: 'skill', items: group.skills, scope, locked, openFile, reload, emptyText: t('noSkills') }),
+        h(Items, { t, kind: 'skill', items: group.skills, scope, locked, reload, emptyText: t('noSkills') }),
         h('div', { className: 'dshlo-subTitle' }, t('rules')),
-        h(Items, { t, kind: 'rule', items: group.rules, scope, locked, openFile, reload, emptyText: t('noRules', { path: rulesHint }) }))
+        h(Items, { t, kind: 'rule', items: group.rules, scope, locked, reload, emptyText: t('noRules', { path: rulesHint }) }))
     }
 
     const noWorkspaces = () => []
 
-    function LoadoutSection(props) {
-      const { t, close, openFileInSidebar } = props
+    function LoadoutPage(props) {
+      const { t } = props
       const useWorkspaces = props.useWorkspaces ?? noWorkspaces
       const items = useWorkspaces(snapshot => snapshot.items) ?? []
       const [chosen, setChosen] = useState(readStoredWorkspace)
@@ -342,27 +339,23 @@ window.__ModuleLoader__.load({
 
       useEffect(() => { void reload() }, [reload])
 
-      const openFile = useCallback((path) => {
-        if (!openFileInSidebar(path)) return false
-        close?.()
-        return true
-      }, [openFileInSidebar, close])
-
       const pick = (path) => {
         setChosen(path)
         storeWorkspace(path)
       }
 
-      return h('div', { className: 'dshlo' },
+      return h('div', { className: 'dshlo-page' },
         h('style', null, CSS),
-        h('h2', null, t('title')),
-        h('p', { className: 'dshlo-intro' }, t('intro')),
+        h('header', { className: 'dshlo-head', 'data-window-drag': true },
+          h('h1', null, t('title')),
+          h('p', { className: 'dshlo-intro' }, t('intro'))),
+        h('div', { className: 'dshlo' },
         error !== undefined
           ? h('div', { className: 'dshlo-error', role: 'alert' }, error, ' ', h('button', { type: 'button', className: 'dshlo-btn', onClick: () => void reload() }, t('retry')))
           : null,
         data === undefined && error === undefined ? h('div', { className: 'dshlo-empty' }, t('loading')) : null,
         data !== undefined
-          ? h(Group, { t, title: t('global'), group: data.global, scope: { level: 'global', body: {} }, openFile, reload, rulesHint: '~/.agents/rules' })
+          ? h(Group, { t, title: t('global'), group: data.global, scope: { level: 'global', body: {} }, reload, rulesHint: '~/.agents/rules' })
           : null,
         items.length === 0
           ? h('section', { className: 'dshlo-group' },
@@ -380,11 +373,10 @@ window.__ModuleLoader__.load({
               }, items.map(item => h('option', { key: item.workspaceId ?? item.path, value: item.path }, `${item.title} – ${item.path}`))),
               group: data.workspace,
               scope: { level: 'project', body: { workspacePath } },
-              openFile,
               reload,
               rulesHint: `${data.workspace.projectRoot}/.agents/rules`,
             })
-            : null)
+            : null))
     }
 
     function LoadoutIcon({ size = 16 }) {
@@ -401,30 +393,18 @@ window.__ModuleLoader__.load({
         ctx.effect(() => ctx.locale.register(NS, DICT))
         const t = ctx.locale.bind(NS)
 
-        const openFileInSidebar = (path) => {
-          const sidebar = ctx.get('sidebarRight')
-          const sessionId = sidebar?.mounted?.getSnapshot?.()
-          if (sidebar === undefined || sessionId === undefined) return false
-          try {
-            sidebar.openResource(sessionFileAddress(sessionId, path))
-            return true
-          } catch {
-            return false
-          }
-        }
+        ctx.slots.inject('main', () => ctx.slots.register({
+          name: 'main',
+          key: PANEL_ID,
+          locale: NS,
+        }, LoadoutPage))
 
-        ctx.slots.inject('settings.section', () => ctx.slots.register({
-          name: 'settings.section',
-          id: SECTION_ID,
-          order: 25,
+        ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
+          name: 'sidebar.panellist',
+          id: PANEL_ID,
+          order: 20,
           label: () => t('nav'),
           locale: NS,
-          inject: () => ({ openFileInSidebar }),
-        }, LoadoutSection))
-
-        ctx.slots.inject('settings.section.icon', () => ctx.slots.register({
-          name: 'settings.section.icon',
-          id: SECTION_ID,
         }, LoadoutIcon))
       },
     }
