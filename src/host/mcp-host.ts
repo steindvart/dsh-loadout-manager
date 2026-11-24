@@ -112,6 +112,18 @@ export function registerMcpRestrictions(ctx: Context, homes: Homes): void {
   }, 'dsh-loadout: MCP restrictions')
   ctx.on('agent/disposed', ({ agent }) => { lift(agent) })
 
+  // The catalog of the first step is built when the agent is created, so the
+  // restriction must be in place before that. `agent/created` listeners are
+  // awaited before creation resolves (see dsh-agent runtime-types).
+  ctx.on('agent/created', ({ agent, signal }) => {
+    void sync(agent, signal ?? new AbortController().signal).catch(error => {
+      ctx.logger.warn(`dsh-loadout: MCP servers were not hidden for this agent: ${messageOf(error)}`)
+    })
+    return undefined
+  })
+
+  // The working directory can move between steps; re-evaluate then. Also
+  // catches a server's tool list changing while it reconnects.
   ctx.on('agent/pre-step', async (event, next) => {
     try {
       await sync(event.agent, event.signal)
