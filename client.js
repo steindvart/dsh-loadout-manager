@@ -25,8 +25,12 @@ window.__ModuleLoader__.load({
         noWorkspaces: 'No workspaces yet. Add one in the sidebar to manage its skills and rules.',
         skills: 'Skills',
         noSkills: 'No skills here.',
-        noRules: 'No AGENTS.md or rule files. Put rules as .md files into {path}.',
-        rulesTab: 'Instructions and rules',
+        noRules: 'No rule files. Put .md files into {path}.',
+        instructionsTab: 'Instructions',
+        instructionFiles: 'Instruction files',
+        rules: 'Rules',
+        noGlobalInstructions: 'No AGENTS.md in ~/.dsh or ~/.agents.',
+        noProjectInstructions: 'No AGENTS.md, CLAUDE.md, or their .local.md variants from the project root down to this workspace.',
         alwaysLoaded: 'Always loaded',
         alwaysLoadedHint: 'DSH adds this file to the context of every session in this scope. Loadout does not switch it.',
         projectRoot: 'Project root',
@@ -74,8 +78,12 @@ window.__ModuleLoader__.load({
         noWorkspaces: 'Workspace пока нет. Добавьте его в боковой панели, чтобы управлять его скиллами и правилами.',
         skills: 'Скиллы',
         noSkills: 'Скиллов нет.',
-        noRules: 'Нет ни AGENTS.md, ни правил. Правила – это .md-файлы в {path}.',
-        rulesTab: 'Инструкции и правила',
+        noRules: 'Файлов правил нет. Положите .md-файлы в {path}.',
+        instructionsTab: 'Инструкции',
+        instructionFiles: 'Файлы инструкций',
+        rules: 'Правила',
+        noGlobalInstructions: 'В ~/.dsh и ~/.agents нет AGENTS.md.',
+        noProjectInstructions: 'От корня проекта до этого workspace нет AGENTS.md, CLAUDE.md и их вариантов .local.md.',
         alwaysLoaded: 'Всегда загружается',
         alwaysLoadedHint: 'DSH добавляет этот файл в контекст каждой сессии этой области. Loadout его не переключает.',
         projectRoot: 'Корень проекта',
@@ -149,6 +157,10 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
 /* Body: 32px under the header; each source is a heading over a settings card (Models / Agent presets sections). */
 .dshlo { flex: none; width: 100%; max-width: 960px; padding-top: 16px; }
 .dshlo-tabpanel { display: flex; flex-direction: column; gap: 28px; }
+.dshlo-part { display: flex; flex-direction: column; gap: 16px; }
+.dshlo-part + .dshlo-part { padding-top: 28px; border-top: 0.5px solid var(--dsw-alias-border-l2); }
+.dshlo-partHead { display: flex; align-items: baseline; gap: 8px; }
+.dshlo-partTitle { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; color: var(--dsw-alias-label-primary); }
 .dshlo-sub { display: flex; flex-direction: column; gap: 8px; }
 .dshlo-sourceHead { display: flex; align-items: baseline; gap: 8px; padding: 0 2px; }
 .dshlo-source { margin: 0; font-size: 14px; line-height: 22px; font-weight: 500; color: var(--dsw-alias-label-primary); }
@@ -371,14 +383,31 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
       return key === '.' ? t('projectRoot') : key
     }
 
-    /** Sections render in order; each groups its items by source (or folder, for instruction files). */
-    function Items({ t, sections, scope, locked, reload, emptyText }) {
-      if (sections.every(section => section.items.length === 0)) return h('div', { className: 'dshlo-empty' }, emptyText)
-      return sections.flatMap(({ kind, items }) => groupBy(items, kind === 'instruction' ? 'location' : 'source').map(([source, group]) => h('section', { key: `${kind}:${source}`, className: 'dshlo-sub' },
+    function Groups({ t, kind, items, scope, locked, reload }) {
+      return groupBy(items, kind === 'instruction' ? 'location' : 'source').map(([source, group]) => h('section', { key: `${kind}:${source}`, className: 'dshlo-sub' },
         h('div', { className: 'dshlo-sourceHead' },
-          h('h2', { className: 'dshlo-source' }, groupTitle(t, kind, source)),
+          h('h3', { className: 'dshlo-source' }, groupTitle(t, kind, source)),
           h('span', { className: 'dshlo-sourceCount' }, group.length)),
-        h('div', { className: 'dshlo-list' }, group.map(item => h(Row, { key: item.file, t, item, kind, scope, locked, reload }))))))
+        h('div', { className: 'dshlo-list' }, group.map(item => h(Row, { key: item.file, t, item, kind, scope, locked, reload })))))
+    }
+
+    /**
+     * A tab's sections in order. A titled section is a heading over its own
+     * groups, with its own empty text; a single untitled section renders its
+     * groups directly.
+     */
+    function Items({ t, sections, scope, locked, reload }) {
+      return sections.map(({ kind, title, items, empty }) => {
+        const body = items.length === 0
+          ? h('div', { className: 'dshlo-empty' }, empty)
+          : h(Groups, { t, kind, items, scope, locked, reload })
+        if (title === undefined) return h(React.Fragment, { key: kind }, body)
+        return h('section', { key: kind, className: 'dshlo-part' },
+          h('div', { className: 'dshlo-partHead' },
+            h('h2', { className: 'dshlo-partTitle' }, title),
+            h('span', { className: 'dshlo-sourceCount' }, items.length)),
+          body)
+      })
     }
 
     /**
@@ -387,10 +416,21 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
      * A new kind is one more entry here and one more list in the Host state.
      */
     const KINDS = [
-      { id: 'skills', label: 'skills', sections: group => [{ kind: 'skill', items: group.skills ?? [] }], empty: (t) => t('noSkills') },
-      { id: 'rules', label: 'rulesTab', sections: group => [{ kind: 'instruction', items: group.instructions ?? [] }, { kind: 'rule', items: group.rules ?? [] }], empty: (t, hint) => t('noRules', { path: hint }) },
+      {
+        id: 'skills',
+        label: 'skills',
+        sections: (t, group) => [{ kind: 'skill', items: group.skills ?? [], empty: t('noSkills') }],
+      },
+      {
+        id: 'rules',
+        label: 'instructionsTab',
+        sections: (t, group, { level, rulesHint }) => [
+          { kind: 'instruction', title: t('instructionFiles'), items: group.instructions ?? [], empty: t(level === 'global' ? 'noGlobalInstructions' : 'noProjectInstructions') },
+          { kind: 'rule', title: t('rules'), items: group.rules ?? [], empty: t('noRules', { path: rulesHint }) },
+        ],
+      },
     ]
-    const countOf = (kind, group) => kind.sections(group).reduce((sum, section) => sum + section.items.length, 0)
+    const countOf = (kind, group) => kind.sections(String, group, {}).reduce((sum, section) => sum + section.items.length, 0)
 
     function Tabs({ t, value, counts, onChange }) {
       const index = Math.max(0, KINDS.findIndex(kind => kind.id === value))
@@ -500,7 +540,7 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
             group === undefined && error === undefined ? h('div', { className: 'dshlo-empty', role: 'status' }, t('loading')) : null,
             locked ? h('div', { className: 'dshlo-error', role: 'alert' }, t('malformed', { path: group.loadoutPath, error: group.error })) : null,
             group !== undefined
-              ? h(Items, { key: `${scopeValue}:${tab}`, t, sections: kind.sections(group), scope, locked, reload, emptyText: kind.empty(t, rulesHint) })
+              ? h(Items, { key: `${scopeValue}:${tab}`, t, sections: kind.sections(t, group, { level: scope.level, rulesHint }), scope, locked, reload })
               : null)))
     }
 
