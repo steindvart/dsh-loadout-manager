@@ -1,0 +1,192 @@
+/* The Loadout page. Layout and sizes follow the Plugins page; colors come from theme tokens only.
+   Class names are hashed by the build (CSS Modules), so they need no plugin prefix. */
+
+.page {
+  --inset: clamp(24px, 4vw, 48px);
+  box-sizing: border-box;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 var(--inset) 48px;
+  color: var(--dsw-alias-label-primary);
+}
+
+@media (max-width: 767px) {
+  .page { --inset: 20px; }
+}
+
+.page :is(button:not(.tab), select):focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+}
+
+/* Header: the Plugins page bar. Title and scope on one row, tabs on the last row; it stays on screen while the list scrolls. */
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex: none;
+  width: calc(100% + 2 * var(--inset));
+  margin-inline: calc(-1 * var(--inset));
+  box-sizing: border-box;
+  padding: 28px var(--inset) 16px;
+  background: var(--dsw-alias-bg-base);
+  display: flex;
+  justify-content: center;
+}
+
+html[data-platform='darwin'] .head { padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px)); }
+
+.headInner { width: 100%; max-width: 960px; display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.heading { min-width: 0; max-width: 100%; flex: 1 1 320px; }
+.title { margin: 0; font-size: 20px; line-height: 28px; font-weight: 500; }
+.intro { margin: 4px 0 0; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
+.scopeMeta { display: flex; flex-wrap: wrap; gap: 0 16px; min-height: 18px; margin-top: 4px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
+.scopeMeta code { font-family: var(--ds-font-family-code); font-size: 11.5px; overflow-wrap: anywhere; }
+.headTabs { display: flex; flex: 1 1 100%; }
+
+/* Scope picker: an outline Button (32px, radius-md, 13px) with a leading glyph and a chevron. */
+.toolbar { display: flex; flex: 0 1 auto; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.select { position: relative; display: inline-flex; min-width: 0; max-width: 100%; color: var(--dsw-alias-label-secondary); }
+.select svg { position: absolute; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.lead { left: 12px; }
+.chevron { right: 10px; }
+
+.picker {
+  box-sizing: border-box;
+  height: 32px;
+  min-width: 200px;
+  max-width: 360px;
+  padding: 0 30px 0 31px;
+  border: 0;
+  border-radius: var(--dsw-radius-md);
+  background: transparent;
+  box-shadow: inset 0 0 0 var(--dsh-hairline-width, 0.5px) var(--dsh-button-outline-color, var(--dsw-alias-border-l3));
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  appearance: none;
+  cursor: pointer;
+}
+
+.picker option { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-overlay); }
+.picker:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Tabs: SegmentedTabs size "sm". */
+.tabs {
+  --tabs-inset: 2px;
+  position: relative;
+  display: grid;
+  width: fit-content;
+  min-width: 240px;
+  padding: var(--tabs-inset);
+  border-radius: calc(var(--dsw-radius-md) + var(--tabs-inset));
+  background: var(--dsw-alias-bg-module-platform);
+}
+
+.tabIndicator {
+  position: absolute;
+  inset: var(--tabs-inset) auto var(--tabs-inset) var(--tabs-inset);
+  box-sizing: border-box;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-3);
+  transition: transform .18s ease;
+  pointer-events: none;
+}
+
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--dsw-radius-md);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+  transition: color .18s ease;
+}
+
+.tab[aria-selected='true'] { color: var(--dsw-alias-label-primary); font-weight: 500; }
+.tab:focus-visible { outline: none; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.count { font-size: 12px; font-weight: 400; color: var(--dsw-alias-label-tertiary); }
+
+/* Body: each source is a heading over a settings card (Models / Agent presets sections). */
+.body { flex: none; width: 100%; max-width: 960px; padding-top: 16px; }
+.tabpanel { display: flex; flex-direction: column; gap: 28px; }
+.part { display: flex; flex-direction: column; gap: 16px; }
+.part + .part { padding-top: 28px; border-top: 0.5px solid var(--dsw-alias-border-l2); }
+.partHead { display: flex; align-items: baseline; gap: 8px; }
+.partTitle { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; color: var(--dsw-alias-label-primary); }
+.group { display: flex; flex-direction: column; gap: 8px; }
+.groupHead { display: flex; align-items: baseline; gap: 8px; padding: 0 2px; }
+.groupTitle { margin: 0; font-size: 14px; line-height: 22px; font-weight: 500; color: var(--dsw-alias-label-primary); }
+.groupCount { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.list { display: flex; flex-direction: column; padding: 0 16px; border: 0.5px solid var(--dsw-alias-settings-card-stroke); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-settings-card-fill); }
+
+/* Rows: Plugin Manager .row / .rowLine. */
+.row { padding: 12px 0; border-bottom: 0.5px solid var(--dsw-alias-border-l2); display: flex; flex-direction: column; gap: 8px; }
+.row:last-child { border-bottom: 0; }
+.rowLine { display: flex; align-items: center; gap: 16px; }
+.rowMain { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.name { font-size: 13.5px; line-height: 20px; font-weight: 500; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.row[data-state='off'] .name, .row[data-overridden='true'] .name { color: var(--dsw-alias-label-secondary); }
+.desc { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mono { font-family: var(--ds-font-family-code); font-size: 11.5px; line-height: 16px; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
+.badge { font-size: 11px; line-height: 16px; font-weight: 400; padding: 0 6px; border-radius: var(--dsw-radius-xs); background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-secondary); }
+.controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+/* Skill state: SegmentedTabs in a smaller size, so both segmented controls on the page read alike. */
+.seg { display: inline-flex; padding: 2px; gap: 0; border-radius: calc(var(--dsw-radius-sm) + 2px); background: var(--dsw-alias-bg-module-platform); }
+.seg button { box-sizing: border-box; height: 24px; padding: 0 10px; border: 0.5px solid transparent; border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; line-height: 18px; cursor: pointer; }
+.seg button[aria-checked='true'] { background: var(--dsw-alias-bg-layer-3); border-color: var(--dsw-alias-border-l3); color: var(--dsw-alias-label-primary); font-weight: 500; }
+.seg button:disabled { cursor: not-allowed; opacity: .4; }
+
+/* Rule switch: the Switch primitive. */
+.switch { box-sizing: border-box; width: 36px; height: 20px; padding: 2px; border: 0; border-radius: 999px; background: var(--dsw-alias-border-l3); cursor: pointer; flex-shrink: 0; }
+.switch[aria-checked='true'] { background: var(--dsw-alias-brand-primary); }
+.switch::after { content: ''; display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--dsw-alias-switch-thumb); transition: transform .12s ease; }
+.switch[aria-checked='true']::after { transform: translateX(16px); background: var(--dsw-alias-label-primary-foreground); }
+.switch:disabled { cursor: not-allowed; opacity: .4; }
+
+/* Instruction files: a fixed state in place of a switch. */
+.fixed { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; white-space: nowrap; cursor: default; }
+
+/* Buttons: Button size "sm" (28px, radius-sm); delete is the 28x28 icon button of Plugin Manager. */
+.btn { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 28px; padding: 0 10px; border: 0; border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; line-height: 18px; cursor: pointer; }
+.btn:disabled { cursor: not-allowed; opacity: .4; }
+.btn[data-tone='outline'] { color: var(--dsw-alias-label-primary); box-shadow: inset 0 0 0 var(--dsh-hairline-width, 0.5px) var(--dsh-button-outline-color, var(--dsw-alias-border-l3)); }
+.btn[data-tone='danger'] { color: var(--dsw-alias-state-error-primary); width: 28px; padding: 0; }
+.btn[data-tone='primary'] { background: var(--dsw-alias-state-error-primary); color: var(--dsw-alias-label-primary-foreground); }
+
+@media (hover: hover) {
+  .tab:hover { color: var(--dsw-alias-label-primary); }
+  .picker:not(:disabled):hover, .btn:not(:disabled):hover, .seg button:not(:disabled):not([aria-checked='true']):hover { background: var(--dsw-alias-interactive-bg-hover); }
+  .btn[data-tone='danger']:not(:disabled):hover { background: var(--dsw-alias-interactive-bg-hover-danger); }
+  .btn[data-tone='primary']:not(:disabled):hover { background: var(--dsw-alias-state-error-primary); opacity: .9; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabIndicator, .tab, .switch::after { transition: none; }
+}
+
+/* Row extras and page states: Plugin Manager .status / .failure (13px). */
+.confirm { display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
+.error { font-size: 13px; line-height: 20px; color: var(--dsw-alias-state-error-primary); overflow-wrap: anywhere; }
+.error:has(button) { display: flex; align-items: center; gap: 10px; }
+.empty { font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-tertiary); }
+.preview { margin: 0; max-height: 260px; overflow: auto; padding: 10px 12px; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-3); font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }

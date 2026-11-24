@@ -41,4 +41,14 @@
 
 ## Разработка
 
-Без зависимостей и сборки. Тесты: `node --test`. Устройство и решения – в [docs/SPEC.md](docs/SPEC.md), заметки об API DSH – в [docs/research/](docs/research/).
+Плагин написан на TypeScript и собирается tsdown, по образцу [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar). Нужен Node 24 или новее.
+
+```sh
+npm install
+npm run check   # проверка типов, сборка lib/ и тесты
+npm run build   # только сборка
+```
+
+Host-часть лежит в `src/host/`, страница – в `src/client/`. Типы запросов и ответов между ними описаны в `src/shared/api.ts`. В рантайме плагин ни от чего не зависит: пакеты `@deepseek-ai/*` в `devDependencies` нужны только ради типов DSH. Собранный `lib/` хранится в репозитории, поэтому каталог можно установить в DSH сразу после `git pull`.
+
+Устройство и решения описаны в [docs/SPEC.md](docs/SPEC.md), заметки об API DSH – в [docs/research/](docs/research/).

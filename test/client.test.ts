@@ -1,0 +1,135 @@
+/**
+ * The built client bundle, loaded the way the DSH module loader loads it:
+ * a classic script calling `window.__ModuleLoader__.load({ id, factory })`,
+ * whose factory gets `require` for the shell's module table. The page then
+ * renders with real React into jsdom against a fake Host. Run `npm run
+ * build` first (`npm test` does).
+ */
+
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { JSDOM } from 'jsdom'
+import type { ComponentType } from 'react'
+import type { Requests, StateView } from '../src/shared/api.ts'
+import { en } from '../src/client/locale.ts'
+
+const require = createRequire(import.meta.url)
+const BUNDLE = new URL('../lib/client.js', import.meta.url)
+
+interface Registration {
+  id: string
+  factory(require: (name: string) => unknown): { inject: string[], apply(ctx: unknown): void }
+}
+
+function loadBundle() {
+  const dom = new JSDOM('<!doctype html><html><head></head><body><div id="root"></div></body></html>', { url: 'http://127.0.0.1/app/' })
+  const window = dom.window as unknown as Window & typeof globalThis & { __ModuleLoader__: { load(r: Registration): void } }
+  Object.assign(globalThis, { window, document: window.document, IS_REACT_ACT_ENVIRONMENT: true })
+  let registration: Registration | undefined
+  window.__ModuleLoader__ = { load: (r) => { registration = r } }
+  window.eval(readFileSync(BUNDLE, 'utf8'))
+  assert.ok(registration, 'the bundle registers itself through __ModuleLoader__.load')
+  const shellModules: Record<string, unknown> = { 'react': require('react'), 'react/jsx-runtime': require('react/jsx-runtime') }
+  const plugin = registration.factory((name) => {
+    if (!(name in shellModules)) throw new Error(`module "${name}" is not in the shell module table`)
+    return shellModules[name]
+  })
+  return { window, registration, plugin }
+}
+
+function fakeHost(window: Window, state: (body: Requests['state']) => StateView) {
+  const calls: Array<[string, unknown]> = []
+  // In a browser `window` is `globalThis`; here the bundle reads the global, so replace both.
+  globalThis.fetch = window.fetch = async (url: RequestInfo | URL, init?: RequestInit) => {
+    const op = String(url).split('/').pop() ?? ''
+    const body = JSON.parse(String(init?.body ?? '{}')) as Requests['state']
+    calls.push([op, body])
+    const value = op === 'state' ? state(body) : { ok: true }
+    return new Response(JSON.stringify({ ok: true, value }), { headers: { 'content-type': 'application/json' } })
+  }
+  return calls
+}
+
+const level = (root: string) => ({
+  loadoutPath: `${root}/loadout.json`,
+  skills: [{ name: 'tdd', description: 'Test first', source: 'user-agents' as const, state: 'manual' as const, fileManual: false, readOnly: false, file: `${root}/skills/tdd/SKILL.md`, entry: `${root}/skills/tdd` }],
+  rules: [{ id: 'agents/style', name: 'style', source: 'agents' as const, enabled: true, file: `${root}/rules/style.md` }],
+  instructions: [{ name: 'AGENTS.md', location: 'agents', file: `${root}/AGENTS.md` }],
+})
+
+test('the bundle registers as dsh-loadout and needs only React from the shell', () => {
+  const { registration, plugin } = loadBundle()
+  assert.equal(registration.id, 'dsh-loadout')
+  assert.deepEqual(plugin.inject, ['slots', 'locale'])
+  const style = document.querySelector('style[data-plugin="dsh-loadout"]')
+  assert.ok(style?.textContent?.includes('--dsw-alias-'), 'styles are injected as one tagged <style> and use theme tokens')
+})
+
+test('apply registers the locale, the main panel, and the sidebar entry', () => {
+  const { plugin } = loadBundle()
+  const locales: string[] = []
+  const slots: Array<{ name: string, id?: string, key?: string, order?: number, label?: string }> = []
+  plugin.apply({
+    effect: (f: () => unknown) => f(),
+    locale: { register: (ns: string, locale: string) => { locales.push(`${ns}:${locale}`); return () => {} }, bind: () => (key: string) => key },
+    slots: {
+      inject: (_name: string, f: () => unknown) => f(),
+      register: (options: { name: string, id?: string, key?: string, order?: number, label?: () => string }) => {
+        slots.push({ name: options.name, id: options.id, key: options.key, order: options.order, label: options.label?.() })
+      },
+    },
+  })
+  assert.deepEqual(locales, ['loadout:en', 'loadout:ru'])
+  assert.deepEqual(slots, [
+    { name: 'main', id: undefined, key: 'loadout', order: undefined, label: undefined },
+    { name: 'sidebar.panellist', id: 'loadout', key: undefined, order: 20, label: 'nav' },
+  ])
+})
+
+test('the page switches tabs and scope and asks the Host for the chosen workspace', async () => {
+  const { window, plugin } = loadBundle()
+  window.localStorage.clear()
+  const calls = fakeHost(window, body => body.workspacePath === undefined
+    ? { global: level('/home/me/.agents') }
+    : { global: level('/home/me/.agents'), workspace: { path: body.workspacePath, projectRoot: body.workspacePath, ...level(`${body.workspacePath}/.agents`) } })
+  let Page: ComponentType<Record<string, unknown>> | undefined
+  plugin.apply({
+    effect: (f: () => unknown) => f(),
+    locale: { register: () => () => {}, bind: () => (key: string) => key },
+    slots: { inject: (_n: string, f: () => unknown) => f(), register: (o: { name: string }, c: ComponentType<Record<string, unknown>>) => { if (o.name === 'main') Page = c } },
+  })
+  assert.ok(Page)
+  const React = require('react') as typeof import('react')
+  const { createRoot } = require('react-dom/client') as typeof import('react-dom/client')
+  // React 18, as in the DSH shell: act lives in react-dom/test-utils.
+  const { act } = require('react-dom/test-utils') as { act(callback: () => Promise<void>): Promise<void> }
+  const t = (key: keyof typeof en, params?: Record<string, unknown>) => en[key].replace(/\{(\w+)\}/g, (_m, name: string) => String(params?.[name] ?? ''))
+  const workspaces = [{ workspaceId: 'w1', path: '/work/repo', title: 'repo' }]
+  const root = createRoot(document.getElementById('root')!)
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
+  const tabs = () => [...document.querySelectorAll('[role=tab]')].map(tab => `${tab.textContent}${tab.getAttribute('aria-selected') === 'true' ? '*' : ''}`)
+  const names = () => [...document.querySelectorAll('h3')].map(h => h.textContent)
+
+  await act(async () => { root.render(React.createElement(Page!, { t, useWorkspaces: (select: (s: { items: typeof workspaces }) => unknown) => select({ items: workspaces }) })) })
+  await settle()
+  assert.deepEqual(tabs(), ['Skills1*', 'Instructions2'])
+  assert.deepEqual(names(), ['~/.agents/skills'])
+
+  await act(async () => { (document.getElementById('dshlo-tab-rules') as HTMLButtonElement).click() })
+  assert.deepEqual(tabs(), ['Skills1', 'Instructions2*'])
+  assert.deepEqual([...document.querySelectorAll('h2')].map(h => h.textContent), ['Instruction files', 'Rules'])
+  assert.ok(document.body.textContent?.includes('Always loaded'))
+
+  const select = document.querySelector('select')!
+  await act(async () => {
+    select.value = '/work/repo'
+    select.dispatchEvent(new window.Event('change', { bubbles: true }))
+  })
+  await settle()
+  assert.deepEqual(calls.map(([op, body]) => [op, body]), [['state', {}], ['state', { workspacePath: '/work/repo' }]])
+  assert.equal(window.localStorage.getItem('dsh-loadout.scope'), '/work/repo')
+  assert.ok(document.body.textContent?.includes('/work/repo/.agents/loadout.json'))
+  await act(async () => { root.unmount() })
+})
