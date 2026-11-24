@@ -5,21 +5,36 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { scanRules } from './inventory.ts'
+import type { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import type {} from '@deepseek-ai/dsh-agent-preset-registry'
+import type {} from '@deepseek-ai/dsh-agent-instructions'
+import type { MessageId, UserMessage } from '@deepseek-ai/dsh-llm'
+import { scanRules, type Homes } from './inventory.ts'
 import { findProjectRoot, ruleDisplayPath } from './paths.ts'
-import { renderBaseline, renderChanges } from './rules.ts'
-import { cwdOf } from './shadow.ts'
+import { renderBaseline, renderChanges, type Rendered, type RuleSnapshot } from './rules.ts'
+import { cwdOf, messageOf } from './shadow.ts'
 
 export const SOURCE_KIND = 'dsh-loadout-rules'
 const INSTRUCTIONS_MODULE = '@deepseek-ai/dsh-agent-instructions'
 
-/**
- * @param {object} ctx - plugin root context
- * @param {{ dshHome: string, agentsHome: string }} homes
- * @param {{ maxBytes: number }} options
- */
-export function registerRuleContext(ctx, homes, { maxBytes }) {
-  const eligible = new WeakMap()
+/** Source of a rules message; `snapshot` is what the model has seen after it. */
+export interface RulesMessageSource {
+  kind: typeof SOURCE_KIND
+  form: 'instructions'
+  baseline?: true
+  snapshot: RuleSnapshot
+}
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'dsh-loadout-rules': RulesMessageSource
+  }
+}
+
+/** Adds enabled rules to the context of agents whose preset loads AGENTS.md. */
+export function registerRuleContext(ctx: Context, homes: Homes, { maxBytes }: { maxBytes: number }): void {
+  const eligible = new WeakMap<Agent, boolean>()
 
   ctx.on('agent/pre-step', async (event, next) => {
     const decision = await next()
@@ -36,54 +51,59 @@ export function registerRuleContext(ctx, homes, { maxBytes }) {
       const previous = lastRulesSource(agent, decision.messages)
       const rendered = previous === undefined
         ? renderBaseline(rules, { maxBytes })
-        : renderChanges(previous.snapshot ?? {}, rules, { maxBytes })
+        : renderChanges(previous.snapshot, rules, { maxBytes })
       if (rendered.text === '') return decision
       const message = rulesMessage(rendered, previous === undefined)
       return { ...decision, messages: insertAfterInstructions(decision.messages, messages, message) }
     } catch (error) {
-      ctx.logger?.warn?.(`dsh-loadout: rules were not added to this step: ${error?.message ?? error}`)
+      ctx.logger.warn(`dsh-loadout: rules were not added to this step: ${messageOf(error)}`)
       return decision
     }
   })
 }
 
-function hasInstructions(ctx, agent, cache) {
-  if (cache.has(agent)) return cache.get(agent)
-  const presets = ctx.get('agentPresets')
-  const inspections = presets?.inspectCompositions(agent.ctx) ?? []
+function hasInstructions(ctx: Context, agent: Agent, cache: WeakMap<Agent, boolean>): boolean {
+  const known = cache.get(agent)
+  if (known !== undefined) return known
+  const inspections = ctx.get('agentPresets')?.inspectCompositions(agent.ctx) ?? []
   const result = inspections.some(inspection => inspection.modules.some(module => module.moduleName === INSTRUCTIONS_MODULE))
   cache.set(agent, result)
   return result
 }
 
+function isRulesSource(source: { kind: string }): source is RulesMessageSource {
+  return source.kind === SOURCE_KIND
+}
+
 /** Latest rules source among this step's messages, then on the session surface. */
-function lastRulesSource(agent, stepMessages) {
+function lastRulesSource(agent: Agent, stepMessages: readonly UserMessage[]): RulesMessageSource | undefined {
   for (const message of stepMessages.toReversed()) {
-    if (message.source?.kind === SOURCE_KIND) return message.source
+    if (isRulesSource(message.source)) return message.source
   }
   for (const message of agent.session.deriveMessages().toReversed()) {
-    if (message.role === 'user' && message.source?.kind === SOURCE_KIND) return message.source
+    if (message.role === 'user' && isRulesSource(message.source)) return message.source
   }
   return undefined
 }
 
-function rulesMessage({ text, snapshot }, baseline) {
+function rulesMessage({ text, snapshot }: Rendered, baseline: boolean): UserMessage {
+  const source: RulesMessageSource = {
+    kind: SOURCE_KIND,
+    form: 'instructions',
+    ...baseline ? { baseline: true } : {},
+    snapshot: Object.freeze({ ...snapshot }),
+  }
   return Object.freeze({
-    id: randomUUID(),
+    id: randomUUID() as MessageId,
     role: 'user',
     content: Object.freeze([Object.freeze({ type: 'text', text })]),
-    source: Object.freeze({
-      kind: SOURCE_KIND,
-      form: 'instructions',
-      ...baseline ? { baseline: true } : {},
-      snapshot: Object.freeze({ ...snapshot }),
-    }),
+    source: Object.freeze(source),
   })
 }
 
 /** After the last AGENTS.md message of this step, else after the last claimed message. */
-function insertAfterInstructions(entered, claimed, message) {
-  let index = entered.findLastIndex(m => m.source?.kind === 'agent-instructions')
-  if (index < 0) index = entered.findLastIndex(m => claimed.includes(m))
+function insertAfterInstructions(entered: UserMessage[], claimed: readonly UserMessage[], message: UserMessage): UserMessage[] {
+  let index = entered.findLastIndex(item => item.source.kind === 'agent-instructions')
+  if (index < 0) index = entered.findLastIndex(item => claimed.includes(item))
   return entered.toSpliced(index + 1, 0, message)
 }

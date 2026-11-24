@@ -4,9 +4,11 @@
  * minimal. Keys this module does not own are preserved.
  */
 
+import type { SkillState as ApiSkillState } from '../shared/api.ts'
+
 export const SKILL_STATES = Object.freeze(['on', 'manual', 'off'] as const)
 
-export type SkillState = (typeof SKILL_STATES)[number]
+export type SkillState = (typeof SKILL_STATES)[number] & ApiSkillState
 
 /** Parsed `loadout.json`. Treat as opaque and read it with the accessors below. */
 export type Loadout = Readonly<Record<string, unknown>>

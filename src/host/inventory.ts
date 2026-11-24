@@ -10,12 +10,11 @@ import { join, relative, resolve, sep } from 'node:path'
 import type { SkillInvocationPolicy, SkillSummary } from '@deepseek-ai/dsh-skill'
 import { parseFrontmatter, type FrontmatterValue } from './frontmatter.ts'
 import { parseLoadout, ruleEnabled, skillState, type Loadout, type SkillState } from './loadout.ts'
+import type { Level, RuleSource, SkillSource } from '../shared/api.ts'
 
 const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
-export type Level = 'global' | 'project'
-export type SkillSource = 'project-dsh' | 'project-agents' | 'custom' | 'user-dsh' | 'user-agents'
-export type RuleSource = 'dsh' | 'agents' | 'project'
+export type { Level, RuleSource, SkillSource }
 
 export interface Homes {
   /** `$DSH_HOME` */

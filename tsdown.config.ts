@@ -126,8 +126,10 @@ export default [
     dts: false,
     clean: false,
     sourcemap: false,
-    external: [...CLIENT_EXTERNALS],
-    noExternal: (id: string) => (CLIENT_EXTERNALS.includes(id) ? undefined : true),
+    deps: {
+      neverBundle: [...CLIENT_EXTERNALS],
+      alwaysBundle: (id: string) => (CLIENT_EXTERNALS.includes(id) ? undefined : true),
+    },
     define: { 'process.env.NODE_ENV': production },
     plugins: [clientPurityGate(), cssModules()],
     outputOptions: {
