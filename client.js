@@ -136,15 +136,17 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
 .dshlo-tab:focus-visible { outline: none; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
 .dshlo-count { font-size: 12px; font-weight: 400; color: var(--dsw-alias-label-tertiary); }
 
-/* Body: the Plugins tab panel rhythm (32px under the header, 24px between groups, 8px inside a group). */
+/* Body: 32px under the header; each source is a heading over a settings card (Models / Agent presets sections). */
 .dshlo { flex: none; width: 100%; max-width: 960px; padding-top: 16px; }
-.dshlo-tabpanel { display: flex; flex-direction: column; gap: 24px; }
+.dshlo-tabpanel { display: flex; flex-direction: column; gap: 28px; }
 .dshlo-sub { display: flex; flex-direction: column; gap: 8px; }
+.dshlo-sourceHead { display: flex; align-items: baseline; gap: 8px; padding: 0 2px; }
 .dshlo-source { margin: 0; font-size: 14px; line-height: 22px; font-weight: 500; color: var(--dsw-alias-label-primary); }
-.dshlo-list { display: flex; flex-direction: column; }
+.dshlo-sourceCount { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.dshlo-list { display: flex; flex-direction: column; padding: 0 16px; border: 0.5px solid var(--dsw-alias-settings-card-stroke); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-settings-card-fill); }
 
 /* Rows: Plugin Manager .row / .rowLine. */
-.dshlo-row { padding: 12px 2px; border-bottom: 0.5px solid var(--dsw-alias-border-l2); display: flex; flex-direction: column; gap: 8px; }
+.dshlo-row { padding: 12px 0; border-bottom: 0.5px solid var(--dsw-alias-border-l2); display: flex; flex-direction: column; gap: 8px; }
 .dshlo-row:last-child { border-bottom: 0; }
 .dshlo-rowLine { display: flex; align-items: center; gap: 16px; }
 .dshlo-rowMain { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
@@ -152,7 +154,7 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
 .dshlo-row[data-state='off'] .dshlo-name, .dshlo-row[data-overridden='true'] .dshlo-name { color: var(--dsw-alias-label-secondary); }
 .dshlo-desc { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .dshlo-mono { font-family: var(--ds-font-family-code); font-size: 11.5px; line-height: 16px; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
-.dshlo-badge { font-size: 11px; line-height: 16px; font-weight: 400; padding: 0 6px; border-radius: var(--dsw-radius-xs); background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); }
+.dshlo-badge { font-size: 11px; line-height: 16px; font-weight: 400; padding: 0 6px; border-radius: var(--dsw-radius-xs); background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-secondary); }
 .dshlo-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
 /* Skill state: SegmentedTabs in a smaller size, so both segmented controls on the page read alike. */
@@ -190,7 +192,7 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
 .dshlo-error { font-size: 13px; line-height: 20px; color: var(--dsw-alias-state-error-primary); overflow-wrap: anywhere; }
 .dshlo-error:has(button) { display: flex; align-items: center; gap: 10px; }
 .dshlo-empty { font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-tertiary); }
-.dshlo-preview { margin: 0; max-height: 260px; overflow: auto; padding: 10px 12px; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-2); font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dshlo-preview { margin: 0; max-height: 260px; overflow: auto; padding: 10px 12px; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-3); font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
 `
 
     async function call(op, body) {
@@ -352,7 +354,9 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
     function Items({ t, kind, items, scope, locked, reload, emptyText }) {
       if (items.length === 0) return h('div', { className: 'dshlo-empty' }, emptyText)
       return groupBy(items, 'source').map(([source, group]) => h('section', { key: source, className: 'dshlo-sub' },
-        h('h2', { className: 'dshlo-source' }, t(`source.${source}`)),
+        h('div', { className: 'dshlo-sourceHead' },
+          h('h2', { className: 'dshlo-source' }, t(`source.${source}`)),
+          h('span', { className: 'dshlo-sourceCount' }, group.length)),
         h('div', { className: 'dshlo-list' }, group.map(item => h(Row, { key: item.file, t, item, kind, scope, locked, reload })))))
     }
 
