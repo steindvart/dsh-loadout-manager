@@ -26,6 +26,9 @@ export function registerRoutes(ctx: Context, operations: Operations): void {
     'set-rule': body => operations.setRule({ workspacePath: optionalString(body.workspacePath), id: requiredString(body.id, 'id'), enabled: body.enabled }),
     'remove': body => operations.remove({ ...workspaceOf(body), path: requiredString(body.path, 'path') }),
     'read': body => operations.read({ ...workspaceOf(body), path: requiredString(body.path, 'path') }),
+    'mcp-set': body => operations.setMcp({ workspacePath: optionalString(body.workspacePath), name: requiredString(body.name, 'name'), enabled: body.enabled }),
+    'mcp-restart': body => operations.restartMcp({ name: requiredString(body.name, 'name') }),
+    'mcp-probe': body => operations.probeMcp({ name: requiredString(body.name, 'name') }),
   }
   ctx.inject(['connection'], (scoped) => {
     for (const op of Object.keys(handlers) as Operation[]) {

@@ -7,6 +7,7 @@ import type { StateView } from '../shared/api.ts'
 import { call, messageOf, stored } from './api.ts'
 import { ChevronIcon, ScopeIcon, type T } from './controls.tsx'
 import { countOf, KINDS, Sections, Tabs, type Scope } from './items.tsx'
+import { isSettling } from './mcp.tsx'
 import css from './Loadout.module.css'
 
 const SCOPE_KEY = 'dsh-loadout.scope'
@@ -50,6 +51,14 @@ export function LoadoutPage({ t, useWorkspaces = noWorkspaces }: LoadoutPageProp
   }, [workspacePath])
 
   useEffect(() => { void reload() }, [reload])
+
+  // MCP servers connect in the background: re-read while any of them is still settling.
+  const settling = kind?.id === 'mcp' && (data?.value.global.mcp ?? []).some(isSettling)
+  useEffect(() => {
+    if (!settling) return undefined
+    const timer = window.setInterval(() => { void reload() }, 2000)
+    return () => { window.clearInterval(timer) }
+  }, [settling, reload])
 
   const pickScope = (value: string): void => {
     setChosenScope(value)
@@ -120,7 +129,7 @@ export function LoadoutPage({ t, useWorkspaces = noWorkspaces }: LoadoutPageProp
             ? (
               <Sections
                 key={`${scopeValue}:${kind.id}`}
-                sections={kind.sections(t, group, { level: scope.level, rulesHint })}
+                sections={kind.sections(t, group, { level: scope.level, rulesHint, loadoutPath: group.loadoutPath })}
                 t={t}
                 scope={scope}
                 locked={locked}

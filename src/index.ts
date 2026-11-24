@@ -8,6 +8,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-tools'
 import { createOperations } from './host/operations.ts'
 import { resolveHomes } from './host/paths.ts'
+import { registerMcpRestrictions } from './host/mcp-host.ts'
 import { registerRoutes } from './host/routes.ts'
 import { registerRuleContext } from './host/rules-context.ts'
 import { registerShadows } from './host/shadow.ts'
@@ -27,6 +28,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   const homes = resolveHomes(ctx)
   const shadows = registerShadows(ctx, homes)
   if (maxBytes > 0) registerRuleContext(ctx, homes, { maxBytes })
+  registerMcpRestrictions(ctx, homes)
   const operations = createOperations(ctx, homes, { invalidate: () => shadows.invalidateAll() })
   registerRoutes(ctx, operations)
   ctx.inject(['tools'], (scoped) => {

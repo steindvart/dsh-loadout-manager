@@ -46,7 +46,9 @@ function fakeHost(window: Window, state: (body: Requests['state']) => StateView)
     const op = String(url).split('/').pop() ?? ''
     const body = JSON.parse(String(init?.body ?? '{}')) as Requests['state']
     calls.push([op, body])
-    const value = op === 'state' ? state(body) : { ok: true }
+    const value = op === 'state' ? state(body)
+      : op === 'mcp-probe' ? { ok: true, serverName: 'mcp-servers/everything', serverVersion: '1.0.0', tools: ['echo', 'add'], truncated: false, durationMs: 120 }
+      : { ok: true }
     return new Response(JSON.stringify({ ok: true, value }), { headers: { 'content-type': 'application/json' } })
   }
   return calls
@@ -57,6 +59,14 @@ const level = (root: string) => ({
   skills: [{ name: 'tdd', description: 'Test first', version: '3.0.0', source: 'user-agents' as const, state: 'manual' as const, fileManual: false, readOnly: false, file: `${root}/skills/tdd/SKILL.md`, entry: `${root}/skills/tdd` }],
   rules: [{ id: 'agents/style', name: 'style', source: 'agents' as const, enabled: true, file: `${root}/rules/style.md` }],
   instructions: [{ name: 'AGENTS.md', location: 'agents', file: `${root}/AGENTS.md` }],
+  mcp: [
+    {
+      name: 'everything', source: 'profile' as const, transport: 'stdio' as const, endpoint: 'npx -y @modelcontextprotocol/server-everything', enabled: true,
+      status: { state: 'connected' as const, toolCount: 2 },
+      tools: [{ name: 'mcp__everything__echo', title: 'echo', description: 'Echo back' }, { name: 'mcp__everything__add', title: 'add', description: 'Add numbers' }],
+    },
+    { name: 'docs', source: 'plugin' as const, enabled: true, status: { state: 'failed' as const, reason: 'gave-up', error: 'ECONNREFUSED' }, tools: [] },
+  ],
 })
 
 test('the bundle registers as dsh-loadout and needs only React from the shell', () => {
@@ -114,13 +124,13 @@ test('the page switches tabs and scope and asks the Host for the chosen workspac
 
   await act(async () => { root.render(React.createElement(Page!, { t, useWorkspaces: (select: (s: { items: typeof workspaces }) => unknown) => select({ items: workspaces }) })) })
   await settle()
-  assert.deepEqual(tabs(), ['Skills1*', 'Instructions2'])
+  assert.deepEqual(tabs(), ['Skills1*', 'Instructions2', 'MCP2'])
   assert.deepEqual(names(), ['~/.agents/skills'])
   const version = document.querySelector('[title="Version 3.0.0"]')
   assert.equal(version?.textContent, 'v3.0.0', 'the skill row shows its frontmatter version')
 
   await act(async () => { (document.getElementById('dshlo-tab-rules') as HTMLButtonElement).click() })
-  assert.deepEqual(tabs(), ['Skills1', 'Instructions2*'])
+  assert.deepEqual(tabs(), ['Skills1', 'Instructions2*', 'MCP2'])
   assert.deepEqual([...document.querySelectorAll('h2')].map(h => h.textContent), ['Instruction files', 'Rules'])
   assert.ok(document.body.textContent?.includes('Always loaded'))
 
@@ -133,5 +143,25 @@ test('the page switches tabs and scope and asks the Host for the chosen workspac
   assert.deepEqual(calls.map(([op, body]) => [op, body]), [['state', {}], ['state', { workspacePath: '/work/repo' }]])
   assert.equal(window.localStorage.getItem('dsh-loadout.scope'), '/work/repo')
   assert.ok(document.body.textContent?.includes('/work/repo/.agents/loadout.json'))
+
+  await act(async () => { (document.getElementById('dshlo-tab-mcp') as HTMLButtonElement).click() })
+  const text = () => document.body.textContent ?? ''
+  assert.deepEqual(names(), ['Profile servers', 'From plugins'])
+  assert.ok(text().includes('Connected, tools: 2') && text().includes('ECONNREFUSED'))
+  assert.ok(text().includes('hides or shows a server\'s tools for agents in this workspace'), 'the workspace note explains hiding')
+  const button = (label: string) => [...document.querySelectorAll('button')].find(b => b.textContent === label)!
+  await act(async () => { button('Tools (2)').click() })
+  assert.ok(text().includes('echo') && text().includes('Add numbers'))
+  await act(async () => { button('Check').click() })
+  await settle()
+  assert.ok(text().includes('mcp-servers/everything 1.0.0 answered in 120 ms, tools: 2'))
+  const switches = [...document.querySelectorAll('[role=switch]')] as HTMLButtonElement[]
+  assert.equal(switches.length, 2)
+  await act(async () => { switches[0]!.click() })
+  await settle()
+  assert.deepEqual(calls.filter(([op]) => op.startsWith('mcp-')), [
+    ['mcp-probe', { name: 'everything' }],
+    ['mcp-set', { workspacePath: '/work/repo', name: 'everything', enabled: false }],
+  ])
   await act(async () => { root.unmount() })
 })

@@ -36,11 +36,12 @@ export function SkillStateControl({ t, value, fileManual, disabled, onChange }: 
   )
 }
 
-/** Rule switch with the Switch primitive's markup (`role="switch"`, `aria-checked`). */
-export function Switch({ t, checked, disabled, onChange }: {
+/** Switch with the Switch primitive's markup (`role="switch"`, `aria-checked`); `label` names it, the rule wording by default. */
+export function Switch({ t, checked, disabled, label, onChange }: {
   t: T
   checked: boolean
   disabled: boolean
+  label?: string
   onChange(checked: boolean): void
 }): ReactNode {
   return (
@@ -49,7 +50,8 @@ export function Switch({ t, checked, disabled, onChange }: {
       role="switch"
       className={css.switch}
       aria-checked={checked}
-      aria-label={checked ? t('ruleOn') : t('ruleOff')}
+      aria-label={label ?? (checked ? t('ruleOn') : t('ruleOff'))}
+      title={label}
       disabled={disabled}
       onClick={() => { onChange(!checked) }}
     />

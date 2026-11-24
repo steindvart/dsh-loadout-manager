@@ -1,10 +1,11 @@
 /** Tabs, rows, and grouped sections of the Loadout page. */
 
 import { useCallback, useState, type KeyboardEvent, type ReactNode } from 'react'
-import type { InstructionView, Level, LevelView, Responses, RuleView, SkillView } from '../shared/api.ts'
+import type { InstructionView, Level, LevelView, McpServerView, Responses, RuleView, SkillView } from '../shared/api.ts'
 import { call, messageOf } from './api.ts'
 import { SkillStateControl, Switch, TrashIcon, type T } from './controls.tsx'
 import css from './Loadout.module.css'
+import { McpRow } from './mcp.tsx'
 
 /** Where the page points: the level and the request fields that select it. */
 export interface Scope {
@@ -12,15 +13,24 @@ export interface Scope {
   workspacePath?: string
 }
 
-export type Section =
-  | { kind: 'skill', title?: string, items: SkillView[], empty: string }
-  | { kind: 'rule', title?: string, items: RuleView[], empty: string }
-  | { kind: 'instruction', title?: string, items: InstructionView[], empty: string }
+interface SectionText {
+  title?: string
+  /** What the switches of this section do, shown above the list. */
+  note?: string
+  empty: string
+}
+
+export type Section = SectionText & (
+  | { kind: 'skill', items: SkillView[] }
+  | { kind: 'rule', items: RuleView[] }
+  | { kind: 'instruction', items: InstructionView[] }
+  | { kind: 'mcp', items: McpServerView[] }
+)
 
 export interface Kind {
   id: string
-  label: 'skills' | 'instructionsTab'
-  sections(t: T, group: LevelView, context: { level: Level, rulesHint: string }): Section[]
+  label: 'skills' | 'instructionsTab' | 'mcpTab'
+  sections(t: T, group: LevelView, context: { level: Level, rulesHint: string, loadoutPath: string }): Section[]
 }
 
 /**
@@ -43,10 +53,20 @@ export const KINDS: readonly Kind[] = [
       { kind: 'rule', title: t('rules'), items: group.rules, empty: t('noRules', { path: rulesHint }) },
     ],
   },
+  {
+    id: 'mcp',
+    label: 'mcpTab',
+    sections: (t, group, { level, loadoutPath }) => [{
+      kind: 'mcp',
+      items: group.mcp ?? [],
+      note: level === 'global' ? t('mcpNoteGlobal') : t('mcpNoteProject', { path: loadoutPath }),
+      empty: group.mcp === undefined ? t('mcpUnavailable') : t('noMcp'),
+    }],
+  },
 ]
 
 export function countOf(kind: Kind, group: LevelView): number {
-  return kind.sections(key => key, group, { level: 'global', rulesHint: '' })
+  return kind.sections(key => key, group, { level: 'global', rulesHint: '', loadoutPath: '' })
     .reduce((sum, section) => sum + section.items.length, 0)
 }
 
@@ -101,6 +121,8 @@ type Item =
   | { kind: 'skill', item: SkillView }
   | { kind: 'rule', item: RuleView }
   | { kind: 'instruction', item: InstructionView }
+
+type Entry = Item | { kind: 'mcp', item: McpServerView }
 
 function Row({ t, scope, locked, reload, entry }: RowProps & { entry: Item }): ReactNode {
   const [busy, setBusy] = useState(false)
@@ -243,9 +265,10 @@ function versionTag(version: string): string {
   return /^\d/.test(version) ? `v${version}` : version
 }
 
-/** Group heading: a skill or rule source, or the folder an instruction file sits in. */
-function groupTitle(t: T, entry: Item): string {
+/** Group heading: a skill or rule source, the folder an instruction file sits in, or who owns an MCP server. */
+function groupTitle(t: T, entry: Entry): string {
   switch (entry.kind) {
+    case 'mcp': return t(`mcpSource.${entry.item.source}`)
     case 'skill': return t(`source.${entry.item.source}`)
     case 'rule': return t(`source.${entry.item.source}`)
     case 'instruction': {
@@ -256,12 +279,17 @@ function groupTitle(t: T, entry: Item): string {
   }
 }
 
-function groupKey(entry: Item): string {
+function groupKey(entry: Entry): string {
   return entry.kind === 'instruction' ? entry.item.location : entry.item.source
 }
 
-function entriesOf(section: Section): Item[] {
+function entryKey(entry: Entry): string {
+  return entry.kind === 'mcp' ? `mcp:${entry.item.name}` : entry.item.file
+}
+
+function entriesOf(section: Section): Entry[] {
   switch (section.kind) {
+    case 'mcp': return section.items.map(item => ({ kind: 'mcp', item }))
     case 'skill': return section.items.map(item => ({ kind: 'skill', item }))
     case 'rule': return section.items.map(item => ({ kind: 'rule', item }))
     case 'instruction': return section.items.map(item => ({ kind: 'instruction', item }))
@@ -269,7 +297,7 @@ function entriesOf(section: Section): Item[] {
 }
 
 function Groups({ section, ...rowProps }: RowProps & { section: Section }): ReactNode {
-  const groups = new Map<string, Item[]>()
+  const groups = new Map<string, Entry[]>()
   for (const entry of entriesOf(section)) {
     const key = groupKey(entry)
     groups.set(key, [...groups.get(key) ?? [], entry])
@@ -281,7 +309,9 @@ function Groups({ section, ...rowProps }: RowProps & { section: Section }): Reac
         <span className={css.groupCount}>{entries.length}</span>
       </div>
       <div className={css.list}>
-        {entries.map(entry => <Row key={entry.item.file} entry={entry} {...rowProps} />)}
+        {entries.map(entry => entry.kind === 'mcp'
+          ? <McpRow key={entryKey(entry)} server={entry.item} {...rowProps} />
+          : <Row key={entryKey(entry)} entry={entry} {...rowProps} />)}
       </div>
     </section>
   ))
@@ -294,9 +324,12 @@ function Groups({ section, ...rowProps }: RowProps & { section: Section }): Reac
  */
 export function Sections({ sections, ...rowProps }: RowProps & { sections: Section[] }): ReactNode {
   return sections.map((section) => {
-    const body = section.items.length === 0
+    const list = section.items.length === 0
       ? <div className={css.empty}>{section.empty}</div>
       : <Groups section={section} {...rowProps} />
+    const body = section.note === undefined
+      ? list
+      : <>{section.items.length > 0 ? <p className={css.note}>{section.note}</p> : null}{list}</>
     if (section.title === undefined) return <div key={section.kind} className={css.tabpanel}>{body}</div>
     return (
       <section key={section.kind} className={css.part}>

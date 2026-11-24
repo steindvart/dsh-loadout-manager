@@ -16,7 +16,8 @@ const DESCRIPTION = [
   'List or switch the skills and rules the agent carries (the Loadout plugin).',
   'Skill states: "on" (in the model catalog and /name), "manual" (hidden from the model, still /name), "off" (hidden everywhere).',
   'Rules are .md files from ~/.dsh/rules, ~/.agents/rules, and <project>/.agents/rules; enabled rules are added to context next to AGENTS.md.',
-  'action "list" returns global and current-workspace items. action "set" with kind "skill" takes name and state; with kind "rule" takes name (the rule id, such as "agents/commit-style") and enabled.',
+  'MCP servers: kind "mcp" with name and enabled hides or shows that server\'s tools in the current workspace (the project loadout.json); starting and stopping servers stays with the user.',
+  'action "list" returns global and current-workspace items, MCP servers included. action "set" with kind "skill" takes name and state; with kind "rule" takes name (the rule id, such as "agents/commit-style") and enabled.',
   'Changes are written to loadout.json of the item\'s level and apply from the next step. Only change the loadout when the user asks for it.',
 ].join(' ')
 
@@ -38,10 +39,10 @@ export function loadoutTool(ctx: Context, operations: Operations): ToolDefinitio
       required: ['action'],
       properties: {
         action: { type: 'string', enum: ['list', 'set'], description: 'list, or set one item' },
-        kind: { type: 'string', enum: ['skill', 'rule'], description: 'Item kind for action "set".' },
-        name: { type: 'string', description: 'Skill name, or rule id such as "agents/commit-style", for action "set".' },
+        kind: { type: 'string', enum: ['skill', 'rule', 'mcp'], description: 'Item kind for action "set".' },
+        name: { type: 'string', description: 'Skill name, rule id such as "agents/commit-style", or MCP server name, for action "set".' },
         state: { type: 'string', enum: ['on', 'manual', 'off'], description: 'New skill state.' },
-        enabled: { type: 'boolean', description: 'New rule switch.' },
+        enabled: { type: 'boolean', description: 'New rule or MCP switch.' },
       },
     },
     output: {
@@ -65,7 +66,12 @@ export function loadoutTool(ctx: Context, operations: Operations): ToolDefinitio
         if (typeof args.enabled !== 'boolean') throw new Error('enabled is required for a rule')
         return operations.setRule({ cwd, id: args.name, enabled: args.enabled })
       }
-      throw new Error('kind must be "skill" or "rule" for action "set"')
+      if (args.kind === 'mcp') {
+        if (typeof args.enabled !== 'boolean') throw new Error('enabled is required for an MCP server')
+        if (cwd === undefined) throw new Error('MCP servers are hidden per workspace, and this agent has no working directory')
+        return operations.setMcp({ cwd, name: args.name, enabled: args.enabled })
+      }
+      throw new Error('kind must be "skill", "rule", or "mcp" for action "set"')
     },
   }
 }
@@ -83,6 +89,17 @@ function compactLevel(level: LevelView) {
     })),
     rules: level.rules.map(rule => ({ id: rule.id, enabled: rule.enabled })),
     instructions: level.instructions.map(item => item.file),
+    ...level.mcp !== undefined
+      ? {
+        mcp: level.mcp.map(server => ({
+          name: server.name,
+          state: server.status.state,
+          enabled: server.enabled,
+          ...server.hidden === true ? { hiddenInWorkspace: true } : {},
+          tools: server.tools.map(tool => tool.name),
+        })),
+      }
+      : {},
   }
 }
 
