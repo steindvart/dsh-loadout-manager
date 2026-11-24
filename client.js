@@ -27,6 +27,11 @@ window.__ModuleLoader__.load({
         rules: 'Rules',
         noSkills: 'No skills here.',
         noRules: 'No rule files. Put .md files into {path}.',
+        instructions: 'Instructions',
+        instructionsNote: 'DSH adds these files to the context of every session in this scope. They are shown here read-only.',
+        noGlobalInstructions: 'No AGENTS.md in ~/.dsh or ~/.agents.',
+        noProjectInstructions: 'No AGENTS.md, CLAUDE.md, or their .local.md variants from the project root down to this workspace.',
+        projectRoot: 'Project root',
         'state.on': 'On',
         'state.manual': 'Manual',
         'state.off': 'Off',
@@ -56,6 +61,8 @@ window.__ModuleLoader__.load({
         'source.dsh': '~/.dsh/rules',
         'source.agents': '~/.agents/rules',
         'source.project': '.agents/rules',
+        'location.dsh': '~/.dsh',
+        'location.agents': '~/.agents',
       },
       ru: {
         nav: 'Loadout',
@@ -71,6 +78,11 @@ window.__ModuleLoader__.load({
         rules: 'Правила',
         noSkills: 'Скиллов нет.',
         noRules: 'Файлов правил нет. Положите .md-файлы в {path}.',
+        instructions: 'Инструкции',
+        instructionsNote: 'DSH добавляет эти файлы в контекст каждой сессии этой области. Здесь они только для просмотра.',
+        noGlobalInstructions: 'В ~/.dsh и ~/.agents нет AGENTS.md.',
+        noProjectInstructions: 'От корня проекта до этого workspace нет AGENTS.md, CLAUDE.md и их вариантов .local.md.',
+        projectRoot: 'Корень проекта',
         'state.on': 'Вкл',
         'state.manual': 'Вручную',
         'state.off': 'Выкл',
@@ -100,6 +112,8 @@ window.__ModuleLoader__.load({
         'source.dsh': '~/.dsh/rules',
         'source.agents': '~/.agents/rules',
         'source.project': '.agents/rules',
+        'location.dsh': '~/.dsh',
+        'location.agents': '~/.agents',
       },
     }
 
@@ -192,6 +206,7 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
 .dshlo-error { font-size: 13px; line-height: 20px; color: var(--dsw-alias-state-error-primary); overflow-wrap: anywhere; }
 .dshlo-error:has(button) { display: flex; align-items: center; gap: 10px; }
 .dshlo-empty { font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-tertiary); }
+.dshlo-note { margin: 0 0 -12px; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
 .dshlo-preview { margin: 0; max-height: 260px; overflow: auto; padding: 10px 12px; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-3); font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
 `
 
@@ -290,7 +305,7 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
         }
       }
 
-      const control = kind === 'skill'
+      const control = kind === 'instruction' ? null : kind === 'skill'
         ? h(Segmented, {
           t,
           value: item.state,
@@ -308,7 +323,7 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
       const deletePath = kind === 'skill' ? item.entry : item.file
       return h('div', {
         className: 'dshlo-row',
-        'data-state': kind === 'skill' ? item.state : (item.enabled ? 'on' : 'off'),
+        'data-state': kind === 'skill' ? item.state : kind === 'rule' && !item.enabled ? 'off' : 'on',
         'data-overridden': item.overriddenBy !== undefined,
       },
       h('div', { className: 'dshlo-rowLine' },
@@ -321,7 +336,7 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
           item.overriddenBy !== undefined ? h('div', { className: 'dshlo-mono' }, t('overridden', { path: item.overriddenBy })) : null),
         h('div', { className: 'dshlo-controls' },
           h('button', { type: 'button', className: 'dshlo-btn', 'aria-expanded': preview !== undefined, onClick: onOpen }, preview === undefined ? t('open') : t('hide')),
-          item.readOnly ? null : h('button', {
+          item.readOnly || kind === 'instruction' ? null : h('button', {
             type: 'button',
             className: 'dshlo-btn',
             'data-tone': 'danger',
@@ -351,11 +366,18 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
         : null)
     }
 
+    /** Group heading: a skill or rule source, or the folder an instruction file sits in. */
+    function groupTitle(t, kind, key) {
+      if (kind !== 'instruction') return t(`source.${key}`)
+      if (key === 'dsh' || key === 'agents') return t(`location.${key}`)
+      return key === '.' ? t('projectRoot') : key
+    }
+
     function Items({ t, kind, items, scope, locked, reload, emptyText }) {
       if (items.length === 0) return h('div', { className: 'dshlo-empty' }, emptyText)
-      return groupBy(items, 'source').map(([source, group]) => h('section', { key: source, className: 'dshlo-sub' },
+      return groupBy(items, kind === 'instruction' ? 'location' : 'source').map(([source, group]) => h('section', { key: source, className: 'dshlo-sub' },
         h('div', { className: 'dshlo-sourceHead' },
-          h('h2', { className: 'dshlo-source' }, t(`source.${source}`)),
+          h('h2', { className: 'dshlo-source' }, groupTitle(t, kind, source)),
           h('span', { className: 'dshlo-sourceCount' }, group.length)),
         h('div', { className: 'dshlo-list' }, group.map(item => h(Row, { key: item.file, t, item, kind, scope, locked, reload })))))
     }
@@ -364,6 +386,7 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
     const KINDS = [
       { id: 'skills', kind: 'skill', label: 'skills', empty: (t) => t('noSkills') },
       { id: 'rules', kind: 'rule', label: 'rules', empty: (t, hint) => t('noRules', { path: hint }) },
+      { id: 'instructions', kind: 'instruction', label: 'instructions', note: 'instructionsNote', empty: (t, _hint, level) => t(level === 'global' ? 'noGlobalInstructions' : 'noProjectInstructions') },
     ]
 
     function Tabs({ t, value, counts, onChange }) {
@@ -465,7 +488,7 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
                 h('svg', { className: 'dshlo-chevron', width: 12, height: 12, viewBox: '0 0 12 12', fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
                   h('path', { d: 'M3 4.5 6 7.5l3-3' })))),
             h('div', { className: 'dshlo-headTabs' },
-              h(Tabs, { t, value: tab, counts: group === undefined ? {} : { skills: group.skills.length, rules: group.rules.length }, onChange: pickTab })))),
+              h(Tabs, { t, value: tab, counts: group === undefined ? {} : Object.fromEntries(KINDS.map(item => [item.id, (group[item.id] ?? []).length])), onChange: pickTab })))),
         h('div', { className: 'dshlo' },
           h('div', { className: 'dshlo-tabpanel', role: 'tabpanel', id: 'dshlo-tabpanel', 'aria-labelledby': `dshlo-tab-${tab}` },
             error !== undefined
@@ -474,7 +497,9 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
             group === undefined && error === undefined ? h('div', { className: 'dshlo-empty', role: 'status' }, t('loading')) : null,
             locked ? h('div', { className: 'dshlo-error', role: 'alert' }, t('malformed', { path: group.loadoutPath, error: group.error })) : null,
             group !== undefined
-              ? h(Items, { key: `${scopeValue}:${tab}`, t, kind: kind.kind, items: group[kind.id], scope, locked, reload, emptyText: kind.empty(t, rulesHint) })
+              ? h(React.Fragment, null,
+                kind.note !== undefined && group[kind.id].length > 0 ? h('p', { className: 'dshlo-note' }, t(kind.note)) : null,
+                h(Items, { key: `${scopeValue}:${tab}`, t, kind: kind.kind, items: group[kind.id] ?? [], scope, locked, reload, emptyText: kind.empty(t, rulesHint, scope.level) }))
               : null)))
     }
 
