@@ -24,13 +24,11 @@ window.__ModuleLoader__.load({
         savedToLabel: 'Saved to',
         noWorkspaces: 'No workspaces yet. Add one in the sidebar to manage its skills and rules.',
         skills: 'Skills',
-        rules: 'Rules',
         noSkills: 'No skills here.',
-        noRules: 'No rule files. Put .md files into {path}.',
-        instructions: 'Instructions',
-        instructionsNote: 'DSH adds these files to the context of every session in this scope. They are shown here read-only.',
-        noGlobalInstructions: 'No AGENTS.md in ~/.dsh or ~/.agents.',
-        noProjectInstructions: 'No AGENTS.md, CLAUDE.md, or their .local.md variants from the project root down to this workspace.',
+        noRules: 'No AGENTS.md or rule files. Put rules as .md files into {path}.',
+        rulesTab: 'Instructions and rules',
+        alwaysLoaded: 'Always loaded',
+        alwaysLoadedHint: 'DSH adds this file to the context of every session in this scope. Loadout does not switch it.',
         projectRoot: 'Project root',
         'state.on': 'On',
         'state.manual': 'Manual',
@@ -75,13 +73,11 @@ window.__ModuleLoader__.load({
         savedToLabel: 'Сохраняется в',
         noWorkspaces: 'Workspace пока нет. Добавьте его в боковой панели, чтобы управлять его скиллами и правилами.',
         skills: 'Скиллы',
-        rules: 'Правила',
         noSkills: 'Скиллов нет.',
-        noRules: 'Файлов правил нет. Положите .md-файлы в {path}.',
-        instructions: 'Инструкции',
-        instructionsNote: 'DSH добавляет эти файлы в контекст каждой сессии этой области. Здесь они только для просмотра.',
-        noGlobalInstructions: 'В ~/.dsh и ~/.agents нет AGENTS.md.',
-        noProjectInstructions: 'От корня проекта до этого workspace нет AGENTS.md, CLAUDE.md и их вариантов .local.md.',
+        noRules: 'Нет ни AGENTS.md, ни правил. Правила – это .md-файлы в {path}.',
+        rulesTab: 'Инструкции и правила',
+        alwaysLoaded: 'Всегда загружается',
+        alwaysLoadedHint: 'DSH добавляет этот файл в контекст каждой сессии этой области. Loadout его не переключает.',
         projectRoot: 'Корень проекта',
         'state.on': 'Вкл',
         'state.manual': 'Вручную',
@@ -206,7 +202,7 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
 .dshlo-error { font-size: 13px; line-height: 20px; color: var(--dsw-alias-state-error-primary); overflow-wrap: anywhere; }
 .dshlo-error:has(button) { display: flex; align-items: center; gap: 10px; }
 .dshlo-empty { font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-tertiary); }
-.dshlo-note { margin: 0 0 -12px; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
+.dshlo-fixed { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; white-space: nowrap; cursor: default; }
 .dshlo-preview { margin: 0; max-height: 260px; overflow: auto; padding: 10px 12px; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-3); font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
 `
 
@@ -305,7 +301,9 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
         }
       }
 
-      const control = kind === 'instruction' ? null : kind === 'skill'
+      const control = kind === 'instruction'
+        ? h('span', { className: 'dshlo-fixed', title: t('alwaysLoadedHint') }, t('alwaysLoaded'))
+        : kind === 'skill'
         ? h(Segmented, {
           t,
           value: item.state,
@@ -373,21 +371,26 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
       return key === '.' ? t('projectRoot') : key
     }
 
-    function Items({ t, kind, items, scope, locked, reload, emptyText }) {
-      if (items.length === 0) return h('div', { className: 'dshlo-empty' }, emptyText)
-      return groupBy(items, kind === 'instruction' ? 'location' : 'source').map(([source, group]) => h('section', { key: source, className: 'dshlo-sub' },
+    /** Sections render in order; each groups its items by source (or folder, for instruction files). */
+    function Items({ t, sections, scope, locked, reload, emptyText }) {
+      if (sections.every(section => section.items.length === 0)) return h('div', { className: 'dshlo-empty' }, emptyText)
+      return sections.flatMap(({ kind, items }) => groupBy(items, kind === 'instruction' ? 'location' : 'source').map(([source, group]) => h('section', { key: `${kind}:${source}`, className: 'dshlo-sub' },
         h('div', { className: 'dshlo-sourceHead' },
           h('h2', { className: 'dshlo-source' }, groupTitle(t, kind, source)),
           h('span', { className: 'dshlo-sourceCount' }, group.length)),
-        h('div', { className: 'dshlo-list' }, group.map(item => h(Row, { key: item.file, t, item, kind, scope, locked, reload })))))
+        h('div', { className: 'dshlo-list' }, group.map(item => h(Row, { key: item.file, t, item, kind, scope, locked, reload }))))))
     }
 
-    /** Item kinds shown as tabs; a new kind is one more entry here and one more list in the Host state. */
+    /**
+     * Tabs. Each lists sections built from the Host state; the rules tab shows
+     * AGENTS.md files before rules, the order they take in the agent's context.
+     * A new kind is one more entry here and one more list in the Host state.
+     */
     const KINDS = [
-      { id: 'skills', kind: 'skill', label: 'skills', empty: (t) => t('noSkills') },
-      { id: 'rules', kind: 'rule', label: 'rules', empty: (t, hint) => t('noRules', { path: hint }) },
-      { id: 'instructions', kind: 'instruction', label: 'instructions', note: 'instructionsNote', empty: (t, _hint, level) => t(level === 'global' ? 'noGlobalInstructions' : 'noProjectInstructions') },
+      { id: 'skills', label: 'skills', sections: group => [{ kind: 'skill', items: group.skills ?? [] }], empty: (t) => t('noSkills') },
+      { id: 'rules', label: 'rulesTab', sections: group => [{ kind: 'instruction', items: group.instructions ?? [] }, { kind: 'rule', items: group.rules ?? [] }], empty: (t, hint) => t('noRules', { path: hint }) },
     ]
+    const countOf = (kind, group) => kind.sections(group).reduce((sum, section) => sum + section.items.length, 0)
 
     function Tabs({ t, value, counts, onChange }) {
       const index = Math.max(0, KINDS.findIndex(kind => kind.id === value))
@@ -488,7 +491,7 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
                 h('svg', { className: 'dshlo-chevron', width: 12, height: 12, viewBox: '0 0 12 12', fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
                   h('path', { d: 'M3 4.5 6 7.5l3-3' })))),
             h('div', { className: 'dshlo-headTabs' },
-              h(Tabs, { t, value: tab, counts: group === undefined ? {} : Object.fromEntries(KINDS.map(item => [item.id, (group[item.id] ?? []).length])), onChange: pickTab })))),
+              h(Tabs, { t, value: tab, counts: group === undefined ? {} : Object.fromEntries(KINDS.map(item => [item.id, countOf(item, group)])), onChange: pickTab })))),
         h('div', { className: 'dshlo' },
           h('div', { className: 'dshlo-tabpanel', role: 'tabpanel', id: 'dshlo-tabpanel', 'aria-labelledby': `dshlo-tab-${tab}` },
             error !== undefined
@@ -497,9 +500,7 @@ html[data-platform='darwin'] .dshlo-head { padding-top: calc(28px + var(--dsh-fr
             group === undefined && error === undefined ? h('div', { className: 'dshlo-empty', role: 'status' }, t('loading')) : null,
             locked ? h('div', { className: 'dshlo-error', role: 'alert' }, t('malformed', { path: group.loadoutPath, error: group.error })) : null,
             group !== undefined
-              ? h(React.Fragment, null,
-                kind.note !== undefined && group[kind.id].length > 0 ? h('p', { className: 'dshlo-note' }, t(kind.note)) : null,
-                h(Items, { key: `${scopeValue}:${tab}`, t, kind: kind.kind, items: group[kind.id] ?? [], scope, locked, reload, emptyText: kind.empty(t, rulesHint, scope.level) }))
+              ? h(Items, { key: `${scopeValue}:${tab}`, t, sections: kind.sections(group), scope, locked, reload, emptyText: kind.empty(t, rulesHint) })
               : null)))
     }
 
