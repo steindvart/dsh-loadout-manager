@@ -36,6 +36,8 @@ export interface SkillItem {
   name: string
   description: string
   whenToUse?: string
+  /** `metadata.version` (Agent Skills format), else a top-level `version`. */
+  version?: string
   level: Level
   source: SkillSource
   rank: number
@@ -356,10 +358,12 @@ async function scanSkillRoot(root: SkillRoot, loadout: Loadout): Promise<SkillIt
       userInvocable: fileInvocation.userInvocable && requested.userInvocable,
     }
     const hint = nonEmptyString(whenToUse)
+    const version = versionOf(parsed.data)
     skills.push({
       name,
       description,
       ...hint !== undefined ? { whenToUse: hint } : {},
+      ...version !== undefined ? { version } : {},
       level: root.level,
       source: root.source,
       rank: root.rank,
@@ -373,6 +377,18 @@ async function scanSkillRoot(root: SkillRoot, loadout: Loadout): Promise<SkillIt
     })
   }
   return skills
+}
+
+/** `metadata.version` first, as the Agent Skills format places it; a number such as `1.2` reads as `"1.2"`. */
+function versionOf(data: Record<string, FrontmatterValue>): string | undefined {
+  const metadata = data.metadata
+  const nested = typeof metadata === 'object' && metadata !== null ? metadata.version : undefined
+  for (const value of [nested, data.version]) {
+    if (typeof value === 'number') return String(value)
+    const text = nonEmptyString(value)
+    if (text !== undefined) return text
+  }
+  return undefined
 }
 
 function nonEmptyString(value: FrontmatterValue | undefined): string | undefined {

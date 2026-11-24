@@ -1,10 +1,13 @@
 /**
  * YAML frontmatter of skill and rule files. Supports the subset skill authors
- * use: top-level `key: value` pairs with plain, quoted, and block scalars.
- * Nested mappings and lists are skipped (their key reads as `null`).
+ * use: `key: value` pairs with plain, quoted, and block scalars, and one
+ * level of nested mapping (`metadata: { version: ... }` in the Agent Skills
+ * format). Lists and deeper mappings are skipped (their key reads as `null`).
  */
 
-export type FrontmatterValue = string | boolean | number | null
+export type FrontmatterScalar = string | boolean | number | null
+export type FrontmatterMapping = Readonly<Record<string, FrontmatterScalar>>
+export type FrontmatterValue = FrontmatterScalar | FrontmatterMapping
 
 export interface Frontmatter {
   data: Record<string, FrontmatterValue>
@@ -21,8 +24,12 @@ export function parseFrontmatter(raw: string): Frontmatter | undefined {
   if (stripCr(lines[0] ?? '') !== '---') return undefined
   const closing = lines.findIndex((line, index) => index > 0 && stripCr(line) === '---')
   if (closing < 0) return undefined
+  return { data: parseMapping(lines.slice(1, closing).map(stripCr), 0), body: lines.slice(closing + 1).join('\n') }
+}
+
+/** `key: value` lines at column zero; indented and blank lines continue the previous key. */
+function parseMapping(yaml: string[], depth: number): Record<string, FrontmatterValue> {
   const data: Record<string, FrontmatterValue> = {}
-  const yaml = lines.slice(1, closing).map(stripCr)
   let index = 0
   while (index < yaml.length) {
     const match = /^([A-Za-z0-9_-]+):(?:\s+(.*))?$/.exec(yaml[index] ?? '')
@@ -34,15 +41,20 @@ export function parseFrontmatter(raw: string): Frontmatter | undefined {
       continuation.push(line)
       index += 1
     }
-    data[match[1]] = parseValue(head, continuation)
+    data[match[1]] = parseValue(head, continuation, depth)
   }
-  return { data, body: lines.slice(closing + 1).join('\n') }
+  return data
 }
 
-function parseValue(head: string, continuation: string[]): FrontmatterValue {
+function parseValue(head: string, continuation: string[], depth: number): FrontmatterValue {
   const block = /^([|>])([+-]?)\s*(?:#.*)?$/.exec(head)
   if (block) return parseBlockScalar(block[1] === '|' ? '|' : '>', block[2] ?? '', continuation)
-  if (head === '' && continuation.some(line => line.trim() !== '')) return null
+  const nested = continuation.filter(line => line.trim() !== '')
+  if (head === '' && nested.length > 0) {
+    if (depth > 0 || nested[0]?.trim().startsWith('-')) return null
+    const indent = Math.min(...nested.map(line => /^\s*/.exec(line)?.[0].length ?? 0))
+    return parseMapping(continuation.map(line => line.slice(indent)), depth + 1) as FrontmatterMapping
+  }
   const more = continuation.map(line => line.trim()).filter(Boolean)
   if (more.length > 0 && !head.startsWith('"') && !head.startsWith("'")) {
     return parseScalar([head, ...more].join(' '))

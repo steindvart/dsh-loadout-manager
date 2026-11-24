@@ -14,6 +14,8 @@ export type RuleSource = 'dsh' | 'agents' | 'project'
 export interface SkillView {
   name: string
   description: string
+  /** From the skill's frontmatter (`metadata.version`, else `version`), when it has one. */
+  version?: string
   source: SkillSource
   state: SkillState
   /** The skill file sets `disable-model-invocation`, so it cannot be `on`. */

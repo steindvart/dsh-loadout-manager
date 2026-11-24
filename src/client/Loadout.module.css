@@ -147,6 +147,7 @@ html[data-platform='darwin'] .head { padding-top: calc(28px + var(--dsh-frame-to
 .row[data-state='off'] .name, .row[data-overridden='true'] .name { color: var(--dsw-alias-label-secondary); }
 .desc { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .mono { font-family: var(--ds-font-family-code); font-size: 11.5px; line-height: 16px; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
+.version { font-family: var(--ds-font-family-code); font-size: 11.5px; line-height: 16px; font-weight: 400; color: var(--dsw-alias-label-tertiary); }
 .badge { font-size: 11px; line-height: 16px; font-weight: 400; padding: 0 6px; border-radius: var(--dsw-radius-xs); background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-secondary); }
 .controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 

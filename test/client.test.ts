@@ -54,7 +54,7 @@ function fakeHost(window: Window, state: (body: Requests['state']) => StateView)
 
 const level = (root: string) => ({
   loadoutPath: `${root}/loadout.json`,
-  skills: [{ name: 'tdd', description: 'Test first', source: 'user-agents' as const, state: 'manual' as const, fileManual: false, readOnly: false, file: `${root}/skills/tdd/SKILL.md`, entry: `${root}/skills/tdd` }],
+  skills: [{ name: 'tdd', description: 'Test first', version: '3.0.0', source: 'user-agents' as const, state: 'manual' as const, fileManual: false, readOnly: false, file: `${root}/skills/tdd/SKILL.md`, entry: `${root}/skills/tdd` }],
   rules: [{ id: 'agents/style', name: 'style', source: 'agents' as const, enabled: true, file: `${root}/rules/style.md` }],
   instructions: [{ name: 'AGENTS.md', location: 'agents', file: `${root}/AGENTS.md` }],
 })
@@ -116,6 +116,8 @@ test('the page switches tabs and scope and asks the Host for the chosen workspac
   await settle()
   assert.deepEqual(tabs(), ['Skills1*', 'Instructions2'])
   assert.deepEqual(names(), ['~/.agents/skills'])
+  const version = document.querySelector('[title="Version 3.0.0"]')
+  assert.equal(version?.textContent, 'v3.0.0', 'the skill row shows its frontmatter version')
 
   await act(async () => { (document.getElementById('dshlo-tab-rules') as HTMLButtonElement).click() })
   assert.deepEqual(tabs(), ['Skills1', 'Instructions2*'])

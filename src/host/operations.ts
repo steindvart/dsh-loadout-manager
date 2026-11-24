@@ -149,6 +149,7 @@ function skillView(item: SkillItem): SkillView {
   return {
     name: item.name,
     description: item.description,
+    ...item.version !== undefined ? { version: item.version } : {},
     source: item.source,
     state: item.state,
     fileManual: item.fileManual,

@@ -67,9 +67,14 @@ test('joins a multi-line plain scalar with spaces', () => {
   assert.equal(parsed?.data.description, 'first line continues here')
 })
 
-test('skips nested mappings and lists without leaking their keys', () => {
-  const parsed = parseFrontmatter('---\nname: x\nmetadata:\n  version: 2\ntags:\n  - a\n  - b\ndescription: d\n---\n')
-  assert.deepEqual(parsed?.data, { name: 'x', metadata: null, tags: null, description: 'd' })
+test('reads a nested mapping of scalars one level deep and skips lists', () => {
+  const parsed = parseFrontmatter('---\nname: x\nmetadata:\n  version: "3.0.0"\n  author: Someone # note\n  count: 2\ntags:\n  - a\n  - b\ndescription: d\n---\n')
+  assert.deepEqual(parsed?.data, { name: 'x', metadata: { version: '3.0.0', author: 'Someone', count: 2 }, tags: null, description: 'd' })
+})
+
+test('a mapping nested deeper than one level keeps its scalars and drops the rest', () => {
+  const parsed = parseFrontmatter('---\nmetadata:\n  version: 1\n  owner:\n    team: core\n---\n')
+  assert.deepEqual(parsed?.data, { metadata: { version: 1, owner: null } })
 })
 
 test('returns undefined without an opening or closing fence and handles CRLF', () => {

@@ -194,6 +194,21 @@ test('without a workspace path the project chain is the project root alone', asy
   assert.deepEqual(inventory.instructions.map(item => item.file), [join(base, 'repo/AGENTS.md')])
 })
 
+test('reads the skill version from metadata.version, else from a top-level version', async (t) => {
+  const base = tree({
+    'agents/skills/spec/SKILL.md': skill('spec', 'd', 'metadata:\n  version: "3.0.0"\n'),
+    'agents/skills/flat/SKILL.md': skill('flat', 'd', 'version: 1.2\n'),
+    'agents/skills/both/SKILL.md': skill('both', 'd', 'version: 9\nmetadata:\n  version: 2.0.0\n'),
+    'agents/skills/none/SKILL.md': skill('none'),
+    'agents/skills/blank/SKILL.md': skill('blank', 'd', 'metadata:\n  version: ""\n'),
+  })
+  t.after(() => rmSync(base, { recursive: true }))
+  const inventory = await scanInventory(homes(base))
+  assert.deepEqual(Object.fromEntries(inventory.skills.map(s => [s.name, s.version])), {
+    blank: undefined, both: '2.0.0', flat: '1.2', none: undefined, spec: '3.0.0',
+  })
+})
+
 function states(inventory: Inventory) {
   return Object.fromEntries(inventory.skills.map(s => [s.name, s.state]))
 }

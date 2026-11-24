@@ -174,6 +174,7 @@ function Row({ t, scope, locked, reload, entry }: RowProps & { entry: Item }): R
         <div className={css.rowMain}>
           <div className={css.name}>
             {item.name}
+            {skill?.version !== undefined ? <span className={css.version} title={t('version', { version: skill.version })}>{versionTag(skill.version)}</span> : null}
             {skill?.readOnly === true ? <span className={css.badge}>{t('builtIn')}</span> : null}
           </div>
           {description ? <div className={css.desc} title={description}>{description}</div> : null}
@@ -235,6 +236,11 @@ function Row({ t, scope, locked, reload, entry }: RowProps & { entry: Item }): R
         : null}
     </div>
   )
+}
+
+/** `3.0.0` → `v3.0.0`; a version that does not start with a digit is shown as written. */
+function versionTag(version: string): string {
+  return /^\d/.test(version) ? `v${version}` : version
 }
 
 /** Group heading: a skill or rule source, or the folder an instruction file sits in. */
