@@ -8,7 +8,9 @@ window.__ModuleLoader__.load({
 
     const NS = 'loadout'
     const PANEL_ID = 'loadout'
-    const WORKSPACE_KEY = 'dsh-loadout.workspace'
+    const SCOPE_KEY = 'dsh-loadout.scope'
+    const TAB_KEY = 'dsh-loadout.tab'
+    const GLOBAL = 'global' // workspace values are absolute paths, so they never equal it
 
     const DICT = {
       en: {
@@ -16,7 +18,9 @@ window.__ModuleLoader__.load({
         title: 'Loadout',
         intro: 'Choose which skills and rules agents carry. Changes apply from the next agent step and are saved to loadout.json.',
         global: 'Global',
-        workspace: 'Workspace',
+        globalHint: 'Skills and rules from ~/.dsh, ~/.agents, and built-in skills',
+        scope: 'Scope',
+        tabs: 'Item kinds',
         savedTo: 'Saved to {path}',
         noWorkspaces: 'No workspaces yet. Add one in the sidebar to manage its skills and rules.',
         skills: 'Skills',
@@ -58,7 +62,9 @@ window.__ModuleLoader__.load({
         title: 'Loadout',
         intro: 'Выберите, какие скиллы и правила берут с собой агенты. Изменения действуют со следующего шага агента и сохраняются в loadout.json.',
         global: 'Глобальные',
-        workspace: 'Workspace',
+        globalHint: 'Скиллы и правила из ~/.dsh, ~/.agents и встроенные скиллы',
+        scope: 'Область',
+        tabs: 'Виды элементов',
         savedTo: 'Сохраняется в {path}',
         noWorkspaces: 'Workspace пока нет. Добавьте его в боковой панели, чтобы управлять его скиллами и правилами.',
         skills: 'Скиллы',
@@ -102,15 +108,10 @@ window.__ModuleLoader__.load({
 @media (max-width: 767px) { .dshlo-page { --dshlo-inset: 20px; } }
 .dshlo-head { flex: none; width: 100%; max-width: 960px; box-sizing: border-box; padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px)); padding-bottom: 8px; display: flex; flex-direction: column; gap: 4px; }
 .dshlo-head h1 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 500; }
-.dshlo { flex: none; width: 100%; max-width: 960px; display: flex; flex-direction: column; gap: 24px; padding-top: 16px; }
+.dshlo { flex: none; width: 100%; max-width: 960px; display: flex; flex-direction: column; gap: 16px; padding-top: 16px; }
 .dshlo-intro { margin: 0; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary)); }
-.dshlo-group { display: flex; flex-direction: column; gap: 10px; border-top: 0.5px solid var(--dsw-alias-border-l2); padding-top: 20px; }
-.dshlo-group:first-of-type { border-top: 0; padding-top: 0; }
-.dshlo-groupHead { display: flex; flex-direction: column; gap: 2px; }
-.dshlo-groupTitle { font-size: 14px; line-height: 22px; font-weight: 500; }
 .dshlo-mono { font-family: var(--ds-font-family-code, ui-monospace, monospace); font-size: 11.5px; line-height: 16px; color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary)); overflow-wrap: anywhere; }
 .dshlo-sub { display: flex; flex-direction: column; }
-.dshlo-subTitle { font-size: 13px; line-height: 20px; font-weight: 500; color: var(--dsw-alias-label-secondary); margin-top: 6px; }
 .dshlo-source { margin-top: 8px; }
 .dshlo-row { padding: 10px 2px; border-bottom: 0.5px solid var(--dsw-alias-border-l2); display: flex; flex-direction: column; gap: 8px; }
 .dshlo-rowLine { display: flex; align-items: flex-start; gap: 12px; }
@@ -139,11 +140,21 @@ window.__ModuleLoader__.load({
   .dshlo-btn[data-tone='danger']:not(:disabled):hover { background: var(--dsw-alias-interactive-bg-hover-danger, var(--dsw-alias-bg-layer-2)); }
   .dshlo-btn[data-tone='primary']:not(:disabled):hover { background: var(--dsw-alias-state-error-primary); opacity: .9; }
 }
-.dshlo-page :is(button, select):focus-visible { outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
+.dshlo-page :is(button:not(.dshlo-tab), select):focus-visible { outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
 .dshlo-confirm { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dsw-alias-label-secondary); }
 .dshlo-error { font-size: 12px; line-height: 18px; color: var(--dsw-alias-state-error-primary); overflow-wrap: anywhere; }
 .dshlo-empty { font-size: 12px; line-height: 18px; padding: 8px 2px; color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary)); }
 .dshlo-preview { margin: 0; max-height: 260px; overflow: auto; padding: 10px; border-radius: var(--dsw-radius-sm, 8px); background: var(--dsw-alias-bg-layer-2); font-family: var(--ds-font-family-code, ui-monospace, monospace); font-size: 12px; line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dshlo-toolbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.dshlo-tabs { --dshlo-tabs-inset: 2px; position: relative; display: grid; align-self: flex-start; min-width: 280px; padding: var(--dshlo-tabs-inset); border-radius: calc(var(--dsw-radius-md, 12px) + var(--dshlo-tabs-inset)); background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2)); }
+.dshlo-tabIndicator { position: absolute; inset: var(--dshlo-tabs-inset) auto var(--dshlo-tabs-inset) var(--dshlo-tabs-inset); box-sizing: border-box; border: 0.5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2)); border-radius: var(--dsw-radius-md, 12px); background: var(--dsw-alias-bg-layer-3, var(--dsw-alias-bg-layer-1)); transition: transform .18s ease; pointer-events: none; }
+.dshlo-tab { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 12px; border: 0; border-radius: var(--dsw-radius-md, 12px); background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 14px; line-height: 20px; cursor: pointer; transition: color .18s ease; }
+.dshlo-tab[aria-selected='true'] { color: var(--dsw-alias-label-primary); font-weight: 500; }
+.dshlo-tab:focus-visible { outline: none; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.dshlo-count { font-size: 12px; font-weight: 400; color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary)); }
+@media (hover: hover) { .dshlo-tab:hover { color: var(--dsw-alias-label-primary); } }
+@media (prefers-reduced-motion: reduce) { .dshlo-tabIndicator, .dshlo-tab { transition: none; } }
+.dshlo-tabpanel { display: flex; flex-direction: column; }
 .dshlo-picker { box-sizing: border-box; height: 36px; max-width: 100%; padding: 0 10px; border-radius: var(--dsw-radius-sm, 8px); border: 0.5px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-1)); color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; }
 `
 
@@ -172,17 +183,17 @@ window.__ModuleLoader__.load({
       return [...groups]
     }
 
-    function readStoredWorkspace() {
+    function readStored(key) {
       try {
-        return window.localStorage.getItem(WORKSPACE_KEY) ?? undefined
+        return window.localStorage.getItem(key) ?? undefined
       } catch {
         return undefined
       }
     }
 
-    function storeWorkspace(path) {
+    function store(key, value) {
       try {
-        window.localStorage.setItem(WORKSPACE_KEY, path)
+        window.localStorage.setItem(key, value)
       } catch {
         // storage unavailable: the choice lasts for this page only
       }
@@ -303,18 +314,35 @@ window.__ModuleLoader__.load({
         group.map(item => h(Row, { key: item.file, t, item, kind, scope, locked, reload }))))
     }
 
-    function Group({ t, title, header, group, scope, reload, rulesHint }) {
-      const locked = group.error !== undefined
-      return h('section', { className: 'dshlo-group' },
-        h('div', { className: 'dshlo-groupHead' },
-          h('div', { className: 'dshlo-groupTitle' }, title),
-          header,
-          h('div', { className: 'dshlo-mono' }, t('savedTo', { path: group.loadoutPath }))),
-        locked ? h('div', { className: 'dshlo-error', role: 'alert' }, t('malformed', { path: group.loadoutPath, error: group.error })) : null,
-        h('div', { className: 'dshlo-subTitle' }, t('skills')),
-        h(Items, { t, kind: 'skill', items: group.skills, scope, locked, reload, emptyText: t('noSkills') }),
-        h('div', { className: 'dshlo-subTitle' }, t('rules')),
-        h(Items, { t, kind: 'rule', items: group.rules, scope, locked, reload, emptyText: t('noRules', { path: rulesHint }) }))
+    /** Item kinds shown as tabs; a new kind is one more entry here and one more list in the Host state. */
+    const KINDS = [
+      { id: 'skills', kind: 'skill', label: 'skills', empty: (t) => t('noSkills') },
+      { id: 'rules', kind: 'rule', label: 'rules', empty: (t, hint) => t('noRules', { path: hint }) },
+    ]
+
+    function Tabs({ t, value, counts, onChange }) {
+      const index = Math.max(0, KINDS.findIndex(kind => kind.id === value))
+      const onKeyDown = (event, at) => {
+        const next = { ArrowLeft: (at + KINDS.length - 1) % KINDS.length, ArrowRight: (at + 1) % KINDS.length, Home: 0, End: KINDS.length - 1 }[event.key]
+        if (next === undefined) return
+        event.preventDefault()
+        event.currentTarget.parentElement?.querySelectorAll('[role="tab"]').item(next).focus()
+        onChange(KINDS[next].id)
+      }
+      return h('div', { className: 'dshlo-tabs', role: 'tablist', 'aria-label': t('tabs'), style: { gridTemplateColumns: `repeat(${KINDS.length}, minmax(0, 1fr))` } },
+        h('span', { className: 'dshlo-tabIndicator', 'aria-hidden': true, style: { width: `calc((100% - 4px) / ${KINDS.length})`, transform: `translateX(${index * 100}%)` } }),
+        KINDS.map((kind, at) => h('button', {
+          key: kind.id,
+          type: 'button',
+          role: 'tab',
+          id: `dshlo-tab-${kind.id}`,
+          className: 'dshlo-tab',
+          'aria-selected': kind.id === value,
+          'aria-controls': 'dshlo-tabpanel',
+          tabIndex: kind.id === value ? 0 : -1,
+          onClick: () => onChange(kind.id),
+          onKeyDown: event => onKeyDown(event, at),
+        }, t(kind.label), counts[kind.id] === undefined ? null : h('span', { className: 'dshlo-count' }, counts[kind.id]))))
     }
 
     const noWorkspaces = () => []
@@ -322,15 +350,18 @@ window.__ModuleLoader__.load({
     function LoadoutPage(props) {
       const { t } = props
       const useWorkspaces = props.useWorkspaces ?? noWorkspaces
-      const items = useWorkspaces(snapshot => snapshot.items) ?? []
-      const [chosen, setChosen] = useState(readStoredWorkspace)
-      const workspacePath = items.some(item => item.path === chosen) ? chosen : items[0]?.path
+      const workspaces = useWorkspaces(snapshot => snapshot.items) ?? []
+      const [chosenScope, setChosenScope] = useState(() => readStored(SCOPE_KEY) ?? GLOBAL)
+      const scopeValue = chosenScope !== GLOBAL && workspaces.some(item => item.path === chosenScope) ? chosenScope : GLOBAL
+      const workspacePath = scopeValue === GLOBAL ? undefined : scopeValue
+      const [chosenTab, setChosenTab] = useState(() => readStored(TAB_KEY) ?? KINDS[0].id)
+      const tab = KINDS.some(kind => kind.id === chosenTab) ? chosenTab : KINDS[0].id
       const [data, setData] = useState(undefined)
       const [error, setError] = useState(undefined)
 
       const reload = useCallback(async () => {
         try {
-          setData(await call('state', workspacePath === undefined ? {} : { workspacePath }))
+          setData({ for: workspacePath, value: await call('state', workspacePath === undefined ? {} : { workspacePath }) })
           setError(undefined)
         } catch (failure) {
           setError(failure.message)
@@ -339,10 +370,21 @@ window.__ModuleLoader__.load({
 
       useEffect(() => { void reload() }, [reload])
 
-      const pick = (path) => {
-        setChosen(path)
-        storeWorkspace(path)
+      const pickScope = (value) => {
+        setChosenScope(value)
+        store(SCOPE_KEY, value)
       }
+      const pickTab = (value) => {
+        setChosenTab(value)
+        store(TAB_KEY, value)
+      }
+
+      const current = data !== undefined && data.for === workspacePath ? data.value : undefined
+      const group = current === undefined ? undefined : workspacePath === undefined ? current.global : current.workspace
+      const scope = workspacePath === undefined ? { level: 'global', body: {} } : { level: 'project', body: { workspacePath } }
+      const rulesHint = workspacePath === undefined ? '~/.agents/rules' : `${group?.projectRoot ?? workspacePath}/.agents/rules`
+      const kind = KINDS.find(item => item.id === tab)
+      const locked = group?.error !== undefined
 
       return h('div', { className: 'dshlo-page' },
         h('style', null, CSS),
@@ -350,33 +392,28 @@ window.__ModuleLoader__.load({
           h('h1', null, t('title')),
           h('p', { className: 'dshlo-intro' }, t('intro'))),
         h('div', { className: 'dshlo' },
-        error !== undefined
-          ? h('div', { className: 'dshlo-error', role: 'alert' }, error, ' ', h('button', { type: 'button', className: 'dshlo-btn', onClick: () => void reload() }, t('retry')))
-          : null,
-        data === undefined && error === undefined ? h('div', { className: 'dshlo-empty' }, t('loading')) : null,
-        data !== undefined
-          ? h(Group, { t, title: t('global'), group: data.global, scope: { level: 'global', body: {} }, reload, rulesHint: '~/.agents/rules' })
-          : null,
-        items.length === 0
-          ? h('section', { className: 'dshlo-group' },
-            h('div', { className: 'dshlo-groupTitle' }, t('workspace')),
-            h('div', { className: 'dshlo-empty' }, t('noWorkspaces')))
-          : data?.workspace !== undefined
-            ? h(Group, {
-              t,
-              title: t('workspace'),
-              header: h('select', {
-                className: 'dshlo-picker',
-                'aria-label': t('workspace'),
-                value: workspacePath,
-                onChange: event => pick(event.target.value),
-              }, items.map(item => h('option', { key: item.workspaceId ?? item.path, value: item.path }, `${item.title} – ${item.path}`))),
-              group: data.workspace,
-              scope: { level: 'project', body: { workspacePath } },
-              reload,
-              rulesHint: `${data.workspace.projectRoot}/.agents/rules`,
-            })
-            : null))
+          h('div', { className: 'dshlo-toolbar' },
+            h('select', {
+              className: 'dshlo-picker',
+              'aria-label': t('scope'),
+              value: scopeValue,
+              onChange: event => pickScope(event.target.value),
+            },
+            h('option', { value: GLOBAL }, t('global')),
+            workspaces.map(item => h('option', { key: item.workspaceId ?? item.path, value: item.path }, `${item.title} – ${item.path}`))),
+            h('div', { className: 'dshlo-mono' }, workspacePath === undefined ? t('globalHint') : (group?.projectRoot ?? workspacePath)),
+            group !== undefined ? h('div', { className: 'dshlo-mono' }, t('savedTo', { path: group.loadoutPath })) : null,
+            workspaces.length === 0 ? h('div', { className: 'dshlo-empty' }, t('noWorkspaces')) : null),
+          h(Tabs, { t, value: tab, counts: group === undefined ? {} : { skills: group.skills.length, rules: group.rules.length }, onChange: pickTab }),
+          h('div', { className: 'dshlo-tabpanel', role: 'tabpanel', id: 'dshlo-tabpanel', 'aria-labelledby': `dshlo-tab-${tab}` },
+            error !== undefined
+              ? h('div', { className: 'dshlo-error', role: 'alert' }, error, ' ', h('button', { type: 'button', className: 'dshlo-btn', onClick: () => void reload() }, t('retry')))
+              : null,
+            group === undefined && error === undefined ? h('div', { className: 'dshlo-empty' }, t('loading')) : null,
+            locked ? h('div', { className: 'dshlo-error', role: 'alert' }, t('malformed', { path: group.loadoutPath, error: group.error })) : null,
+            group !== undefined
+              ? h(Items, { key: `${scopeValue}:${tab}`, t, kind: kind.kind, items: group[kind.id], scope, locked, reload, emptyText: kind.empty(t, rulesHint) })
+              : null)))
     }
 
     function LoadoutIcon({ size = 16 }) {
