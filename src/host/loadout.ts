@@ -1,5 +1,6 @@
 /**
- * `loadout.json`: per-level skill states and rule switches. A missing entry
+ * `loadout.json`: per-level skill states, rule switches, and MCP servers
+ * hidden in a workspace. A missing entry
  * means "on"; writing the default state removes the entry so the file stays
  * minimal. Keys this module does not own are preserved.
  */
@@ -13,7 +14,7 @@ export type SkillState = (typeof SKILL_STATES)[number] & ApiSkillState
 /** Parsed `loadout.json`. Treat as opaque and read it with the accessors below. */
 export type Loadout = Readonly<Record<string, unknown>>
 
-type Section = 'skills' | 'rules'
+type Section = 'skills' | 'rules' | 'mcp'
 
 export function isSkillState(value: unknown): value is SkillState {
   return (SKILL_STATES as readonly unknown[]).includes(value)
@@ -44,6 +45,15 @@ export function ruleEnabled(loadout: Loadout, id: string): boolean {
   return section(loadout, 'rules')[id] !== false
 }
 
+/** An MCP server is used unless its entry is `false`. */
+export function mcpEnabled(loadout: Loadout, server: string): boolean {
+  return section(loadout, 'mcp')[server] !== false
+}
+
+export function withMcpEnabled(loadout: Loadout, server: string, enabled: boolean): Loadout {
+  return withEntry(loadout, 'mcp', server, enabled ? undefined : false)
+}
+
 export function withSkillState(loadout: Loadout, name: string, state: string): Loadout {
   if (!isSkillState(state)) throw new Error(`unknown skill state "${state}"`)
   return withEntry(loadout, 'skills', name, state === 'on' ? undefined : state)
@@ -56,7 +66,7 @@ export function withRuleEnabled(loadout: Loadout, id: string, enabled: boolean):
 /** Pretty JSON with a trailing newline; empty sections are dropped. */
 export function serializeLoadout(loadout: Loadout): string {
   const out: Record<string, unknown> = { ...loadout }
-  for (const key of ['skills', 'rules'] as const) {
+  for (const key of ['skills', 'rules', 'mcp'] as const) {
     const value = out[key]
     if (isRecord(value) && Object.keys(value).length === 0) delete out[key]
   }

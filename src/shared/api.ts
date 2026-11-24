@@ -48,6 +48,44 @@ export interface InstructionView {
   file: string
 }
 
+/** Runtime status of one MCP server, reduced to what the page shows. */
+export type McpStatusView =
+  | { state: 'connected', toolCount: number }
+  | { state: 'connecting', attempt: number }
+  | { state: 'reconnecting', attempt: number, maxAttempts: number, error: string }
+  | { state: 'waiting-credentials', error: string }
+  | { state: 'failed', reason: string, error?: string }
+  | { state: 'closed' }
+  | { state: 'disabled' }
+
+export interface McpToolView {
+  /** Model-facing name, `mcp__<server>__<tool>`. */
+  name: string
+  /** The name without the `mcp__<server>__` prefix. */
+  title: string
+  description: string
+}
+
+export interface McpServerView {
+  name: string
+  /** `profile`: Settings or the profile patch, can be switched; `plugin`: registered by an installed plugin while it runs. */
+  source: 'profile' | 'plugin'
+  transport?: 'stdio' | 'streamable-http'
+  /** `command args…` or the URL; credential templates stay unexpanded. */
+  endpoint?: string
+  /** Whether the server runs (the profile entry's `enabled`; plugin servers always run). */
+  enabled: boolean
+  /** Project level only: the project `loadout.json` hides this server's tools in the workspace. */
+  hidden?: boolean
+  status: McpStatusView
+  /** Tools the server currently provides to agents (connected servers only). */
+  tools: McpToolView[]
+}
+
+export type McpProbeView =
+  | { ok: true, serverName?: string, serverVersion?: string, tools: string[], truncated: boolean, durationMs: number }
+  | { ok: false, stage: string, message: string, durationMs: number }
+
 export interface LevelView {
   /** The `loadout.json` the switches of this level write to. */
   loadoutPath: string
@@ -56,6 +94,8 @@ export interface LevelView {
   skills: SkillView[]
   rules: RuleView[]
   instructions: InstructionView[]
+  /** MCP servers of the Host; absent when the profile has no MCP manager. */
+  mcp?: McpServerView[]
 }
 
 export interface WorkspaceView extends LevelView {
@@ -75,6 +115,10 @@ export interface Requests {
   'set-rule': { workspacePath?: string, id: string, enabled: boolean }
   'remove': { workspacePath?: string, path: string }
   'read': { workspacePath?: string, path: string }
+  /** Global level: start or stop the server; with `workspacePath`: show or hide its tools in that workspace. */
+  'mcp-set': { workspacePath?: string, name: string, enabled: boolean }
+  'mcp-restart': { name: string }
+  'mcp-probe': { name: string }
 }
 
 export interface Responses {
@@ -83,6 +127,9 @@ export interface Responses {
   'set-rule': { id: string, level: Level, enabled: boolean, loadoutPath: string }
   'remove': { path: string, trashed: true }
   'read': { path: string, text: string, truncated: boolean }
+  'mcp-set': { name: string, level: Level, enabled: boolean, savedTo: string }
+  'mcp-restart': { name: string }
+  'mcp-probe': McpProbeView
 }
 
 export type Operation = keyof Requests

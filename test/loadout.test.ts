@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseLoadout, skillState, ruleEnabled, withSkillState, withRuleEnabled, serializeLoadout } from '../src/host/loadout.ts'
+import { mcpEnabled, parseLoadout, skillState, ruleEnabled, withMcpEnabled, withSkillState, withRuleEnabled, serializeLoadout } from '../src/host/loadout.ts'
 
 test('a missing or empty file means everything is on', () => {
   for (const text of [undefined, '', '  \n']) {
@@ -53,4 +53,15 @@ test('keeps keys written by someone else and does not mutate its input', () => {
 
 test('rejects unknown states', () => {
   assert.throws(() => withSkillState(parseLoadout(undefined), 'a', 'maybe'), /state/)
+})
+
+test('MCP servers are used unless loadout.json sets them to false', () => {
+  let loadout = parseLoadout('{"mcp": {"github": false, "odd": "no"}}')
+  assert.equal(mcpEnabled(loadout, 'github'), false)
+  assert.equal(mcpEnabled(loadout, 'odd'), true)
+  assert.equal(mcpEnabled(loadout, 'absent'), true)
+  loadout = withMcpEnabled(loadout, 'docs', false)
+  loadout = withMcpEnabled(loadout, 'github', true)
+  assert.equal(serializeLoadout(loadout), '{\n  "mcp": {\n    "odd": "no",\n    "docs": false\n  }\n}\n')
+  assert.equal(serializeLoadout(withMcpEnabled(withMcpEnabled(parseLoadout(undefined), 'x', false), 'x', true)), '{}\n')
 })
