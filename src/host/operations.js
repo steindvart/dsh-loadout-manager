@@ -33,7 +33,8 @@ export function createOperations(ctx, homes, { invalidate, trash = gioTrash }) {
     const projectRoot = cwd !== undefined ? await findProjectRoot(cwd)
       : workspacePath === undefined ? undefined : await workspaceRoot(workspacePath)
     const customSkillDirs = await customRoots(ctx, projectRoot ?? homedir())
-    return { projectRoot, inventory: await scanInventory({ ...homes, customSkillDirs, projectRoot }) }
+    const folder = cwd ?? workspacePath
+    return { projectRoot, inventory: await scanInventory({ ...homes, customSkillDirs, projectRoot, workspacePath: folder }) }
   }
 
   async function workspaceRoot(workspacePath) {
@@ -67,6 +68,7 @@ export function createOperations(ctx, homes, { invalidate, trash = gioTrash }) {
         ...inventory.levels[level].error !== undefined ? { error: inventory.levels[level].error } : {},
         skills: inventory.skills.filter(item => item.level === level).map(skillView),
         rules: inventory.rules.filter(item => item.level === level).map(ruleView),
+        instructions: inventory.instructions.filter(item => item.level === level).map(instructionView),
       })
       return {
         global: group('global'),
@@ -106,11 +108,11 @@ export function createOperations(ctx, homes, { invalidate, trash = gioTrash }) {
       return { path, trashed: true }
     },
 
-    /** Text of a scanned skill or rule file, for the inline preview. */
+    /** Text of a scanned skill, rule, or instruction file, for the inline preview. */
     async read({ workspacePath, path }) {
       const { inventory } = await inventoryFor({ workspacePath })
-      const listed = [...inventory.skills.map(s => s.file), ...inventory.rules.map(r => r.file)]
-      if (!listed.includes(path)) throw new OperationError('not-found', `not a listed skill or rule: ${path}`)
+      const listed = [...inventory.skills.map(s => s.file), ...inventory.rules.map(r => r.file), ...inventory.instructions.map(i => i.file)]
+      if (!listed.includes(path)) throw new OperationError('not-found', `not a listed skill, rule, or instruction file: ${path}`)
       const text = await readFile(path, 'utf8')
       return text.length > READ_LIMIT ? { path, text: text.slice(0, READ_LIMIT), truncated: true } : { path, text, truncated: false }
     },
@@ -129,6 +131,11 @@ function skillView(item) {
     entry: item.entry,
     ...item.overriddenBy !== undefined ? { overriddenBy: item.overriddenBy } : {},
   }
+}
+
+/** Instruction files are read-only: DSH loads every one it finds, `loadout.json` does not switch them. */
+function instructionView(item) {
+  return { name: item.name, location: item.location, file: item.file }
 }
 
 function ruleView(item) {

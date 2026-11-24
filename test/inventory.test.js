@@ -163,6 +163,37 @@ test('marks skills inside an .asar archive as read-only', async (t) => {
   assert.deepEqual(inventory.skills.map(s => [s.name, s.readOnly]), [['dsh-doc', true], ['tdd', false]])
 })
 
+test('lists the instruction files DSH loads: global AGENTS.md, then project candidates from the root down to the workspace', async (t) => {
+  const base = tree({
+    'dsh/AGENTS.md': 'dsh home',
+    'dsh/CLAUDE.md': 'not a global candidate',
+    'agents/AGENTS.md': 'agents home',
+    'repo/.git/HEAD': 'ref',
+    'repo/AGENTS.md': 'root',
+    'repo/CLAUDE.local.md': 'root local',
+    'repo/pkg/CLAUDE.md': 'pkg',
+    'repo/pkg/app/AGENTS.local.md': 'app local',
+    'repo/other/AGENTS.md': 'not on the chain',
+  })
+  t.after(() => rmSync(base, { recursive: true }))
+  const inventory = await scanInventory({ ...homes(base), projectRoot: join(base, 'repo'), workspacePath: join(base, 'repo/pkg/app') })
+  assert.deepEqual(inventory.instructions.map(({ name, level, location, file }) => [name, level, location, file]), [
+    ['AGENTS.md', 'global', 'dsh', join(base, 'dsh/AGENTS.md')],
+    ['AGENTS.md', 'global', 'agents', join(base, 'agents/AGENTS.md')],
+    ['AGENTS.md', 'project', '.', join(base, 'repo/AGENTS.md')],
+    ['CLAUDE.local.md', 'project', '.', join(base, 'repo/CLAUDE.local.md')],
+    ['CLAUDE.md', 'project', 'pkg', join(base, 'repo/pkg/CLAUDE.md')],
+    ['AGENTS.local.md', 'project', 'pkg/app', join(base, 'repo/pkg/app/AGENTS.local.md')],
+  ])
+})
+
+test('without a workspace path the project chain is the project root alone', async (t) => {
+  const base = tree({ 'repo/AGENTS.md': 'root', 'repo/sub/AGENTS.md': 'nested' })
+  t.after(() => rmSync(base, { recursive: true }))
+  const inventory = await scanInventory({ ...homes(base), projectRoot: join(base, 'repo') })
+  assert.deepEqual(inventory.instructions.map(item => item.file), [join(base, 'repo/AGENTS.md')])
+})
+
 function states(inventory) {
   return Object.fromEntries(inventory.skills.map(s => [s.name, s.state]))
 }

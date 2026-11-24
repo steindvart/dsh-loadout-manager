@@ -1,11 +1,12 @@
 /**
  * Inventory of skills and rules visible to DSH for one workspace: scans the
  * same skill roots as `dsh-skill-filesystem`, the rule roots, and both
- * `loadout.json` files, and resolves each item's effective state.
+ * `loadout.json` files, and resolves each item's effective state. Also lists
+ * the instruction files `dsh-agent-instructions` loads (read-only).
  */
 
 import { readdir, readFile, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, relative, resolve, sep } from 'node:path'
 import { parseFrontmatter } from './frontmatter.js'
 import { parseLoadout, ruleEnabled, skillState } from './loadout.js'
 
@@ -17,13 +18,58 @@ const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
  * @param {string} options.agentsHome - `$DSH_AGENTS_HOME`
  * @param {string[]} [options.customSkillDirs] - absolute custom skill roots
  * @param {string} [options.projectRoot] - workspace project root; omit for the global level alone
+ * @param {string} [options.workspacePath] - workspace folder inside the project; instruction files are read from the project root down to it
  */
 export async function scanInventory(options) {
   const levels = await readLevels(options)
   const skills = []
   for (const root of skillRoots(options)) skills.push(...await scanSkillRoot(root, levels[root.level].loadout))
   markOverridden(skills)
-  return { levels, skills, rules: await scanRules(options, levels) }
+  return { levels, skills, rules: await scanRules(options, levels), instructions: await scanInstructions(options) }
+}
+
+/** Defaults of `dsh-agent-instructions`: global roots hold `AGENTS.md` only; project directories hold these, base files first. */
+const GLOBAL_INSTRUCTION_FILE = 'AGENTS.md'
+const PROJECT_INSTRUCTION_FILES = ['AGENTS.md', 'CLAUDE.md', 'AGENTS.local.md', 'CLAUDE.local.md']
+
+/**
+ * Instruction files in the order DSH loads them: `$DSH_HOME/AGENTS.md`,
+ * `$DSH_AGENTS_HOME/AGENTS.md`, then every candidate in each directory from
+ * the project root down to the workspace folder. `location` is `dsh`,
+ * `agents`, or the directory relative to the project root (`.` for the root).
+ */
+export async function scanInstructions({ dshHome, agentsHome, projectRoot, workspacePath }) {
+  const found = []
+  for (const [location, home] of [['dsh', dshHome], ['agents', agentsHome]]) {
+    const file = join(home, GLOBAL_INSTRUCTION_FILE)
+    if (await isFile(file)) found.push({ name: GLOBAL_INSTRUCTION_FILE, level: 'global', location, file })
+  }
+  if (projectRoot === undefined) return found
+  for (const dir of directoryChain(projectRoot, workspacePath ?? projectRoot)) {
+    const location = relative(projectRoot, dir).split(sep).join('/') || '.'
+    for (const name of PROJECT_INSTRUCTION_FILES) {
+      const file = join(dir, name)
+      if (await isFile(file)) found.push({ name, level: 'project', location, file })
+    }
+  }
+  return found
+}
+
+/** Directories from `root` down to `leaf`, inclusive; `root` alone when `leaf` is outside it. */
+function directoryChain(root, leaf) {
+  const tail = relative(resolve(root), resolve(leaf))
+  if (tail === '' || tail.startsWith('..') || tail.startsWith(sep)) return [resolve(root)]
+  const chain = [resolve(root)]
+  for (const part of tail.split(sep)) chain.push(join(chain.at(-1), part))
+  return chain
+}
+
+async function isFile(path) {
+  try {
+    return (await stat(path)).isFile()
+  } catch {
+    return false
+  }
 }
 
 /**

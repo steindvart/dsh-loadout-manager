@@ -65,6 +65,7 @@ function compactListing(state) {
       ...skill.overriddenBy !== undefined ? { overriddenBy: skill.overriddenBy } : {},
     })),
     rules: level.rules.map(rule => ({ id: rule.id, enabled: rule.enabled })),
+    instructions: level.instructions.map(item => item.file),
   }
   return { global: group(state.global), ...state.workspace !== undefined ? { workspace: { projectRoot: state.workspace.projectRoot, ...group(state.workspace) } } : {} }
 }
