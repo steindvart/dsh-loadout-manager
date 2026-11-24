@@ -18,12 +18,30 @@ const UPDATED = 'This rule changed after it was loaded. Use the following conten
 const REMOVED = 'The previously loaded rule from this file no longer applies.'
 const OMITTED = 'omitted:'
 
-/**
- * @param {Array<{ displayPath: string, body: string }>} rules - broadest first
- * @param {{ maxBytes: number }} options
- * @returns {{ text: string, snapshot: Record<string, string> }}
- */
-export function renderBaseline(rules, { maxBytes }) {
+/** A rule as the model sees it. */
+export interface RuleText {
+  displayPath: string
+  body: string
+}
+
+/** `{ displayPath: digest }` of what the model has seen; `omitted:<digest>` marks a rule dropped by the budget. */
+export type RuleSnapshot = Record<string, string>
+
+export interface Rendered {
+  /** `<system-reminder>` text, empty when there is nothing to say. */
+  text: string
+  snapshot: RuleSnapshot
+}
+
+interface Section {
+  displayPath: string
+  head: string
+  body: string
+  removal?: boolean
+}
+
+/** @param rules - enabled rules, broadest first */
+export function renderBaseline(rules: readonly RuleText[], { maxBytes }: { maxBytes: number }): Rendered {
   if (rules.length === 0) return { text: '', snapshot: {} }
   const items = rules.map(rule => ({
     displayPath: rule.displayPath,
@@ -31,20 +49,19 @@ export function renderBaseline(rules, { maxBytes }) {
     body: rule.body,
   }))
   const { text, omitted } = fit(items, INTRO, maxBytes)
-  const snapshot = {}
+  const snapshot: RuleSnapshot = {}
   for (const rule of rules) snapshot[rule.displayPath] = (omitted.has(rule.displayPath) ? OMITTED : '') + ruleDigest(rule.body)
   return { text, snapshot }
 }
 
 /**
- * @param {Record<string, string>} previous - snapshot the model has seen
- * @param {Array<{ displayPath: string, body: string }>} rules - current enabled rules, broadest first
- * @param {{ maxBytes: number }} options
- * @returns {{ text: string, snapshot: Record<string, string> }} empty text when nothing changed
+ * @param previous - snapshot the model has seen
+ * @param rules - current enabled rules, broadest first
+ * @returns empty text when nothing changed
  */
-export function renderChanges(previous, rules, { maxBytes }) {
-  const items = []
-  const snapshot = {}
+export function renderChanges(previous: RuleSnapshot, rules: readonly RuleText[], { maxBytes }: { maxBytes: number }): Rendered {
+  const items: Section[] = []
+  const snapshot: RuleSnapshot = {}
   for (const rule of rules) {
     const digest = ruleDigest(rule.body)
     const seen = previous[rule.displayPath]
@@ -65,14 +82,14 @@ export function renderChanges(previous, rules, { maxBytes }) {
   const { text, omitted } = fit(items, undefined, maxBytes)
   for (const item of items) {
     if (!omitted.has(item.displayPath)) continue
-    if (item.removal) snapshot[item.displayPath] = previous[item.displayPath]
-    else snapshot[item.displayPath] = OMITTED + snapshot[item.displayPath]
+    if (item.removal) snapshot[item.displayPath] = previous[item.displayPath] ?? ''
+    else snapshot[item.displayPath] = OMITTED + (snapshot[item.displayPath] ?? '')
   }
   return { text, snapshot }
 }
 
 /** Digest of a rule body as the model saw it. */
-export function ruleDigest(body) {
+export function ruleDigest(body: string): string {
   return createHash('sha256').update(body).digest('hex').slice(0, 16)
 }
 
@@ -80,9 +97,9 @@ export function ruleDigest(body) {
  * Fit sections into `maxBytes`: drop the broadest (earliest) first, then
  * truncate the last one. Returns the text and the omitted display paths.
  */
-function fit(items, intro, maxBytes) {
-  const build = (included, omitted, truncated) => {
-    const notes = []
+function fit(items: Section[], intro: string | undefined, maxBytes: number): { text: string, omitted: Set<string> } {
+  const build = (included: Section[], omitted: Section[], truncated: { displayPath: string, full: string, body: string } | undefined): string => {
+    const notes: string[] = []
     if (omitted.length > 0) notes.push(`omitted ${omitted.map(item => item.displayPath).join(', ')}`)
     if (truncated) notes.push(`truncated ${truncated.displayPath} from ${bytes(truncated.full)} to ${bytes(truncated.body)} bytes`)
     const marker = notes.length > 0 ? [`Rule budget ${maxBytes} bytes: ${notes.join('; ')}`] : []
@@ -94,11 +111,12 @@ function fit(items, intro, maxBytes) {
     if (bytes(text) <= maxBytes) return { text, omitted: new Set(items.slice(0, start).map(item => item.displayPath)) }
   }
   const last = items.at(-1)
+  if (last === undefined) return { text: '', omitted: new Set() }
   const omittedItems = items.slice(0, -1)
   const omitted = new Set(omittedItems.map(item => item.displayPath))
   let low = 0
   let high = bytes(last.body)
-  let best
+  let best: string | undefined
   while (low <= high) {
     const mid = Math.floor((low + high) / 2)
     const body = truncateUtf8(last.body, mid)
@@ -117,18 +135,18 @@ function fit(items, intro, maxBytes) {
   return { text: best, omitted }
 }
 
-function frame(blocks) {
+function frame(blocks: string[]): string {
   return [OPEN, blocks.join('\n\n').replaceAll(CLOSE, '<\\/system-reminder>'), CLOSE].join('\n')
 }
 
-function bytes(text) {
+function bytes(text: string): number {
   return Buffer.byteLength(text, 'utf8')
 }
 
-function truncateUtf8(text, maxBytes) {
+function truncateUtf8(text: string, maxBytes: number): string {
   const buffer = Buffer.from(text, 'utf8')
   if (buffer.length <= maxBytes) return text
   let end = maxBytes
-  while (end > 0 && (buffer[end] & 0xc0) === 0x80) end -= 1
+  while (end > 0 && ((buffer[end] ?? 0) & 0xc0) === 0x80) end -= 1
   return buffer.subarray(0, end).toString('utf8')
 }

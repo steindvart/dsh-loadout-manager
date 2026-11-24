@@ -7,8 +7,8 @@
  */
 
 import { stat } from 'node:fs/promises'
-import { readLevels, shadowsFor } from './inventory.js'
-import { findProjectRoot } from './paths.js'
+import { readLevels, shadowsFor } from './inventory.ts'
+import { findProjectRoot } from './paths.ts'
 
 export const PROVIDER_NAME = 'dsh-loadout'
 

@@ -4,7 +4,7 @@
  * stays with the user.
  */
 
-import { cwdOf } from './shadow.js'
+import { cwdOf } from './shadow.ts'
 
 const DESCRIPTION = [
   'List or switch the skills and rules the agent carries (the Loadout plugin).',

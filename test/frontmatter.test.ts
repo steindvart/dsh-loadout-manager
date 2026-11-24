@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseFrontmatter } from '../src/host/frontmatter.js'
+import { parseFrontmatter } from '../src/host/frontmatter.ts'
 
 test('reads plain name and description and returns the body after the closing fence', () => {
   const parsed = parseFrontmatter('---\nname: tdd\ndescription: Test-driven development.\n---\n# Body\n\ntext\n')
@@ -20,7 +20,7 @@ test('unquotes single- and double-quoted scalars and reads booleans', () => {
     '---',
     '',
   ].join('\n'))
-  assert.deepEqual(parsed.data, {
+  assert.deepEqual(parsed?.data, {
     name: 'quoted: "x"',
     description: "it's fine # not a comment",
     'disable-model-invocation': true,
@@ -30,7 +30,7 @@ test('unquotes single- and double-quoted scalars and reads booleans', () => {
 
 test('strips a trailing comment from a plain scalar', () => {
   const parsed = parseFrontmatter('---\nname: tdd # the skill\n---\n')
-  assert.equal(parsed.data.name, 'tdd')
+  assert.equal(parsed?.data.name, 'tdd')
 })
 
 test('reads folded and literal block scalars with chomping indicators', () => {
@@ -53,7 +53,7 @@ test('reads folded and literal block scalars with chomping indicators', () => {
     '---',
     '',
   ].join('\n'))
-  assert.deepEqual(parsed.data, {
+  assert.deepEqual(parsed?.data, {
     description: 'Folded lines join with spaces.\nNew paragraph.\n',
     literal: 'line one\n  indented\n',
     strip: 'no newline',
@@ -64,12 +64,12 @@ test('reads folded and literal block scalars with chomping indicators', () => {
 
 test('joins a multi-line plain scalar with spaces', () => {
   const parsed = parseFrontmatter('---\ndescription: first line\n  continues here\nname: x\n---\n')
-  assert.equal(parsed.data.description, 'first line continues here')
+  assert.equal(parsed?.data.description, 'first line continues here')
 })
 
 test('skips nested mappings and lists without leaking their keys', () => {
   const parsed = parseFrontmatter('---\nname: x\nmetadata:\n  version: 2\ntags:\n  - a\n  - b\ndescription: d\n---\n')
-  assert.deepEqual(parsed.data, { name: 'x', metadata: null, tags: null, description: 'd' })
+  assert.deepEqual(parsed?.data, { name: 'x', metadata: null, tags: null, description: 'd' })
 })
 
 test('returns undefined without an opening or closing fence and handles CRLF', () => {

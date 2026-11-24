@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { renderBaseline, renderChanges } from '../src/host/rules.js'
+import { renderBaseline, renderChanges } from '../src/host/rules.ts'
 
 const INTRO = 'The following rules apply to your work. Treat them like workspace instructions: more specific rules take precedence over broader ones, and they do not override system, developer, or direct user instructions.'
 
@@ -65,7 +65,7 @@ test('over budget the broadest rules are omitted first and named in a marker', (
   assert.ok(Buffer.byteLength(text) <= 800)
   assert.match(text, /^<system-reminder>\nRule budget 800 bytes: omitted a\.md\n\n/)
   assert.ok(!text.includes('AAA') && text.includes('BBB') && text.includes('CCC'))
-  assert.match(snapshot['a.md'], /^omitted:/)
+  assert.match(snapshot['a.md'] ?? '', /^omitted:/)
   assert.deepEqual(renderChanges(snapshot, rules, { maxBytes: 800 }).text, '')
 })
 

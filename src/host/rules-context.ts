@@ -5,10 +5,10 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { scanRules } from './inventory.js'
-import { findProjectRoot, ruleDisplayPath } from './paths.js'
-import { renderBaseline, renderChanges } from './rules.js'
-import { cwdOf } from './shadow.js'
+import { scanRules } from './inventory.ts'
+import { findProjectRoot, ruleDisplayPath } from './paths.ts'
+import { renderBaseline, renderChanges } from './rules.ts'
+import { cwdOf } from './shadow.ts'
 
 export const SOURCE_KIND = 'dsh-loadout-rules'
 const INSTRUCTIONS_MODULE = '@deepseek-ai/dsh-agent-instructions'

@@ -8,10 +8,10 @@ import { execFile } from 'node:child_process'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { basename, dirname, resolve } from 'node:path'
 import { homedir } from 'node:os'
-import { parseLoadout, serializeLoadout, withRuleEnabled, withSkillState, SKILL_STATES } from './loadout.js'
-import { loadoutPath, scanInventory } from './inventory.js'
-import { findProjectRoot } from './paths.js'
-import { withPresetScope } from './shadow.js'
+import { parseLoadout, serializeLoadout, withRuleEnabled, withSkillState, SKILL_STATES } from './loadout.ts'
+import { loadoutPath, scanInventory } from './inventory.ts'
+import { findProjectRoot } from './paths.ts'
+import { withPresetScope } from './shadow.ts'
 
 const READ_LIMIT = 256 * 1024
 

@@ -7,23 +7,98 @@
 
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { join, relative, resolve, sep } from 'node:path'
-import { parseFrontmatter } from './frontmatter.js'
-import { parseLoadout, ruleEnabled, skillState } from './loadout.js'
+import type { SkillInvocationPolicy, SkillSummary } from '@deepseek-ai/dsh-skill'
+import { parseFrontmatter, type FrontmatterValue } from './frontmatter.ts'
+import { parseLoadout, ruleEnabled, skillState, type Loadout, type SkillState } from './loadout.ts'
 
 const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
-/**
- * @param {object} options
- * @param {string} options.dshHome - `$DSH_HOME`
- * @param {string} options.agentsHome - `$DSH_AGENTS_HOME`
- * @param {string[]} [options.customSkillDirs] - absolute custom skill roots
- * @param {string} [options.projectRoot] - workspace project root; omit for the global level alone
- * @param {string} [options.workspacePath] - workspace folder inside the project; instruction files are read from the project root down to it
- */
-export async function scanInventory(options) {
+export type Level = 'global' | 'project'
+export type SkillSource = 'project-dsh' | 'project-agents' | 'custom' | 'user-dsh' | 'user-agents'
+export type RuleSource = 'dsh' | 'agents' | 'project'
+
+export interface Homes {
+  /** `$DSH_HOME` */
+  dshHome: string
+  /** `$DSH_AGENTS_HOME` */
+  agentsHome: string
+}
+
+export interface ScanOptions extends Homes {
+  /** Absolute custom skill roots. */
+  customSkillDirs?: readonly string[]
+  /** Workspace project root; omit for the global level alone. */
+  projectRoot?: string | undefined
+  /** Workspace folder inside the project; instruction files are read from the project root down to it. */
+  workspacePath?: string | undefined
+}
+
+export interface SkillItem {
+  name: string
+  description: string
+  whenToUse?: string
+  level: Level
+  source: SkillSource
+  rank: number
+  state: SkillState
+  /** The file itself sets `disable-model-invocation`, so the skill cannot be `on`. */
+  fileManual: boolean
+  invocation: SkillInvocationPolicy
+  fileInvocation: SkillInvocationPolicy
+  /** `SKILL.md` or the flat `<name>.md`. */
+  file: string
+  /** The directory or flat file that deletion moves to the trash. */
+  entry: string
+  /** Inside an application archive: can be switched, cannot be deleted. */
+  readOnly: boolean
+  /** File of the same-named skill that wins over this one. */
+  overriddenBy?: string
+}
+
+export interface RuleItem {
+  /** `<source>/<file name without .md>`, the `loadout.json` key. */
+  id: string
+  name: string
+  description: string | undefined
+  level: Level
+  source: RuleSource
+  enabled: boolean
+  file: string
+  /** File text without frontmatter, trimmed. */
+  body: string
+}
+
+export interface InstructionItem {
+  name: string
+  level: Level
+  /** `dsh`, `agents`, or the directory relative to the project root (`.` for the root). */
+  location: string
+  file: string
+}
+
+export interface LevelState {
+  loadoutPath: string
+  loadout: Loadout
+  /** Set when `loadout.json` is malformed; the level then reads as all on. */
+  error?: string
+}
+
+export interface Levels {
+  global: LevelState
+  project?: LevelState & { projectRoot: string }
+}
+
+export interface Inventory {
+  levels: Levels
+  skills: SkillItem[]
+  rules: RuleItem[]
+  instructions: InstructionItem[]
+}
+
+export async function scanInventory(options: ScanOptions): Promise<Inventory> {
   const levels = await readLevels(options)
-  const skills = []
-  for (const root of skillRoots(options)) skills.push(...await scanSkillRoot(root, levels[root.level].loadout))
+  const skills: SkillItem[] = []
+  for (const root of skillRoots(options)) skills.push(...await scanSkillRoot(root, levelLoadout(levels, root.level)))
   markOverridden(skills)
   return { levels, skills, rules: await scanRules(options, levels), instructions: await scanInstructions(options) }
 }
@@ -35,12 +110,11 @@ const PROJECT_INSTRUCTION_FILES = ['AGENTS.md', 'CLAUDE.md', 'AGENTS.local.md', 
 /**
  * Instruction files in the order DSH loads them: `$DSH_HOME/AGENTS.md`,
  * `$DSH_AGENTS_HOME/AGENTS.md`, then every candidate in each directory from
- * the project root down to the workspace folder. `location` is `dsh`,
- * `agents`, or the directory relative to the project root (`.` for the root).
+ * the project root down to the workspace folder.
  */
-export async function scanInstructions({ dshHome, agentsHome, projectRoot, workspacePath }) {
-  const found = []
-  for (const [location, home] of [['dsh', dshHome], ['agents', agentsHome]]) {
+export async function scanInstructions({ dshHome, agentsHome, projectRoot, workspacePath }: ScanOptions): Promise<InstructionItem[]> {
+  const found: InstructionItem[] = []
+  for (const [location, home] of [['dsh', dshHome], ['agents', agentsHome]] as const) {
     const file = join(home, GLOBAL_INSTRUCTION_FILE)
     if (await isFile(file)) found.push({ name: GLOBAL_INSTRUCTION_FILE, level: 'global', location, file })
   }
@@ -56,15 +130,16 @@ export async function scanInstructions({ dshHome, agentsHome, projectRoot, works
 }
 
 /** Directories from `root` down to `leaf`, inclusive; `root` alone when `leaf` is outside it. */
-function directoryChain(root, leaf) {
-  const tail = relative(resolve(root), resolve(leaf))
-  if (tail === '' || tail.startsWith('..') || tail.startsWith(sep)) return [resolve(root)]
-  const chain = [resolve(root)]
-  for (const part of tail.split(sep)) chain.push(join(chain.at(-1), part))
+function directoryChain(root: string, leaf: string): string[] {
+  const top = resolve(root)
+  const tail = relative(top, resolve(leaf))
+  if (tail === '' || tail.startsWith('..') || tail.startsWith(sep)) return [top]
+  const chain = [top]
+  for (const part of tail.split(sep)) chain.push(join(chain.at(-1) ?? top, part))
   return chain
 }
 
-async function isFile(path) {
+async function isFile(path: string): Promise<boolean> {
   try {
     return (await stat(path)).isFile()
   } catch {
@@ -74,19 +149,24 @@ async function isFile(path) {
 
 /**
  * Rules alone, in context order (`dsh`, `agents`, then `project`).
- * @param {{ dshHome, agentsHome, projectRoot? }} options
- * @param {object} [levels] - result of {@link readLevels}; read when omitted
+ * @param levels - result of {@link readLevels}; read when omitted
  */
-export async function scanRules(options, levels) {
-  levels ??= await readLevels(options)
-  const rules = []
-  for (const root of ruleRoots(options)) rules.push(...await scanRuleRoot(root, levels[root.level].loadout))
+export async function scanRules(options: ScanOptions, levels?: Levels): Promise<RuleItem[]> {
+  const known = levels ?? await readLevels(options)
+  const rules: RuleItem[] = []
+  for (const root of ruleRoots(options)) rules.push(...await scanRuleRoot(root, levelLoadout(known, root.level)))
   return rules
 }
 
+interface RuleRoot {
+  path: string
+  source: RuleSource
+  level: Level
+}
+
 /** Rule roots in context order: the global chain first, then the project. */
-function ruleRoots({ dshHome, agentsHome, projectRoot }) {
-  const roots = [
+function ruleRoots({ dshHome, agentsHome, projectRoot }: ScanOptions): RuleRoot[] {
+  const roots: RuleRoot[] = [
     { path: join(dshHome, 'rules'), source: 'dsh', level: 'global' },
     { path: join(agentsHome, 'rules'), source: 'agents', level: 'global' },
   ]
@@ -94,8 +174,8 @@ function ruleRoots({ dshHome, agentsHome, projectRoot }) {
   return roots
 }
 
-async function scanRuleRoot(root, loadout) {
-  const rules = []
+async function scanRuleRoot(root: RuleRoot, loadout: Loadout): Promise<RuleItem[]> {
+  const rules: RuleItem[] = []
   const files = (await listEntries(root.path))
     .filter(entry => entry.kind === 'file' && entry.name.endsWith('.md'))
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -108,8 +188,8 @@ async function scanRuleRoot(root, loadout) {
     const id = `${root.source}/${fileName}`
     rules.push({
       id,
-      name: typeof data.name === 'string' && data.name !== '' ? data.name : fileName,
-      description: typeof data.description === 'string' && data.description !== '' ? data.description : undefined,
+      name: nonEmptyString(data.name) ?? fileName,
+      description: nonEmptyString(data.description),
       level: root.level,
       source: root.source,
       enabled: ruleEnabled(loadout, id),
@@ -120,17 +200,20 @@ async function scanRuleRoot(root, loadout) {
   return rules
 }
 
+/** The registry winner fields a shadow copies. */
+export type ShadowSource = Pick<SkillSummary, 'name' | 'description' | 'whenToUse' | 'invocation' | 'source' | 'path' | 'resourceBase'>
+
+export type Shadow = ShadowSource
+
 /**
  * Shadow candidates for the agent-layer provider: registry winners whose
  * `loadout.json` state, read from the winner's own level, is narrower than
  * the policy the winner already has. `project-*` sources use the project
  * loadout; every other source is global.
- * @param {Array<{ name, description, whenToUse?, invocation, source, path?, resourceBase? }>} winners
- * @param {{ global: object, project?: object }} loadouts - parsed loadout objects
  * @returns shadow summaries sorted by name, with the narrowed `invocation`
  */
-export function shadowsFor(winners, loadouts) {
-  const shadows = []
+export function shadowsFor(winners: readonly ShadowSource[], loadouts: { global: Loadout, project?: Loadout | undefined }): Shadow[] {
+  const shadows: Shadow[] = []
   for (const winner of winners) {
     const loadout = winner.source.startsWith('project-') ? loadouts.project : loadouts.global
     if (loadout === undefined) continue
@@ -155,8 +238,8 @@ export function shadowsFor(winners, loadouts) {
 }
 
 /** Same-named skills: the lowest rank wins, then root order, then entry order, as in `dsh-skill`. */
-function markOverridden(skills) {
-  const winners = new Map()
+function markOverridden(skills: SkillItem[]): void {
+  const winners = new Map<string, SkillItem>()
   for (const item of [...skills].sort((a, b) => a.rank - b.rank)) {
     const winner = winners.get(item.name)
     if (winner === undefined) winners.set(item.name, item)
@@ -164,48 +247,51 @@ function markOverridden(skills) {
   }
 }
 
-/** Absolute path of a level's `loadout.json`. */
-export function loadoutPath({ agentsHome, projectRoot }, level) {
-  return level === 'project' ? join(projectRoot, '.agents', 'loadout.json') : join(agentsHome, 'loadout.json')
+/** Absolute path of a level's `loadout.json`; the project level needs `projectRoot`. */
+export function loadoutPath({ agentsHome, projectRoot }: Pick<ScanOptions, 'agentsHome' | 'projectRoot'>, level: Level): string {
+  if (level === 'global') return join(agentsHome, 'loadout.json')
+  if (projectRoot === undefined) throw new Error('the project loadout.json needs a project root')
+  return join(projectRoot, '.agents', 'loadout.json')
 }
 
-/**
- * Both `loadout.json` files: `{ global, project? }`, each `{ loadoutPath, loadout, error? }`.
- * A malformed file reads as empty and carries `error`.
- */
-export async function readLevels(options) {
-  const levels = { global: await readLevel(loadoutPath(options, 'global')) }
+/** Both `loadout.json` files. A malformed file reads as empty and carries `error`. */
+export async function readLevels(options: Pick<ScanOptions, 'agentsHome' | 'projectRoot'>): Promise<Levels> {
+  const levels: Levels = { global: await readLevel(loadoutPath(options, 'global')) }
   if (options.projectRoot !== undefined) {
     levels.project = { projectRoot: options.projectRoot, ...await readLevel(loadoutPath(options, 'project')) }
   }
   return levels
 }
 
-async function readLevel(path) {
+function levelLoadout(levels: Levels, level: Level): Loadout {
+  return (level === 'project' ? levels.project?.loadout : levels.global.loadout) ?? {}
+}
+
+async function readLevel(path: string): Promise<LevelState> {
   try {
     return { loadoutPath: path, loadout: parseLoadout(await readText(path)) }
   } catch (error) {
-    return { loadoutPath: path, loadout: {}, error: error.message }
+    return { loadoutPath: path, loadout: {}, error: (error as Error).message }
   }
 }
 
-const POLICY = {
+const POLICY: Record<SkillState, SkillInvocationPolicy> = {
   on: { modelInvocable: true, userInvocable: true },
   manual: { modelInvocable: false, userInvocable: true },
   off: { modelInvocable: false, userInvocable: false },
 }
 
-function samePolicy(a, b) {
+function samePolicy(a: SkillInvocationPolicy, b: SkillInvocationPolicy): boolean {
   return a.modelInvocable === b.modelInvocable && a.userInvocable === b.userInvocable
 }
 
-function stateOf(policy) {
+function stateOf(policy: SkillInvocationPolicy): SkillState {
   if (policy.modelInvocable) return 'on'
   return policy.userInvocable ? 'manual' : 'off'
 }
 
 /** Mirrors `dsh-skill-filesystem`: booleans, 1/0, and yes/no/on/off strings. */
-function frontmatterBoolean(data, key) {
+function frontmatterBoolean(data: Record<string, FrontmatterValue>, key: string): boolean | undefined {
   if (!Object.hasOwn(data, key) || data[key] === null) return undefined
   const value = data[key]
   if (typeof value === 'boolean') return value
@@ -219,15 +305,23 @@ function frontmatterBoolean(data, key) {
   throw new TypeError(`frontmatter field "${key}" must be a boolean`)
 }
 
-function skillRoots({ dshHome, agentsHome, customSkillDirs = [], projectRoot }) {
-  const roots = []
+interface SkillRoot {
+  path: string
+  source: SkillSource
+  rank: number
+  level: Level
+  skipSystem?: boolean
+}
+
+function skillRoots({ dshHome, agentsHome, customSkillDirs = [], projectRoot }: ScanOptions): SkillRoot[] {
+  const roots: SkillRoot[] = []
   if (projectRoot !== undefined) {
     roots.push(
       { path: join(projectRoot, '.dsh/skills'), source: 'project-dsh', rank: 100, level: 'project' },
       { path: join(projectRoot, '.agents/skills'), source: 'project-agents', rank: 200, level: 'project' },
     )
   }
-  roots.push(...customSkillDirs.map(path => ({ path, source: 'custom', rank: 300, level: 'global' })))
+  roots.push(...customSkillDirs.map((path): SkillRoot => ({ path, source: 'custom', rank: 300, level: 'global' })))
   roots.push(
     { path: join(dshHome, 'skills'), source: 'user-dsh', rank: 400, level: 'global', skipSystem: true },
     { path: join(agentsHome, 'skills'), source: 'user-agents', rank: 500, level: 'global' },
@@ -235,10 +329,10 @@ function skillRoots({ dshHome, agentsHome, customSkillDirs = [], projectRoot }) 
   return roots
 }
 
-async function scanSkillRoot(root, loadout) {
-  const skills = []
+async function scanSkillRoot(root: SkillRoot, loadout: Loadout): Promise<SkillItem[]> {
+  const skills: SkillItem[] = []
   for (const entry of (await listEntries(root.path)).sort((a, b) => a.name.localeCompare(b.name))) {
-    if (root.skipSystem && entry.name === '.system') continue
+    if (root.skipSystem === true && entry.name === '.system') continue
     const file = entry.kind === 'directory'
       ? join(entry.path, 'SKILL.md')
       : entry.kind === 'file' && entry.name.endsWith('.md') ? entry.path : undefined
@@ -248,7 +342,7 @@ async function scanSkillRoot(root, loadout) {
     const { name, description, whenToUse } = parsed.data
     if (typeof name !== 'string' || !SKILL_NAME.test(name)) continue
     if (typeof description !== 'string' || description === '') continue
-    let fileInvocation
+    let fileInvocation: SkillInvocationPolicy
     try {
       fileInvocation = {
         modelInvocable: frontmatterBoolean(parsed.data, 'disable-model-invocation') !== true,
@@ -262,10 +356,11 @@ async function scanSkillRoot(root, loadout) {
       modelInvocable: fileInvocation.modelInvocable && requested.modelInvocable,
       userInvocable: fileInvocation.userInvocable && requested.userInvocable,
     }
+    const hint = nonEmptyString(whenToUse)
     skills.push({
       name,
       description,
-      ...typeof whenToUse === 'string' && whenToUse !== '' ? { whenToUse } : {},
+      ...hint !== undefined ? { whenToUse: hint } : {},
       level: root.level,
       source: root.source,
       rank: root.rank,
@@ -281,33 +376,42 @@ async function scanSkillRoot(root, loadout) {
   return skills
 }
 
-function isInsideArchive(path) {
+function nonEmptyString(value: FrontmatterValue | undefined): string | undefined {
+  return typeof value === 'string' && value !== '' ? value : undefined
+}
+
+function isInsideArchive(path: string): boolean {
   return /\.asar([\\/]|$)/.test(path)
 }
 
-async function listEntries(dir) {
-  let names
+interface DirEntry {
+  name: string
+  path: string
+  kind: 'directory' | 'file' | 'other'
+}
+
+async function listEntries(dir: string): Promise<DirEntry[]> {
+  let names: string[]
   try {
     names = await readdir(dir)
   } catch (error) {
     if (isAbsent(error)) return []
     throw error
   }
-  const entries = []
+  const entries: DirEntry[] = []
   for (const name of names) {
     const path = join(dir, name)
-    let info
     try {
-      info = await stat(path)
+      const info = await stat(path)
+      entries.push({ name, path, kind: info.isDirectory() ? 'directory' : info.isFile() ? 'file' : 'other' })
     } catch {
-      continue
+      // a dangling symlink or a file removed during the scan: skip it
     }
-    entries.push({ name, path, kind: info.isDirectory() ? 'directory' : info.isFile() ? 'file' : 'other' })
   }
   return entries
 }
 
-async function readText(path) {
+async function readText(path: string): Promise<string | undefined> {
   try {
     return await readFile(path, 'utf8')
   } catch (error) {
@@ -316,6 +420,7 @@ async function readText(path) {
   }
 }
 
-function isAbsent(error) {
-  return error?.code === 'ENOENT' || error?.code === 'ENOTDIR'
+function isAbsent(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code
+  return code === 'ENOENT' || code === 'ENOTDIR'
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseLoadout, skillState, ruleEnabled, withSkillState, withRuleEnabled, serializeLoadout } from '../src/host/loadout.js'
+import { parseLoadout, skillState, ruleEnabled, withSkillState, withRuleEnabled, serializeLoadout } from '../src/host/loadout.ts'
 
 test('a missing or empty file means everything is on', () => {
   for (const text of [undefined, '', '  \n']) {

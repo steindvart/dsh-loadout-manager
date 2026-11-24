@@ -5,28 +5,33 @@
   "private": true,
   "type": "module",
   "license": "MIT",
+  "main": "./lib/index.js",
   "exports": {
-    ".": "./index.js",
-    "./client": "./client.js",
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
   },
   "files": [
-    "index.js",
-    "client.js",
-    "src/host",
+    "lib/index.js",
+    "lib/client.js",
     "cordis.patch.yml",
     "locale/*.json",
     "docs/DETAIL.md",
     "docs/DETAIL.ru.md",
     "docs/preview.svg",
-    "icon.svg"
+    "icon.svg",
+    "README.md"
   ],
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "test": "node --test"
+    "build": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\" && tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "check": "npm run typecheck && npm test && npm run build"
   },
   "dsh": {
     "bundle": {
@@ -40,5 +45,27 @@
         "@deepseek-ai/dsh-client-ui-sidebar"
       ]
     }
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-agent": "0.2.2-rc.2",
+    "@deepseek-ai/dsh-agent-preset-registry": "0.2.2-rc.2",
+    "@deepseek-ai/dsh-api-workspace-controller": "0.2.2-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.2-rc.2",
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "0.2.2-rc.2",
+    "@deepseek-ai/dsh-client-ui-sidebar": "0.2.2-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.2",
+    "@deepseek-ai/dsh-llm": "0.2.2-rc.2",
+    "@deepseek-ai/dsh-skill": "0.2.2-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.2",
+    "@deepseek-ai/dsh-working-directory": "0.2.2-rc.2",
+    "@deepseek-ai/dsh-workspace": "0.2.2-rc.2",
+    "@types/node": "24.19.2",
+    "@types/react": "18.3.31",
+    "lightningcss": "1.32.0",
+    "react": "18.2.0",
+    "tsdown": "0.22.14",
+    "typescript": "5.9.3"
   }
 }

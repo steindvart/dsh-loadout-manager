@@ -4,7 +4,7 @@
  * `{ ok: true, value }` or `{ ok: false, error: { code, message } }`.
  */
 
-import { OperationError } from './operations.js'
+import { OperationError } from './operations.ts'
 
 export function registerRoutes(ctx, operations) {
   const handlers = {

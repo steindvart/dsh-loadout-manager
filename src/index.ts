@@ -4,12 +4,12 @@
  * `loadout` tool call. Wiring only; behaviour lives in ./src/host.
  */
 
-import { createOperations } from './src/host/operations.js'
-import { resolveHomes } from './src/host/paths.js'
-import { registerRoutes } from './src/host/routes.js'
-import { registerRuleContext } from './src/host/rules-context.js'
-import { registerShadows } from './src/host/shadow.js'
-import { loadoutTool } from './src/host/tool.js'
+import { createOperations } from './host/operations.ts'
+import { resolveHomes } from './host/paths.ts'
+import { registerRoutes } from './host/routes.ts'
+import { registerRuleContext } from './host/rules-context.ts'
+import { registerShadows } from './host/shadow.ts'
+import { loadoutTool } from './host/tool.ts'
 
 export const name = 'dsh-loadout'
 

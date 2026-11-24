@@ -3,9 +3,9 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
-import { scanInventory, shadowsFor } from '../src/host/inventory.js'
+import { scanInventory, shadowsFor, type Inventory, type ShadowSource, type SkillItem } from '../src/host/inventory.ts'
 
-function tree(files) {
+function tree(files: Record<string, string>): string {
   const base = mkdtempSync(join(tmpdir(), 'loadout-'))
   for (const [path, content] of Object.entries(files)) {
     const full = join(base, path)
@@ -15,11 +15,11 @@ function tree(files) {
   return base
 }
 
-function skill(name, description = `${name} skill`, extra = '') {
+function skill(name: string, description = `${name} skill`, extra = ''): string {
   return `---\nname: ${name}\ndescription: ${description}\n${extra}---\n# ${name}\n`
 }
 
-function homes(base) {
+function homes(base: string) {
   return { dshHome: join(base, 'dsh'), agentsHome: join(base, 'agents') }
 }
 
@@ -55,7 +55,7 @@ test('takes skill states from the loadout.json of the level the skill lives on',
 
 test('shadows registry winners only where the loadout.json of their level narrows the policy', () => {
   const on = { modelInvocable: true, userInvocable: true }
-  const winner = (name, source, invocation = on) => ({ name, description: `${name} d`, invocation, source, provider: 'filesystem', path: `/x/${name}/SKILL.md` })
+  const winner = (name: string, source: string, invocation = on): ShadowSource & { provider: string } => ({ name, description: `${name} d`, invocation, source, provider: 'filesystem', path: `/x/${name}/SKILL.md` })
   const winners = [
     winner('tdd', 'user-agents'),
     winner('off-one', 'custom'),
@@ -86,7 +86,7 @@ test('a skill marked disable-model-invocation in its file is manual and cannot b
     'agents/skills/manual-one/SKILL.md': skill('manual-one', 'm', 'disable-model-invocation: "yes"\n'),
   })
   t.after(() => rmSync(base, { recursive: true }))
-  const [item] = (await scanInventory(homes(base))).skills
+  const item = (await scanInventory(homes(base))).skills[0]!
   assert.equal(item.state, 'manual')
   assert.equal(item.fileManual, true)
 })
@@ -100,12 +100,12 @@ test('a same-named skill with a lower rank wins; the loser is marked overridden 
   })
   t.after(() => rmSync(base, { recursive: true }))
   const inventory = await scanInventory({ ...homes(base), projectRoot: join(base, 'repo') })
-  const byDescription = Object.fromEntries(inventory.skills.map(s => [s.description, s]))
-  assert.equal(byDescription['same root, later entry'].overriddenBy, join(base, 'repo/.agents/skills/tdd/SKILL.md'))
-  assert.equal(byDescription.project.overriddenBy, undefined)
-  assert.equal(byDescription.global.overriddenBy, join(base, 'repo/.agents/skills/tdd/SKILL.md'))
-  assert.equal(byDescription.global.state, 'off')
-  assert.equal(byDescription.project.state, 'on')
+  const byDescription: Record<string, SkillItem> = Object.fromEntries(inventory.skills.map(s => [s.description, s]))
+  assert.equal(byDescription['same root, later entry']?.overriddenBy, join(base, 'repo/.agents/skills/tdd/SKILL.md'))
+  assert.equal(byDescription.project?.overriddenBy, undefined)
+  assert.equal(byDescription.global?.overriddenBy, join(base, 'repo/.agents/skills/tdd/SKILL.md'))
+  assert.equal(byDescription.global?.state, 'off')
+  assert.equal(byDescription.project?.state, 'on')
 })
 
 test('lists flat rule files from all rule roots with ids by file name and switches from their level', async (t) => {
@@ -133,9 +133,9 @@ test('reports a malformed loadout.json on its level and treats that level as all
   })
   t.after(() => rmSync(base, { recursive: true }))
   const inventory = await scanInventory(homes(base))
-  assert.match(inventory.levels.global.error, /loadout\.json/)
+  assert.match(inventory.levels.global.error ?? '', /loadout\.json/)
   assert.equal(inventory.levels.global.loadoutPath, join(base, 'agents/loadout.json'))
-  assert.equal(inventory.skills[0].state, 'on')
+  assert.equal(inventory.skills[0]?.state, 'on')
 })
 
 test('scans custom roots as global, flat skill files, and skips $DSH_HOME/skills/.system and invalid files', async (t) => {
@@ -194,11 +194,12 @@ test('without a workspace path the project chain is the project root alone', asy
   assert.deepEqual(inventory.instructions.map(item => item.file), [join(base, 'repo/AGENTS.md')])
 })
 
-function states(inventory) {
+function states(inventory: Inventory) {
   return Object.fromEntries(inventory.skills.map(s => [s.name, s.state]))
 }
 
-function pick(item) {
+function pick(item: SkillItem | undefined) {
+  if (item === undefined) return undefined
   const { name, description, level, source, state, file, entry } = item
   return { name, description, level, source, state, file, entry }
 }
