@@ -5,6 +5,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
+  "author": "Ivan Kalashnikov",
   "main": "./lib/index.js",
   "exports": {
     ".": "./lib/index.js",
