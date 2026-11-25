@@ -1,40 +1,42 @@
 # Loadout Manager
 
-Плагин для DeepSeek Harness (DSH). В стандартном DSH нельзя на одной странице посмотреть, какие скиллы и MCP-серверы доступны глобально и в конкретном проекте, и нет механизма правил (rules). Loadout Manager добавляет и то и другое: показывает скиллы и MCP-серверы по уровням, позволяет ими управлять и подключает правила в контекст агента рядом с AGENTS.md.
+English | [Русский](README_RU.md) | [中文](README_ZH.md)
 
-![Страница Loadout Manager: вкладка «Скиллы» в глобальной области, у каждого скилла переключатель On, Manual или Off](assets/main-window.png)
+A plugin for DeepSeek Harness (DSH). Stock DSH has no single page that shows which skills and MCP servers are available globally and in a given project, and it has no rules mechanism. Loadout Manager adds both: it shows skills and MCP servers by level, lets you manage them, and adds rules to the agent context next to AGENTS.md.
 
-## Возможности
+![The Loadout Manager page: the Skills tab in the Global scope, with an On, Manual, or Off switch for each skill](assets/main-window.png)
 
-### Обзор по уровням
+## Features
 
-В левом меню появляется пункт Loadout Manager. Вверху страницы выбирается область: «Глобальные» или один из workspace. На вкладках «Скиллы», «Инструкции» и «MCP» видно всё, что получает агент в этой области, включая AGENTS.md и CLAUDE.md, которые DSH загружает сам. Любой файл открывается прямо в строке.
+### Overview by level
 
-### Управление скиллами
+Loadout Manager appears in the left sidebar. At the top of the page you pick a scope: Global or one of your workspaces. The Skills, Instructions, and MCP tabs show everything the agent gets in that scope, including the AGENTS.md and CLAUDE.md files DSH loads on its own. Any file opens right in its row.
 
-| Состояние | Каталог модели | Вызов `/имя` |
+### Skill management
+
+| State | Model catalog | `/name` call |
 | --- | --- | --- |
-| `on` | виден | работает |
-| `manual` | скрыт | работает |
-| `off` | скрыт | скрыт |
+| `on` | visible | works |
+| `manual` | hidden | works |
+| `off` | hidden | hidden |
 
-В режиме `manual` описание скилла не занимает контекст, но скилл можно вызвать вручную. Если скилл с тем же именем лежит и в проекте, и глобально, панель помечает перекрытый вариант. Ненужный скилл удаляется в корзину.
+In `manual` mode the skill's description stays out of the context, but you can still call the skill by hand. When a skill with the same name exists both in the project and globally, the panel marks the overridden one. A skill you no longer need goes to the trash.
 
-### Правила
+### Rules
 
-Правило – markdown-файл в `~/.dsh/rules/`, `~/.agents/rules/` или `<проект>/.agents/rules/`. Включённые правила попадают в контекст агента и его субагентов сразу после AGENTS.md, а изменения в файлах доходят до агента на следующем шаге. Каждое правило включается и выключается отдельно.
+A rule is a Markdown file in `~/.dsh/rules/`, `~/.agents/rules/`, or `<project>/.agents/rules/`. Enabled rules reach the agent and its subagents right after AGENTS.md, and file edits reach the agent on the next step. Each rule is switched on and off on its own.
 
-### Управление MCP
+### MCP management
 
-В «Глобальных» переключатель включает и выключает сервер в профиле DSH. В workspace он скрывает инструменты сервера от агентов этого проекта, а сам сервер продолжает работать. Кнопка «Проверить» подключается к серверу на пробу и показывает его инструменты, даже если сервер выключен.
+In Global the switch turns a server on or off in the DSH profile. In a workspace it hides the server's tools from that project's agents while the server keeps running. The Check button makes a trial connection to the server and lists its tools, even when the server is off.
 
-### Управление из чата
+### Managing from the chat
 
-Плагин даёт агенту инструмент `loadout`, поэтому настройки можно менять прямо в разговоре: например, попросить «выключи скилл omarchy в этом проекте» или «какие правила сейчас включены?». Агент умеет показывать состояния скиллов, правил и MCP-серверов и переключать их по одному. Удалять файлы через чат нельзя, это делается только на странице.
+The plugin gives the agent a `loadout` tool, so you can change settings right in the conversation: for example, ask it to "turn off the omarchy skill in this project" or "which rules are on right now?". The agent can show the states of skills, rules, and MCP servers and switch them one at a time. Files cannot be deleted from the chat, only on the page.
 
-## Где хранятся настройки
+## Where settings are stored
 
-Состояния записываются в `~/.agents/loadout.json` для глобального уровня и в `<проект>/.agents/loadout.json` для проекта. Это обычные файлы, их можно закоммитить и использовать всей командой. Сами файлы скиллов и правил плагин не меняет.
+States are written to `~/.agents/loadout.json` for the global level and to `<project>/.agents/loadout.json` for a project. These are ordinary files that you can commit and share with your team. The plugin never changes the skill and rule files themselves.
 
 ```json
 {
@@ -44,30 +46,30 @@
 }
 ```
 
-## Установка
+## Installation
 
-Плагин собран под DSH 0.2.2-rc.2. В DSH откройте «Плагины → Добавить плагин» и укажите каталог репозитория или его Git-адрес. Собранный `lib/` лежит в репозитории, поэтому после клонирования ничего собирать не нужно.
+The plugin is built for DSH 0.2.2-rc.2. In DSH, open Plugins → Add plugin and enter the repository directory or its Git URL. The built `lib/` is committed to the repository, so there is nothing to build after cloning.
 
-Параметр `maxBytes` в конфиге плагина ограничивает размер одного сообщения с правилами: по умолчанию 65536 байт, `0` отключает правила.
+The `maxBytes` option in the plugin config limits the size of one rules message: 65536 bytes by default, and `0` turns rules off.
 
-## Ограничения
+## Limitations
 
-- Меню `/` в сессии, где агент ещё не запускался, показывает и выключенные скиллы.
-- Правила получают только агенты, в пресете которых есть `dsh-agent-instructions`. В пресете Minimal его нет.
-- Удаление работает через `gio trash`. Там, где `gio` нет, в том числе на Windows и macOS, файл остаётся на месте, а панель показывает ошибку.
-- Встроенные скиллы из `app.asar` можно выключить, но не удалить.
+- In a session whose agent has not started yet, the `/` menu also lists skills that are off.
+- Rules reach only agents whose preset includes `dsh-agent-instructions`. The Minimal preset does not.
+- Deletion uses `gio trash`. Where `gio` is missing, including Windows and macOS, the file stays in place and the panel shows an error.
+- Built-in skills from `app.asar` can be turned off but not deleted.
 
-## Разработка
+## Development
 
-Нужен Node 24 или новее.
+Requires Node 24 or newer.
 
 ```sh
 npm install
-npm run check   # типы, сборка lib/ и тесты
+npm run check   # types, lib/ build, and tests
 ```
 
-Устройство плагина описано в [docs/SPEC.md](docs/SPEC.md), заметки об API DSH лежат в [docs/research/](docs/research/).
+The plugin design is described in [docs/SPEC.md](docs/SPEC.md), and notes on the DSH API are in [docs/research/](docs/research/).
 
-## Лицензия
+## License
 
-MIT, см. [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
