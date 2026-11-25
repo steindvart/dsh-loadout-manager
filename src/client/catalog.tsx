@@ -152,7 +152,7 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
         {view !== undefined ? <div className={css.mono}>{t('catalogSourcesFile', { path: view.sourcesPath })}</div> : null}
         <div className={css.list}>
           {sources.length === 0
-            ? <div className={css.empty}>{t('catalogNoSources')}</div>
+            ? <div className={css.empty} role={loading ? 'status' : undefined}>{loading && view === undefined ? t('catalogLoading') : t('catalogNoSources')}</div>
             : sources.map(source => (
               <div key={source.source} className={css.row}>
                 <div className={css.rowLine}>
