@@ -12,7 +12,7 @@ The catalog adds operations with the same envelope:
 | `index-state` | `workspacePath?` | cached sources and entries with installed copies; never fetches |
 | `index-refresh` | `workspacePath?`, `source?`, `ifStale?` | reads one source or all, then returns the same view |
 | `index-add-source` | `workspacePath?`, `source` | saves the source list and reads the new source |
-| `index-remove-source` | `workspacePath?`, `source` | drops the source from the list; installed items stay |
+| `index-remove-source` | `workspacePath?`, `source` | drops the source from the list and deletes its cache; installed items stay |
 | `index-install` | `workspacePath?`, `source`, `kind`, `name`, `force?` | installs or replaces one entry in the selected scope |
 
-`workspacePath` selects the project level, as elsewhere: without it the target is global. `force` replaces a copy whose content changed after installation. The source string rules, the JSON format, and the cache layout are in [index.md](index.md).
+`workspacePath` selects the project level, as elsewhere: without it the target is global. `force` replaces a copy whose content changed after installation. Delete in a Catalog row has no operation of its own: it calls `remove` with the path of the installed copy, which moves it to the trash and drops the provenance record of that path. The source string rules, the JSON format, and the cache layout are in [index.md](index.md).

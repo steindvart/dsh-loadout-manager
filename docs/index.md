@@ -76,11 +76,11 @@ Rules are single files. They may have frontmatter, but it is optional, as it is 
 
 ## Cache and refresh
 
-The Host caches each source under `$DSH_HOME/loadout-manager/indexes/<hash>/`: a `cache.json` with the validated entries, a `repo/` working clone for git, and temporary space for archives. The cache is reused for ten minutes.
+The Host caches each source under `$DSH_HOME/loadout-manager/indexes/<hash>/`: a `cache.json` with the validated entries, a `repo/` working clone for git, and temporary space for archives. The cache is reused for ten minutes. Removing a source deletes its directory.
 
 Opening the Catalog subpage refreshes sources whose last attempt is older than ten minutes. The buttons refresh one source or all of them. A failed read keeps the previous entries and records the error on the source, so one broken repository does not empty the rest of the catalog. A failed read also counts as an attempt, which keeps the page from retrying it on every open.
 
-Git sources are cloned with depth 1 and read at a pinned commit. A refresh fetches `origin HEAD`, resets the clone, and computes each entry's git tree or blob id, which is the update marker. Local sources are hashed with SHA-256 over sorted relative file names and contents. HTTP sources have no cheap content marker; their update marker is the entry's `version`.
+Git sources are cloned with depth 1 and read at a pinned commit. A refresh fetches `origin HEAD`, resets the clone, and computes each entry's git tree or blob id, which is the update marker. Local sources are hashed with SHA-256 over relative file names, sorted by code unit so the locale does not matter, and file contents. HTTP sources have no cheap content marker; their update marker is the entry's `version`.
 
 ## Installing and updating
 
@@ -97,11 +97,11 @@ An install refuses to overwrite:
 - a copy installed from another index (`conflict`);
 - a copy whose content no longer matches its recorded digest, unless the user confirms a replacement (`modified`).
 
-A replacement is staged under `.loadout-manager/work`, outside the roots DSH scans, the old copy is renamed into `.loadout-manager/backups`, and only then does the new copy take its name. After a successful rename the old copy goes to the trash through `gio trash`. If the trash is unavailable, the new copy stays and the row names the leftover backup; nothing is deleted permanently.
+A replacement is staged under `.loadout-manager/work`, outside the roots DSH scans, the old copy is renamed into `.loadout-manager/backups`, and only then does the new copy take its name. The first install writes `.loadout-manager/.gitignore` with `work/` and `backups/`, unless the file exists, so these never land in a project commit. After a successful rename the old copy goes to the trash through `gio trash`. If the trash is unavailable, the new copy stays and the row names the leftover backup; nothing is deleted permanently.
 
 An update is available when the source content changed (a git tree or blob id, a local digest) or when the index declares a newer `version` than the installed copy. Versions compare as SemVer when both parse, so `1.10.0` is newer than `1.9.0`; an unreadable pair falls back to plain inequality. A copy with no recorded version updates once the index gains one. HTTP entries have no digest, so their `version` is the only signal.
 
-Deleting an installed skill or rule from a Catalog row, or through the Skills or Instructions tab, also removes its provenance record, so the Catalog subpage stops treating the path as managed. The Catalog button acts on the copy of the current scope; a copy installed in the other scope is removed from that scope's page.
+Deleting an installed skill or rule from a Catalog row, or through the Skills or Instructions tab, also removes the provenance record of that path, so the Catalog subpage stops treating it as managed. A same-named skill or rule in another root, such as `~/.dsh/skills`, keeps the record of the managed copy. The Catalog button acts on the copy of the current scope; a copy installed in the other scope is removed from that scope's page.
 
 ## Validation and limits
 
@@ -109,12 +109,13 @@ Index content is third-party content. Before anything is installed, the plugin:
 
 - validates the document shape, names, paths, and duplicates, and reports the JSON path of the first invalid value;
 - reads the index through a size limit of 2 MiB, a rule through 1 MiB, and a skill or archive through 20 MiB and 2000 files;
-- refuses symbolic links inside a skill;
+- refuses symbolic links: the index file, an entry, or any file inside a skill. Git entries are checked by their mode in the tree, and on disk the real path of an entry must stay inside the source, so a link in a parent directory cannot lead elsewhere;
 - checks archive member names before extraction and refuses absolute paths and `..`;
+- checks the unpacked size and file count of an archive before extraction: a gzip stream is inflated in memory through the limit, and a zip is measured from its central directory;
 - reads `SKILL.md` after staging and requires its `name` to match the entry and its `description` to be non-empty;
 - writes files atomically and never leaves a partially replaced skill.
 
-A git source runs with prompts disabled, repository hooks off, and only the https, http, and ssh transports allowed. The user's git configuration and credentials still apply. An HTTP source uses the Host `fetch`, follows redirects, and sends no credentials; an index behind authentication is not supported in this version.
+A git source runs with prompts disabled, repository hooks off, and only the https, http, and ssh transports allowed. The user's git configuration and credentials still apply. An HTTP source uses the Host `fetch`, follows redirects, and sends no credentials. Entry and file URLs must keep the origin of the index after its redirects, so a path such as `https:other.example/x` or `data:…` is refused before anything is fetched. An index behind authentication is not supported in this version.
 
 ## Agent access
 
