@@ -84,7 +84,6 @@ test('an empty body is an empty request, and a non-object body is rejected', asy
   assert.deepEqual(await empty.json(), { ok: true, value: { operation: 'indexState' } })
   assert.deepEqual(emptyCalls, [['indexState', { workspacePath: undefined }]])
 
-
   const calls: Array<[string, unknown]> = []
   const routes = routesFor(calls)
   const route = routes.find(item => item.path === '/api/dsh-loadout-manager/index-state')!

@@ -74,7 +74,7 @@ async function refreshGit(source: IndexSource, { dshHome }: FetchOptions): Promi
   await mkdir(cacheDir(dshHome, source.id), { recursive: true })
   if (!existsSync(join(dir, '.git'))) {
     await removeDirectory(dir)
-    await git(['clone', '--depth', '1', '--single-branch', '--no-tags', '--quiet', source.gitUrl ?? source.id, dir])
+    await git(['clone', '--depth', '1', '--single-branch', '--no-tags', '--quiet', '--', source.gitUrl ?? source.id, dir])
   } else {
     await git(['fetch', '--depth', '1', '--no-tags', '--quiet', 'origin', 'HEAD'], dir)
     await git(['reset', '--hard', '--quiet', 'FETCH_HEAD'], dir)
@@ -337,14 +337,7 @@ function git(args: readonly string[], cwd?: string): Promise<string> {
       cwd,
       timeout: GIT_TIMEOUT_MS,
       maxBuffer: GIT_MAX_BUFFER,
-      env: {
-        ...process.env,
-        GIT_TERMINAL_PROMPT: '0',
-        GIT_ASKPASS: '',
-        SSH_ASKPASS: '',
-        GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND ?? 'ssh -o BatchMode=yes',
-        LC_ALL: 'C',
-      },
+      env: gitEnv(),
     }, (error, stdout, stderr) => {
       if (error !== null) {
         const code = (error as NodeJS.ErrnoException).code
@@ -354,6 +347,21 @@ function git(args: readonly string[], cwd?: string): Promise<string> {
       resolve(stdout)
     })
   })
+}
+
+/** Git without inherited repository overrides, prompts, or LFS downloads. */
+function gitEnv(): NodeJS.ProcessEnv {
+  const env = Object.fromEntries(Object.entries(process.env)
+    .filter(([name]) => !name.startsWith('GIT_') || name === 'GIT_SSH' || name === 'GIT_SSH_COMMAND'))
+  return {
+    ...env,
+    GIT_TERMINAL_PROMPT: '0',
+    GIT_ASKPASS: '',
+    SSH_ASKPASS: '',
+    GIT_SSH_COMMAND: env.GIT_SSH_COMMAND ?? 'ssh -o BatchMode=yes',
+    GIT_LFS_SKIP_SMUDGE: '1',
+    LC_ALL: 'C',
+  }
 }
 
 function runTool(command: string, args: readonly string[], signal?: AbortSignal): Promise<string> {

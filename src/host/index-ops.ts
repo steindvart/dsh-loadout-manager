@@ -266,7 +266,7 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
         let version: string | undefined
         if (kind === 'skill') {
           await stageSkill(cache, entry as CachedSkill, { dshHome: homes.dshHome }, staging)
-          version = await validateSkill(staging, entry.name)
+          version = entry.version ?? await validateSkill(staging, entry.name)
         } else {
           const bytes = await ruleContent(cache, entry as CachedRule, { dshHome: homes.dshHome })
           if (bytes.byteLength === 0) throw new OperationError('install-failed', `${entry.path} is empty`)

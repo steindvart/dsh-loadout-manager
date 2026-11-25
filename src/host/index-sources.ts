@@ -33,6 +33,7 @@ export function indexesPath(agentsHome: string): string {
 export function classifySource(text: string): IndexSource {
   const source = text.trim()
   if (source === '') throw new Error('an index source cannot be empty')
+  if (source.startsWith('-')) throw new Error('an index source cannot start with "-"')
   if (source === '~' || source.startsWith('~/') || source.startsWith('/')) {
     return { id: source === '~' ? homedir() : source.startsWith('~/') ? resolve(homedir(), source.slice(2)) : resolve(source), kind: 'local' }
   }
@@ -69,6 +70,9 @@ export function parseIndexesFile(text: string): string[] {
     value = JSON.parse(text)
   } catch (error) {
     throw new Error(`${INDEXES_FILE} is not valid JSON: ${(error as Error).message}`, { cause: error })
+  }
+  if (!Array.isArray(value) && isRecord(value) && value.format !== undefined && value.format !== 1) {
+    throw new Error(`${INDEXES_FILE}: unsupported format ${JSON.stringify(value.format)}; this version reads 1`)
   }
   const entries = Array.isArray(value) ? value : isRecord(value) && Array.isArray(value.indexes) ? value.indexes : undefined
   if (entries === undefined) throw new Error(`${INDEXES_FILE} must contain an "indexes" array of source strings`)

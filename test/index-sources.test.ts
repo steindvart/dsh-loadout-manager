@@ -23,6 +23,7 @@ test('rejects empty, relative, credential-bearing, and unknown sources', () => {
   assert.throws(() => classifySource('./skills'), /unrecognized index source/)
   assert.throws(() => classifySource('https://user:pass@example.com/index.json'), /carry no credentials/)
   assert.throws(() => classifySource('ftp://example.com/index.json'), /unrecognized index source/)
+  assert.throws(() => classifySource('--upload-pack=cmd@host:path'), /cannot start with "-"/)
 })
 
 test('reads the source list from an object or a bare array and deduplicates', () => {
@@ -36,6 +37,7 @@ test('rejects a malformed source list', () => {
   assert.throws(() => parseIndexesFile('{'), /not valid JSON/)
   assert.throws(() => parseIndexesFile('{"sources":[]}'), /"indexes" array/)
   assert.throws(() => parseIndexesFile('{"indexes":[1]}'), /indexes\[0\] must be a string/)
+  assert.throws(() => parseIndexesFile('{"format":2,"indexes":[]}'), /unsupported format 2/)
 })
 
 test('serializes a stable, human-editable file', () => {

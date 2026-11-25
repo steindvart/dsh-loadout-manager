@@ -49,6 +49,7 @@ test('rejects a malformed document with the JSON path of the offending value', (
     ['{"skills":[{"name":"Bad_Name","path":"x"}]}', /kebab-case/],
     ['{"skills":[{"name":"ok","path":"../x"}]}', /not a safe relative path/],
     ['{"skills":[{"name":"ok","path":"/etc"}]}', /relative to the source root/],
+    ['{"skills":[{"name":"ok","path":"C:/skills"}]}', /relative to the source root/],
     ['{"skills":[{"name":"ok","path":"x/.git/y"}]}', /not a safe relative path/],
     ['{"skills":[{"name":"ok","path":"x","files":[]}]}', /files must be a non-empty array/],
     ['{"skills":[{"name":"ok","path":"x"},{"name":"ok","path":"y"}]}', /duplicate skill "ok"/],
