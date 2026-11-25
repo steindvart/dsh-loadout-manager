@@ -10,7 +10,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import type { Homes } from './inventory.ts'
 import { OperationError } from './errors.ts'
 import { parseFrontmatter, type FrontmatterValue } from './frontmatter.ts'
@@ -41,8 +41,11 @@ export interface IndexService {
   removeSource(source: string, projectRoot: string | undefined): Promise<IndexView>
   install(request: { source: string, kind: IndexKind, name: string, projectRoot: string | undefined, force: boolean }): Promise<Responses['index-install']>
   search(request: { projectRoot: string | undefined, query?: string | undefined, kind?: IndexKind | undefined, limit?: number | undefined }): Promise<IndexSearchView>
-  /** Drop the provenance of an item the user deleted through the regular Remove action. */
-  forget(kind: IndexKind, name: string, projectRoot: string | undefined): Promise<void>
+  /**
+   * Drop the provenance of the copy at `path`, deleted through the regular
+   * Remove action. A same-named item in another root keeps the record.
+   */
+  forget(path: string, projectRoot: string | undefined): Promise<void>
 }
 
 interface ViewContext {
@@ -321,15 +324,19 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
       }))
     },
 
-    async forget(kind, name, projectRoot) {
+    async forget(path, projectRoot) {
       await serialized('@install', async () => {
         const manifest = installedFile(homes.agentsHome, projectRoot)
         const installed = await readInstalled(manifest)
         if (installed.error !== undefined) return
-        const key = installKey(kind, name)
-        if (!(key in installed.items)) return
+        const level: Level = projectRoot === undefined ? 'global' : 'project'
+        const deleted = resolve(path)
+        const keys = Object.entries(installed.items)
+          .filter(([, item]) => targetOf(level, item.kind, item.name, homes.agentsHome, projectRoot) === deleted)
+          .map(([key]) => key)
+        if (keys.length === 0) return
         const items = { ...installed.items }
-        delete items[key]
+        for (const key of keys) delete items[key]
         await writeInstalled(manifest, { items })
       })
     },

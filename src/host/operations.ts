@@ -179,7 +179,7 @@ export function createOperations(ctx: Context, homes: Homes, { invalidate, trash
       if (skill?.readOnly === true) throw new OperationError('read-only', `${path} is inside the application archive and cannot be deleted`)
       await trash(path)
       const level = skill?.level ?? rule?.level
-      await index.forget(skill === undefined ? 'rule' : 'skill', skill?.name ?? rule?.name ?? '', level === 'project' ? projectRoot : undefined)
+      await index.forget(path, level === 'project' ? projectRoot : undefined)
       invalidate()
       return { path, trashed: true }
     },
