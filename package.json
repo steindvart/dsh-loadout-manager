@@ -10,7 +10,7 @@
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg",
+    "./icon": "./assets/icon.svg",
     "./package.json": "./package.json"
   },
   "files": [
@@ -18,10 +18,10 @@
     "lib/client.js",
     "cordis.patch.yml",
     "locale/*.json",
-    "docs/DETAIL.md",
-    "docs/DETAIL.ru.md",
-    "docs/preview.svg",
-    "icon.svg",
+    "assets/DETAIL.md",
+    "assets/DETAIL.ru.md",
+    "assets/preview.svg",
+    "assets/icon.svg",
     "README.md"
   ],
   "engines": {
