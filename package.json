@@ -1,6 +1,6 @@
 {
   "name": "dsh-loadout-manager",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Shows skills and MCP servers globally and per project, lets you manage them, and adds rules to the agent context next to AGENTS.md.",
   "private": true,
   "type": "module",
