@@ -1,6 +1,6 @@
 /**
  * Owner-only Fetch routes for the Loadout page:
- * `POST /api/dsh-loadout/<op>` with a JSON body, answering an `Envelope`.
+ * `POST /api/dsh-loadout-manager/<op>` with a JSON body, answering an `Envelope`.
  * The request body is untrusted JSON, so every field is validated here;
  * `Handlers` makes the compiler require one handler per contract operation.
  */
@@ -38,7 +38,7 @@ export function registerRoutes(ctx: Context, operations: Operations): void {
         methods: ['POST'],
         requestBody: 'buffered',
         fetch: request => respond(request, handler),
-      }), `dsh-loadout: ${routePath(op)}`)
+      }), `dsh-loadout-manager: ${routePath(op)}`)
     }
   })
 }
@@ -51,12 +51,12 @@ async function respond(request: Request, handler: (body: Body) => Promise<unknow
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('body must be a JSON object')
     body = parsed as Body
   } catch (error) {
-    return json({ ok: false, error: { code: 'dsh-loadout/bad-request', message: messageOf(error) } })
+    return json({ ok: false, error: { code: 'dsh-loadout-manager/bad-request', message: messageOf(error) } })
   }
   try {
     return json({ ok: true, value: await handler(body) })
   } catch (error) {
-    const code = error instanceof OperationError ? `dsh-loadout/${error.code}` : 'dsh-loadout/failed'
+    const code = error instanceof OperationError ? `dsh-loadout-manager/${error.code}` : 'dsh-loadout-manager/failed'
     return json({ ok: false, error: { code, message: messageOf(error) } })
   }
 }

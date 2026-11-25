@@ -103,13 +103,13 @@ export function registerMcpRestrictions(ctx: Context, homes: Homes): void {
     try {
       current?.dispose()
     } catch (error) {
-      ctx.logger.warn(`dsh-loadout: could not lift an MCP restriction: ${messageOf(error)}`)
+      ctx.logger.warn(`dsh-loadout-manager: could not lift an MCP restriction: ${messageOf(error)}`)
     }
   }
 
   ctx.effect(() => () => {
     for (const agent of [...applied.keys()]) lift(agent)
-  }, 'dsh-loadout: MCP restrictions')
+  }, 'dsh-loadout-manager: MCP restrictions')
   ctx.on('agent/disposed', ({ agent }) => { lift(agent) })
 
   // The catalog of the first step is built when the agent is created, so the
@@ -117,7 +117,7 @@ export function registerMcpRestrictions(ctx: Context, homes: Homes): void {
   // awaited before creation resolves (see dsh-agent runtime-types).
   ctx.on('agent/created', ({ agent, signal }) => {
     void sync(agent, signal ?? new AbortController().signal).catch(error => {
-      ctx.logger.warn(`dsh-loadout: MCP servers were not hidden for this agent: ${messageOf(error)}`)
+      ctx.logger.warn(`dsh-loadout-manager: MCP servers were not hidden for this agent: ${messageOf(error)}`)
     })
     return undefined
   })
@@ -128,7 +128,7 @@ export function registerMcpRestrictions(ctx: Context, homes: Homes): void {
     try {
       await sync(event.agent, event.signal)
     } catch (error) {
-      ctx.logger.warn(`dsh-loadout: MCP servers were not hidden for this step: ${messageOf(error)}`)
+      ctx.logger.warn(`dsh-loadout-manager: MCP servers were not hidden for this step: ${messageOf(error)}`)
     }
     return next()
   })

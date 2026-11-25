@@ -1,7 +1,7 @@
 /**
  * Rule messages on `agent/pre-step`, next to the AGENTS.md baseline of
  * `dsh-agent-instructions`. State lives in the session log: the latest
- * `dsh-loadout-rules` message carries the snapshot the model has seen.
+ * `dsh-loadout-manager-rules` message carries the snapshot the model has seen.
  */
 
 import { randomUUID } from 'node:crypto'
@@ -15,7 +15,7 @@ import { findProjectRoot, ruleDisplayPath } from './paths.ts'
 import { renderBaseline, renderChanges, type Rendered, type RuleSnapshot } from './rules.ts'
 import { cwdOf, messageOf } from './shadow.ts'
 
-export const SOURCE_KIND = 'dsh-loadout-rules'
+export const SOURCE_KIND = 'dsh-loadout-manager-rules'
 const INSTRUCTIONS_MODULE = '@deepseek-ai/dsh-agent-instructions'
 
 /** Source of a rules message; `snapshot` is what the model has seen after it. */
@@ -28,7 +28,7 @@ export interface RulesMessageSource {
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
-    'dsh-loadout-rules': RulesMessageSource
+    'dsh-loadout-manager-rules': RulesMessageSource
   }
 }
 
@@ -56,7 +56,7 @@ export function registerRuleContext(ctx: Context, homes: Homes, { maxBytes }: { 
       const message = rulesMessage(rendered, previous === undefined)
       return { ...decision, messages: insertAfterInstructions(decision.messages, messages, message) }
     } catch (error) {
-      ctx.logger.warn(`dsh-loadout: rules were not added to this step: ${messageOf(error)}`)
+      ctx.logger.warn(`dsh-loadout-manager: rules were not added to this step: ${messageOf(error)}`)
       return decision
     }
   })

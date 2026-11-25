@@ -1,5 +1,5 @@
 /**
- * Build for dsh-loadout, modelled on dsh-better-sidebar's tsdown config:
+ * Build for dsh-loadout-manager, modelled on dsh-better-sidebar's tsdown config:
  *
  * - `lib/index.js` – the Host half (ESM, Node). Everything except Node
  *   builtins is inlined: the bundle is installed as a linked directory, so a
@@ -33,7 +33,7 @@ type BuildPlugin = NonNullable<UserConfig['plugins']>
 /** Client code may import Harness packages only as types; values come through Cordis services. */
 function clientPurityGate(): BuildPlugin {
   return {
-    name: 'dsh-loadout-client-purity',
+    name: 'dsh-loadout-manager-client-purity',
     resolveId(source: string) {
       if (NODE_BUILTINS.has(source)) {
         throw new Error(`client bundle purity: Node builtin "${source}" cannot run in the browser`)
@@ -49,7 +49,7 @@ function clientPurityGate(): BuildPlugin {
 /** The Host bundle keeps only `node:` imports external; it must not depend on packages next to the checkout. */
 function hostSelfContained(): BuildPlugin {
   return {
-    name: 'dsh-loadout-host-self-contained',
+    name: 'dsh-loadout-manager-host-self-contained',
     resolveId(source: string) {
       if (source.startsWith('@deepseek-ai/')) {
         throw new Error(`host bundle: value import of "${source}"; DSH services come from ctx, import their types with "import type"`)
@@ -59,13 +59,13 @@ function hostSelfContained(): BuildPlugin {
   }
 }
 
-const CSS_VIRTUAL_PREFIX = '\0dsh-loadout-css:'
+const CSS_VIRTUAL_PREFIX = '\0dsh-loadout-manager-css:'
 const CSS_VIRTUAL_SUFFIX = '.mjs'
 
 /** `*.module.css` → hashed class map plus a style tag injected once per file. */
 function cssModules(): BuildPlugin {
   return {
-    name: 'dsh-loadout-css-modules',
+    name: 'dsh-loadout-manager-css-modules',
     async resolveId(source: string, importer: string | undefined) {
       if (!source.endsWith('.module.css')) return null
       const resolved = await this.resolve(source, importer, { skipSelf: true })

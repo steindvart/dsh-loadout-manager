@@ -1,4 +1,4 @@
-# Host API DSH для dsh-loadout
+# Host API DSH для dsh-loadout-manager
 
 Проверка фактов, на которые опирается [SPEC.md](../SPEC.md), по исходникам установленной DSH 0.2.2-rc.2 (Desktop). Версия подтверждена по `dsh/node_modules/@deepseek-ai/dsh/package.json`.
 
@@ -280,7 +280,7 @@ this.customSkillDirs = (config.customSkillDirs ?? []).map(root => resolve(root))
 
 Форк получает историю родителя, включая baseline. Плагин находит его на поверхности и не вставляет повторно (`visibleBaselineSource`, `index.ts:47-64`).
 
-Для dsh-loadout: слушатель `agent/pre-step` в `apply(ctx)` бандла (без scope) получит pre-step **всех** агентов всех пресетов, включая `minimal`, где `agent-instructions` нет. Если правила должны идти только туда, где есть AGENTS.md, нужна проверка, например по `ctx.agentPresets.inspectCompositions(agent.ctx)` на наличие модуля `@deepseek-ai/dsh-agent-instructions` (сигнатура из Inspect; не проверено).
+Для dsh-loadout-manager: слушатель `agent/pre-step` в `apply(ctx)` бандла (без scope) получит pre-step **всех** агентов всех пресетов, включая `minimal`, где `agent-instructions` нет. Если правила должны идти только туда, где есть AGENTS.md, нужна проверка, например по `ctx.agentPresets.inspectCompositions(agent.ctx)` на наличие модуля `@deepseek-ai/dsh-agent-instructions` (сигнатура из Inspect; не проверено).
 
 ### 5.2. Решение pre-step
 
@@ -317,7 +317,7 @@ ctx.on('agent/pre-step', async ({ agent, messages, step, signal }, next) => {
 const msg = Object.freeze({
   id: crypto.randomUUID(), role: 'user',
   content: [Object.freeze({ type: 'text', text })],
-  source: Object.freeze({ kind: 'dsh-loadout-rules', form: 'instructions', baseline: true, changes: [...] }),
+  source: Object.freeze({ kind: 'dsh-loadout-manager-rules', form: 'instructions', baseline: true, changes: [...] }),
 })
 ```
 
@@ -414,7 +414,7 @@ interface ConnectionFetchRoute {
 interface HostConnectionFetch { register(route): () => Promise<void> }
 ```
 
-Маршрут проходит проверку доверия соединения, и его достигают **только owner-пиры**, остальным отвечает 403 (`rpc-host.ts:215-223`). Путь должен лежать под `/api` и быть уникальным, иначе ошибка (`assertFetchRoute`, `registerFetchRoute`, `:234-251`). Gateway занимает только двухсегментные эндпоинты с дескриптором, поэтому путь из трёх сегментов вида `/api/dsh-loadout/<op>` с ним не конфликтует.
+Маршрут проходит проверку доверия соединения, и его достигают **только owner-пиры**, остальным отвечает 403 (`rpc-host.ts:215-223`). Путь должен лежать под `/api` и быть уникальным, иначе ошибка (`assertFetchRoute`, `registerFetchRoute`, `:234-251`). Gateway занимает только двухсегментные эндпоинты с дескриптором, поэтому путь из трёх сегментов вида `/api/dsh-loadout-manager/<op>` с ним не конфликтует.
 
 Так делает установленный `dsh-context` (`~/.dsh/profiles/desktop/node_modules/dsh-context/lib/index.js`, функции `Y`/`Da`/`Ea`): `ctx.inject(['connection'], …)` → `ctx.effect(() => connection.fetch.register({ path: '/api/dsh-context/skills', methods: ['POST'], requestBody: 'buffered', fetch }))`. Ответы – `Response.json({ ok: true, value } | { ok: false, error: { code, message } }, { headers: { 'cache-control': 'no-store' } })`. Его Client вызывает `fetch('api/dsh-context/…', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(args) })` с относительным URL, без дополнительных заголовков (`lib/client.js`, функция `_r`).
 
@@ -422,7 +422,7 @@ interface HostConnectionFetch { register(route): () => Promise<void> }
 
 ```js
 // index.js
-export const name = 'dsh-loadout'
+export const name = 'dsh-loadout-manager'
 
 const json = (value) => Response.json(value, { headers: { 'cache-control': 'no-store' } })
 const fail = (code, message) => json({ ok: false, error: { code, message } })
@@ -430,16 +430,16 @@ const fail = (code, message) => json({ ok: false, error: { code, message } })
 function route(ctx, op, handler) {
   ctx.inject(['connection'], (ctx) => {
     ctx.effect(() => ctx.connection.fetch.register({
-      path: `/api/dsh-loadout/${op}`,
+      path: `/api/dsh-loadout-manager/${op}`,
       methods: ['POST'],
       requestBody: 'buffered',
       fetch: async (request) => {
         let body
-        try { body = await request.json() } catch { return fail('dsh-loadout/bad-request', 'body is not JSON') }
+        try { body = await request.json() } catch { return fail('dsh-loadout-manager/bad-request', 'body is not JSON') }
         try { return json({ ok: true, value: await handler(body) }) }
-        catch (error) { return fail('dsh-loadout/failed', error instanceof Error ? error.message : String(error)) }
+        catch (error) { return fail('dsh-loadout-manager/failed', error instanceof Error ? error.message : String(error)) }
       },
-    }), `dsh-loadout: ${op} route`)
+    }), `dsh-loadout-manager: ${op} route`)
   })
 }
 
@@ -452,7 +452,7 @@ export function apply(ctx, config) {
 ```js
 // client.js
 const call = async (op, args) => {
-  const res = await fetch(`api/dsh-loadout/${op}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(args) })
+  const res = await fetch(`api/dsh-loadout-manager/${op}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(args) })
   const data = await res.json()
   if (!data.ok) throw new Error(data.error.message)
   return data.value
@@ -519,8 +519,8 @@ return resolve(expandHomePath(selected))   // ~, ~/, ~\ раскрываются
 3. **`customSkillDirs` не читать из Config.** API для этого нет, а в штатных пресетах значение – `!!js`. Относительные пути там разрешаются от cwd Host-процесса (каталог профиля), не от проекта. Значит, custom-корни всегда глобальные. `dsh-doc` приходит как `custom` из `app.asar` и доступен только для чтения.
 4. **Меню `/` неживой сессии** не видит слой агента и покажет `off`-скиллы до первой активации агента. Это ограничение DSH, в UI его стоит назвать.
 5. **Каталог модели обновится на следующем pre-step** после `invalidate()` дописанным сообщением-заменой (append-only). Каждое переключение `on ↔ manual/off` в живой сессии стоит одного такого сообщения.
-6. **Правила: свой `source.kind`** (например, `dsh-loadout-rules`), `form: 'instructions'`, поля `baseline`, `baselineIdentity` и `changes[{action, scope, path, digest}]` по образцу `agent-instructions`. Состояние восстанавливать из `session.deriveMessages()`: `eventAt` депрекейтнут для нового кода. Вставлять после последнего сообщения `agent-instructions`, иначе после последнего claimed. Решение распространять (spread). На `reject` и на пустом первом шаге ничего не вставлять. Изменения ловить stat'ом на каждом pre-step, как делает `agent-instructions`, watcher для контекста не нужен. Слушатель корневой и получает все агенты, поэтому решить, нужны ли правила в пресете `minimal`.
-7. **Связь Client ↔ Host – exact Fetch routes** `ctx.connection.fetch.register({ path: '/api/dsh-loadout/<op>', methods: ['POST'], requestBody: 'buffered', fetch })`, только для owner. Typert Remote из plain JS недоступен. SPEC стоит поправить: «Remote или Service» → «Fetch-маршрут на `/api`».
+6. **Правила: свой `source.kind`** (например, `dsh-loadout-manager-rules`), `form: 'instructions'`, поля `baseline`, `baselineIdentity` и `changes[{action, scope, path, digest}]` по образцу `agent-instructions`. Состояние восстанавливать из `session.deriveMessages()`: `eventAt` депрекейтнут для нового кода. Вставлять после последнего сообщения `agent-instructions`, иначе после последнего claimed. Решение распространять (spread). На `reject` и на пустом первом шаге ничего не вставлять. Изменения ловить stat'ом на каждом pre-step, как делает `agent-instructions`, watcher для контекста не нужен. Слушатель корневой и получает все агенты, поэтому решить, нужны ли правила в пресете `minimal`.
+7. **Связь Client ↔ Host – exact Fetch routes** `ctx.connection.fetch.register({ path: '/api/dsh-loadout-manager/<op>', methods: ['POST'], requestBody: 'buffered', fetch })`, только для owner. Typert Remote из plain JS недоступен. SPEC стоит поправить: «Remote или Service» → «Fetch-маршрут на `/api`».
 8. **Корзина – `gio trash`.** Host – Node-процесс без Electron, `shell.trashItem` недоступен. При ошибке ничего не удалять.
 9. **Пути:** `ctx.dshHomePath()` для `$DSH_HOME`, свой резолв `$DSH_AGENTS_HOME` (пустое значение = не задано, `~` раскрывать).
 10. **Workspace:** `ctx.workspaceRegistry.list()` на Host, `ctx.workspaces.list` на Client. `projectRoot` для группы workspace считать как в DSH: ближайший предок с `.git` (файл или каталог), иначе сам путь.

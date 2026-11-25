@@ -227,7 +227,7 @@ async function customRoots(ctx: Context, cwd: string): Promise<string[]> {
     }
     return [...roots]
   } catch (error) {
-    ctx.logger.warn(`dsh-loadout: custom skill roots unavailable: ${messageOf(error)}`)
+    ctx.logger.warn(`dsh-loadout-manager: custom skill roots unavailable: ${messageOf(error)}`)
     return []
   }
 }

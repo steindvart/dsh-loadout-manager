@@ -33,7 +33,7 @@ test('registers the shadow provider through agent.ctx.get("skills")', async () =
     skills: { registerProvider: (create: (control: unknown) => { name: string }) => { registered.push(create({ invalidate() {} }).name); return () => {} } },
   }).ctx
   await listeners['agent/created']?.({ agent: { ctx: agentCtx } })
-  assert.deepEqual(registered, ['dsh-loadout'])
+  assert.deepEqual(registered, ['dsh-loadout-manager'])
 })
 
 test('a failing registration never breaks agent creation', async () => {

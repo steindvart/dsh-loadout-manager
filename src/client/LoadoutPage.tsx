@@ -10,8 +10,8 @@ import { countOf, KINDS, Sections, Tabs, type Scope } from './items.tsx'
 import { isSettling } from './mcp.tsx'
 import css from './Loadout.module.css'
 
-const SCOPE_KEY = 'dsh-loadout.scope'
-const TAB_KEY = 'dsh-loadout.tab'
+const SCOPE_KEY = 'dsh-loadout-manager.scope'
+const TAB_KEY = 'dsh-loadout-manager.tab'
 /** Workspace values are absolute paths, so they never equal this one. */
 const GLOBAL = 'global'
 

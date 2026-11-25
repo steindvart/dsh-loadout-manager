@@ -20,7 +20,7 @@ import type {} from '@deepseek-ai/dsh-working-directory'
 import { readLevels, shadowsFor, type Homes } from './inventory.ts'
 import { findProjectRoot } from './paths.ts'
 
-export const PROVIDER_NAME = 'dsh-loadout'
+export const PROVIDER_NAME = 'dsh-loadout-manager'
 
 export interface Shadows {
   /** Re-read `loadout.json` in every live agent before its next step. */
@@ -40,7 +40,7 @@ export function registerShadows(ctx: Context, homes: Homes): Shadows {
   ctx.effect(() => () => {
     for (const entry of providers.values()) entry.dispose()
     providers.clear()
-  }, 'dsh-loadout: shadow providers')
+  }, 'dsh-loadout-manager: shadow providers')
 
   function attach(agent: Agent): void {
     if (ctx.get('skills') === undefined || providers.has(agent)) return
@@ -66,7 +66,7 @@ export function registerShadows(ctx: Context, homes: Homes): Shadows {
     try {
       attach(agent)
     } catch (error) {
-      ctx.logger.warn(`dsh-loadout: skill states are not applied to this agent: ${messageOf(error)}`)
+      ctx.logger.warn(`dsh-loadout-manager: skill states are not applied to this agent: ${messageOf(error)}`)
     }
   }
 
@@ -96,7 +96,7 @@ export function registerShadows(ctx: Context, homes: Homes): Shadows {
           seen.set(path, mtime)
         }
       } catch (error) {
-        ctx.logger.warn(`dsh-loadout: loadout.json check failed: ${messageOf(error)}`)
+        ctx.logger.warn(`dsh-loadout-manager: loadout.json check failed: ${messageOf(error)}`)
       }
     }
     return next()

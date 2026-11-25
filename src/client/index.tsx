@@ -1,5 +1,5 @@
 /**
- * dsh-loadout Client half: the Loadout page in the left sidebar panel list.
+ * dsh-loadout-manager Client half: the Loadout page in the left sidebar panel list.
  * The build wraps this module into `window.__ModuleLoader__.load({ id,
  * factory })`; its exports `inject` and `apply` form the Cordis plugin.
  */
@@ -20,8 +20,8 @@ export const inject = ['slots', 'locale']
 
 export function apply(ctx: Context): void {
   // One registration per language: the multi-language overload also demands `zh`, which this plugin does not ship.
-  ctx.effect(() => ctx.locale.register(NS, 'en', en), 'dsh-loadout: locale en')
-  ctx.effect(() => ctx.locale.register(NS, 'ru', ru), 'dsh-loadout: locale ru')
+  ctx.effect(() => ctx.locale.register(NS, 'en', en), 'dsh-loadout-manager: locale en')
+  ctx.effect(() => ctx.locale.register(NS, 'ru', ru), 'dsh-loadout-manager: locale ru')
   const t = ctx.locale.bind(NS) as T
 
   ctx.slots.inject('main', () => ctx.slots.register({

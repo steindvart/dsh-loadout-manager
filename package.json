@@ -1,5 +1,5 @@
 {
-  "name": "dsh-loadout",
+  "name": "dsh-loadout-manager",
   "version": "0.1.0",
   "description": "Turn skills on, off, or manual-only and load rule files into agent context next to AGENTS.md. Loadout in the left sidebar.",
   "private": true,

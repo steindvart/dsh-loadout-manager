@@ -6,6 +6,6 @@
 #              rule injection off).
 - insert:
     - id: loadout
-      name: dsh-loadout
+      name: dsh-loadout-manager
       config:
         maxBytes: 65536

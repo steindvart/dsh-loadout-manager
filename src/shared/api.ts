@@ -1,6 +1,6 @@
 /**
  * Wire contract between the Host and the Loadout page: the Fetch routes
- * `POST /api/dsh-loadout/<op>`, their request bodies, and the views they
+ * `POST /api/dsh-loadout-manager/<op>`, their request bodies, and the views they
  * return. Both halves import these types, so a change to one side that the
  * other does not follow fails `npm run typecheck`. Types only: no values,
  * so the client bundle stays free of Host code.
@@ -137,4 +137,4 @@ export type Operation = keyof Requests
 export type Envelope<T> = { ok: true, value: T } | { ok: false, error: { code: string, message: string } }
 
 /** Absolute route path of an operation. */
-export const routePath = (op: Operation): string => `/api/dsh-loadout/${op}`
+export const routePath = (op: Operation): string => `/api/dsh-loadout-manager/${op}`

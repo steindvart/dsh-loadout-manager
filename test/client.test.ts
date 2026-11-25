@@ -69,11 +69,11 @@ const level = (root: string) => ({
   ],
 })
 
-test('the bundle registers as dsh-loadout and needs only React from the shell', () => {
+test('the bundle registers as dsh-loadout-manager and needs only React from the shell', () => {
   const { registration, plugin } = loadBundle()
-  assert.equal(registration.id, 'dsh-loadout')
+  assert.equal(registration.id, 'dsh-loadout-manager')
   assert.deepEqual(plugin.inject, ['slots', 'locale'])
-  const style = document.querySelector('style[data-plugin="dsh-loadout"]')
+  const style = document.querySelector('style[data-plugin="dsh-loadout-manager"]')
   assert.ok(style?.textContent?.includes('--dsw-alias-'), 'styles are injected as one tagged <style> and use theme tokens')
 })
 
@@ -141,7 +141,7 @@ test('the page switches tabs and scope and asks the Host for the chosen workspac
   })
   await settle()
   assert.deepEqual(calls.map(([op, body]) => [op, body]), [['state', {}], ['state', { workspacePath: '/work/repo' }]])
-  assert.equal(window.localStorage.getItem('dsh-loadout.scope'), '/work/repo')
+  assert.equal(window.localStorage.getItem('dsh-loadout-manager.scope'), '/work/repo')
   assert.ok(document.body.textContent?.includes('/work/repo/.agents/loadout.json'))
 
   await act(async () => { (document.getElementById('dshlo-tab-mcp') as HTMLButtonElement).click() })

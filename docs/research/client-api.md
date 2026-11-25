@@ -1,6 +1,6 @@
-# Client-часть dsh-loadout: API DSH для страницы настроек
+# Client-часть dsh-loadout-manager: API DSH для страницы настроек
 
-Заметка собрана для реализации Client-части (`client.js`) плагина `dsh-loadout` по [SPEC.md](../SPEC.md). Версия DSH – `@deepseek-ai/dsh` 0.2.2-rc.2 (Desktop, исходники внутри `app.asar`).
+Заметка собрана для реализации Client-части (`client.js`) плагина `dsh-loadout-manager` по [SPEC.md](../SPEC.md). Версия DSH – `@deepseek-ai/dsh` 0.2.2-rc.2 (Desktop, исходники внутри `app.asar`).
 
 Сокращения путей:
 
@@ -85,7 +85,7 @@ README `A/dsh-client-modules/README.md:55`: «The shell seeds a frozen module ta
 1. Собранные бандлы кладут `<style>` в `document.head` прямо в фабрике и помечают его `data-plugin="<пакет>"`, `data-plugin-css="<id>"` (`better-sidebar/lib/client.js`, блок `\0dsh-css:`). Загрузчик сам собирает такие теги и удаляет их при выгрузке плагина: `claimStyles` (`A/dsh-client-modules/src/client/system.ts:66-86`), `removeOwnedStyles` (`A/dsh-client-modules/src/client/entry-lifecycle.ts:23-28`).
 2. `dsh-doc` рекомендует держать фабрику без побочных эффектов, а стили регистрировать в `apply` через `ctx.effect(() => { ...; return () => tag.remove() })` или рендерить `<style>` React-элементом внутри компонента (`dsh-doc/references/ui-plugin.md:13`).
 
-Для `client.js` без сборки удобнее второй путь: `ctx.effect` в `apply`, тег с `data-plugin="dsh-loadout"`, чтобы загрузчик подчистил его и при сбое.
+Для `client.js` без сборки удобнее второй путь: `ctx.effect` в `apply`, тег с `data-plugin="dsh-loadout-manager"`, чтобы загрузчик подчистил его и при сбое.
 
 ### Локализация в Client
 
@@ -360,11 +360,11 @@ SPEC ссылается на Plugin Manager, но это основная пан
 
 Что должна сделать реализация:
 
-1. `client.js` – классический скрипт `window.__ModuleLoader__.load({ id: 'dsh-loadout', factory(require) {...} })`. React берётся из `require('react')`, элементы строятся через `React.createElement`. Плагин возвращает `{ inject: ['slots', 'locale'], apply(ctx) }`, а `sidebarRight`, `workspaces` и `connection` получает через `ctx.get(...)`, чтобы не зависеть от них жёстко.
+1. `client.js` – классический скрипт `window.__ModuleLoader__.load({ id: 'dsh-loadout-manager', factory(require) {...} })`. React берётся из `require('react')`, элементы строятся через `React.createElement`. Плагин возвращает `{ inject: ['slots', 'locale'], apply(ctx) }`, а `sidebarRight`, `workspaces` и `connection` получает через `ctx.get(...)`, чтобы не зависеть от них жёстко.
 2. В `package.json`: `exports["./client"] = "./client.js"`, `dsh.client = { platform: 'web', inject: [...] }` (п. 1), плюс `./locale/*.json` и `./icon`.
 3. В `apply`:
    - `ctx.effect(() => ctx.locale.register('loadout', { en, ru, zh? }))`;
-   - стили – `ctx.effect` с тегом `<style data-plugin="dsh-loadout">`;
+   - стили – `ctx.effect` с тегом `<style data-plugin="dsh-loadout-manager">`;
    - `ctx.slots.inject('settings.section', () => ctx.slots.register({ name: 'settings.section', id: 'loadout', order: 25, label: () => t('nav'), locale: 'loadout', inject: () => ({ hooks: { loadout: store }, api }) }, LoadoutSection))`;
    - иконка – отдельная регистрация в `settings.section.icon` с тем же `id: 'loadout'`.
 4. Связь с Host – свой маршрут `ctx.webServer.register({ kind: 'prefix', path: '/loadout/api', handler })` с проверкой `ctx.connection.requestRejection(req) === undefined`, только `POST` с JSON и конвертом `{ ok, value | error: { code, message } }`. Client обращается к `new URL('loadout/api/<method>', document.baseURI)`. На Host сервисы `webServer` и `connection` брать через `ctx.inject(['webServer', 'connection'], ...)`, чтобы фильтр скиллов и правила работали и без Web-сервера.
