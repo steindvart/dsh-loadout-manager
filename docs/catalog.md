@@ -31,14 +31,11 @@ Deleting an installed skill or rule from a Catalog row, or through the Skills or
 
 ## Checks before installing
 
-On top of the checks made when a source is read, an install:
+An install enforces the [requirements for entries](indexes.md#requirements-for-entries) on the copy it is about to write:
 
-- reads a rule through a size limit of 1 MiB, and a skill or archive through 20 MiB and 2000 files;
-- refuses symbolic links inside a skill;
-- checks archive member names before extraction and refuses absolute paths and `..`;
-- checks the unpacked size and file count of an archive before extraction: a gzip stream is inflated in memory through the limit, and a zip is measured from its central directory;
-- reads `SKILL.md` after staging and requires its `name` to match the entry and its `description` to be non-empty;
-- writes files atomically and never leaves a partially replaced skill.
+- a skill is copied into staging first, and `SKILL.md` is read from there, so the check sees exactly the files that will be installed;
+- an archive's member names, unpacked size, and file count are checked before extraction: a gzip stream is inflated in memory through the limit, and a zip is measured from its central directory;
+- files are written atomically, and a skill is never left partially replaced.
 
 ## Agent access
 

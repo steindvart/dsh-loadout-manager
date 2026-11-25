@@ -74,6 +74,17 @@ A skill entry may carry `files`, used only by HTTP sources: the files fetched un
 
 Rules are single files. They may have frontmatter, but it is optional, as it is for rule files the user writes by hand.
 
+## Requirements for entries
+
+The Host refuses an entry that breaks one of these rules. The document shape and links are checked when the source is read, the content when the entry is installed.
+
+- The index file is at most 2 MiB and is not a symbolic link.
+- A skill directory holds a regular `SKILL.md` with YAML frontmatter; its `name` equals the entry `name`, and its `description` is not empty.
+- A skill is at most 20 MiB and 2000 files, with no symbolic links anywhere inside. An archive has the same limits once unpacked, and its members cannot have absolute paths or `..` segments.
+- A rule is a regular, non-empty `.md` file of at most 1 MiB.
+- An entry is not a symbolic link and does not lead outside its source through a linked parent directory.
+- An HTTP entry and its `files` stay on the origin of the index.
+
 ## Cache and refresh
 
 The Host caches each source under `$DSH_HOME/loadout-manager/indexes/<hash>/`: a `cache.json` with the validated entries, a `repo/` working clone for git, and temporary space for archives. The cache is reused for ten minutes. Removing a source deletes its directory.
@@ -93,9 +104,8 @@ How the markers decide an update is in [catalog.md](catalog.md#installing-and-up
 Index content is third-party content. While reading a source, the Host:
 
 - validates the document shape, names, paths, and duplicates, and reports the JSON path of the first invalid value;
-- reads the index through a size limit of 2 MiB;
-- refuses symbolic links in the index file and in entries. Git entries are checked by their mode in the tree, and on disk the real path of an entry must stay inside the source, so a link in a parent directory cannot lead elsewhere;
-- requires a skill entry to hold a regular `SKILL.md` and a rule entry to be a regular file.
+- checks git entries by their mode in the tree, so a symbolic link is refused before it is used;
+- resolves the real path of a local or checked-out entry and refuses it when that path leaves the source.
 
 A git source runs with prompts disabled, repository hooks off, and only the https, http, and ssh transports allowed. The user's git configuration and credentials still apply. An HTTP source uses the Host `fetch`, follows redirects, and sends no credentials. Entry and file URLs must keep the origin of the index after its redirects, so a path such as `https:other.example/x` or `data:…` is refused before anything is fetched.
 

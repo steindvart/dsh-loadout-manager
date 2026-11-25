@@ -10,7 +10,7 @@ The specification is split by topic; each file covers one part of the plugin:
 
 - [Skills](skills.md) – the `on`/`manual`/`off` states, deletion, the filter through a shadow provider in the agent layer.
 - [Rules](rules.md) – format, roots, injection into the context after the AGENTS.md pattern, budget.
-- [Skill and rule indexes](indexes.md) – sources, `loadout-index.json`, cache and refresh, checks made while reading a source.
+- [Skill and rule indexes](indexes.md) – sources, `loadout-index.json`, requirements for entries, cache and refresh, reading a source.
 - [Catalog](catalog.md) – installing, updating, and deleting index entries, provenance, checks before an install, agent search.
 - [On/off state](loadout.md) – `loadout.json`: levels, format, addressing, overriding of same-name skills.
 - [Panel](panel.md) – scope picker, tabs (Skills / Instructions / MCP), the list of the selected kind.
