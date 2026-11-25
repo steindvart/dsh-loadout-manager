@@ -17,8 +17,8 @@ import { parseFrontmatter, type FrontmatterValue } from './frontmatter.ts'
 import { isStale, refreshSource, ruleContent, stageSkill } from './index-fetch.ts'
 import { classifySource, indexesPath, parseIndexesFile, serializeIndexesFile, type IndexSource } from './index-sources.ts'
 import {
-  cacheFile, digestFile, digestTree, installedFile, installKey, readCache, readInstalled, readOptionalText,
-  updateAvailable, writeAtomic, writeInstalled, type CachedIndex, type CachedRule, type CachedSkill, type InstalledItem,
+  cacheDir, cacheFile, digestFile, digestTree, installedFile, installKey, readCache, readInstalled, readOptionalText,
+  removeDirectory, updateAvailable, writeAtomic, writeInstalled, type CachedIndex, type CachedRule, type CachedSkill, type InstalledItem,
   type InstalledState,
 } from './index-store.ts'
 import type {
@@ -214,6 +214,7 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
         const list = await readSourcesStrict()
         if (!list.sources.some(item => item.id === source)) throw new OperationError('unknown-source', `"${source}" is not a configured index source`)
         await writeAtomic(list.path, serializeIndexesFile(list.sources.filter(item => item.id !== source).map(item => item.id)))
+        await serialized(source, async () => { await removeDirectory(cacheDir(homes.dshHome, source)) })
         return await view(await context(projectRoot))
       })
     },
@@ -261,6 +262,7 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
         // Staging and backups live beside the manifest, outside the roots DSH scans.
         const workRoot = join(dirname(manifest), 'work')
         await mkdir(workRoot, { recursive: true })
+        await ignoreScratch(dirname(manifest))
         const staging = kind === 'skill'
           ? await mkdtemp(join(workRoot, 'skill-'))
           : join(workRoot, `rule-${randomUUID()}.tmp`)
@@ -418,6 +420,12 @@ function versionOf(data: Record<string, FrontmatterValue>): string | undefined {
 
 async function digestOf(kind: IndexKind, path: string): Promise<string> {
   return kind === 'skill' ? await digestTree(path) : await digestFile(path)
+}
+
+/** Keep staging and backups out of version control; a .gitignore the user wrote is left alone. */
+async function ignoreScratch(dir: string): Promise<void> {
+  const path = join(dir, '.gitignore')
+  if (!existsSync(path)) await writeFile(path, 'work/\nbackups/\n')
 }
 
 async function rollback(target: string, backup: string | undefined): Promise<void> {

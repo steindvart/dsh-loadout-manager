@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createIndexService } from '../src/host/index-ops.ts'
 import { classifySource } from '../src/host/index-sources.ts'
+import { cacheDir } from '../src/host/index-store.ts'
 
 function tree(files: Record<string, string>): string {
   const base = mkdtempSync(join(tmpdir(), 'loadout-index-ops-'))
@@ -157,6 +158,10 @@ test('installs into a workspace, keeps the manifest there, and refuses an unmana
   assert.equal(installed.level, 'project')
   assert.equal(installed.path, join(projectRoot, '.agents/skills/tdd'))
   assert.match(await readFile(join(projectRoot, '.agents/.loadout-manager/installed.json'), 'utf8'), /"skill\/tdd"/)
+  assert.equal(await readFile(join(projectRoot, '.agents/.loadout-manager/.gitignore'), 'utf8'), 'work/\nbackups/\n')
+  writeFileSync(join(projectRoot, '.agents/.loadout-manager/.gitignore'), '*\n')
+  await service.install({ source, kind: 'rule', name: 'style', projectRoot, force: false })
+  assert.equal(await readFile(join(projectRoot, '.agents/.loadout-manager/.gitignore'), 'utf8'), '*\n', 'a .gitignore the user wrote stays')
 
   writeFileSync(join(base, 'source/loadout-index.json'), index([
     { name: 'tdd', description: 'Test first.', path: 'skills/tdd' },
@@ -236,12 +241,15 @@ test('search matches names, descriptions, tags, and the kind filter', async (t) 
 })
 
 test('removing a source keeps installed items and a bad source list is reported', async (t) => {
-  const { base, service } = setup({})
+  const { base, homes, service } = setup({})
   t.after(() => rm(base, { recursive: true, force: true }))
   const view = await service.addSource(join(base, 'source'), undefined)
   const source = view.sources[0]!.source
   await service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false })
+  assert.equal(existsSync(cacheDir(homes.dshHome, source)), true)
   const removed = await service.removeSource(source, undefined)
+  assert.equal(existsSync(cacheDir(homes.dshHome, source)), false, 'the cache of the source goes with it')
+  assert.equal(existsSync(join(homes.agentsHome, 'skills/tdd/SKILL.md')), true)
   assert.deepEqual(removed.sources, [])
   assert.equal(removed.entries.length, 0)
   const search = await service.search({ projectRoot: undefined })
