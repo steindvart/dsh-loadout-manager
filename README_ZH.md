@@ -4,15 +4,15 @@
 
 DeepSeek Harness（DSH）插件。原版 DSH 没有一个页面能同时查看全局和某个项目中可用的技能（skill）与 MCP 服务器，也没有规则（rules）机制。Loadout Manager 补上了这两点：按层级展示技能和 MCP 服务器，提供管理功能，并把规则加入智能体上下文，与 AGENTS.md 并列。
 
-![Loadout Manager 页面：Global 范围下的 Skills 标签页，每个技能都有 On、Manual、Off 开关](assets/main-window.png)
+![Loadout Manager 页面（英文界面）：Global 范围下的 Skills 标签页，每个技能都有 On、Manual、Off 开关](assets/main-window.png)
 
-插件界面目前提供英文和俄文，在中文环境下显示英文，因此下文中的界面名称保留英文原文。
+插件界面支持中文、英文和俄文，跟随 DSH 的语言设置。
 
 ## 功能
 
 ### 按层级查看
 
-左侧边栏会出现 Loadout Manager 入口。在页面顶部选择范围：Global 或某个工作区（workspace）。Skills、Instructions 和 MCP 三个标签页列出智能体在该范围内获得的全部内容，包括 DSH 自动加载的 AGENTS.md 和 CLAUDE.md。任何文件都可以直接在所在行中展开查看。
+左侧边栏会出现 Loadout Manager 入口。在页面顶部选择范围：“全局”或某个工作区。“技能”“指令”和“MCP”三个标签页列出智能体在该范围内获得的全部内容，包括 DSH 自动加载的 AGENTS.md 和 CLAUDE.md。任何文件都可以直接在所在行中展开查看。
 
 ### 技能管理
 
@@ -30,7 +30,7 @@ DeepSeek Harness（DSH）插件。原版 DSH 没有一个页面能同时查看�
 
 ### MCP 管理
 
-在 Global 中，开关会在 DSH 配置中启用或停用服务器。在工作区中，开关会对该项目的智能体隐藏服务器的工具，服务器本身继续运行。Check 按钮会试连服务器并列出其工具，即使服务器已停用也可以。
+在“全局”中，开关会在 DSH 配置中启用或停用服务器。在工作区中，开关会对该项目的智能体隐藏服务器的工具，服务器本身继续运行。“检查”按钮会试连服务器并列出其工具，即使服务器已停用也可以。
 
 ### 在对话中管理
 
