@@ -123,8 +123,11 @@ function indexName(value: unknown, label: string, at: string, pattern: RegExp, k
  */
 export function relativePath(value: unknown, label = 'path', at = ''): string {
   if (typeof value !== 'string') throw invalid(label, at, 'a relative path is required')
-  const path = value.trim().replaceAll('\\', '/')
-  if (path === '.' || path === './') return '.'
+  const path = value.trim().replaceAll('\\', '/').replace(/\/+$/, '')
+  if (path === '.' || path === '') {
+    if (value.trim() === '.' || value.trim() === './') return '.'
+    if (path === '') throw invalid(label, at, 'the path must be relative to the source root')
+  }
   if (path === '' || path.startsWith('/') || path.includes('\0')) throw invalid(label, at, 'the path must be relative to the source root')
   for (const part of path.split('/')) {
     if (part === '' || part === '.' || part === '..' || part === '.git') throw invalid(label, at, `"${value}" is not a safe relative path`)

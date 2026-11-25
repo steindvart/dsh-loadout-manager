@@ -62,6 +62,7 @@ test('rejects a malformed document with the JSON path of the offending value', (
 test('a relative path accepts "." as the source root and rejects escaping forms', () => {
   assert.equal(relativePath('.', 'p', 'x'), '.')
   assert.equal(relativePath('a\\b\\c', 'p', 'x'), 'a/b/c')
+  assert.equal(relativePath('skills/tdd/', 'p', 'x'), 'skills/tdd')
   for (const bad of ['', '/a', 'a//b', 'a/./b', 'a/../b', './a', 'a\\..\\b', '.git/x', 'a\0b']) {
     assert.throws(() => relativePath(bad, 'p', 'x'), /p: x/, `rejects ${JSON.stringify(bad)}`)
   }

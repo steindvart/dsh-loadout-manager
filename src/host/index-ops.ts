@@ -8,7 +8,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { Homes } from './inventory.ts'
 import { OperationError } from './errors.ts'
 import { parseFrontmatter, type FrontmatterValue } from './frontmatter.ts'
@@ -216,6 +216,7 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
     },
 
     async install({ source: sourceId, kind, name, projectRoot, force }) {
+      return await serialized('@install', async () => {
       const source = await findSource(sourceId)
       const cache = await cacheFor(source)
       const entry = kind === 'skill'
@@ -233,6 +234,9 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
       const root = rootOf(level, kind, homes.agentsHome, projectRoot)
       const target = targetOf(level, kind, name, homes.agentsHome, projectRoot)
       const manifest = installedFile(homes.agentsHome, projectRoot)
+      if (kind === 'skill' && existsSync(join(root, `${name}.md`))) {
+        throw new OperationError('unmanaged', `${join(root, `${name}.md`)} already exists and was not installed from an index`)
+      }
       const installed = await readInstalled(manifest)
       if (installed.error !== undefined) throw new OperationError('install-failed', `${manifest} is malformed: ${installed.error}`)
       const key = installKey(kind, name)
@@ -251,9 +255,12 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
       }
 
       await mkdir(root, { recursive: true })
+      // Staging and backups live beside the manifest, outside the roots DSH scans.
+      const workRoot = join(dirname(manifest), 'work')
+      await mkdir(workRoot, { recursive: true })
       const staging = kind === 'skill'
-        ? await mkdtemp(join(root, '.loadout-stage-'))
-        : join(root, `.loadout-rule-${randomUUID()}.tmp`)
+        ? await mkdtemp(join(workRoot, 'skill-'))
+        : join(workRoot, `rule-${randomUUID()}.tmp`)
       let renamed = false
       try {
         let version: string | undefined
@@ -279,8 +286,11 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
           ...cache.commit !== undefined ? { commit: cache.commit } : {},
           installedAt: Date.now(),
         }
-        const backup = targetExists ? join(root, `.${basename(target)}.backup-${randomUUID()}`) : undefined
-        if (backup !== undefined) await rename(target, backup)
+        const backup = targetExists ? join(dirname(manifest), 'backups', `${kind}-${name}-${randomUUID()}`) : undefined
+        if (backup !== undefined) {
+          await mkdir(dirname(backup), { recursive: true })
+          await rename(target, backup)
+        }
         try {
           await rename(staging, target)
           renamed = true
@@ -308,17 +318,20 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
           await rm(staging, { recursive: kind === 'skill', force: true })
         }
       }
+      })
     },
 
     async forget(kind, name, projectRoot) {
-      const manifest = installedFile(homes.agentsHome, projectRoot)
-      const installed = await readInstalled(manifest)
-      if (installed.error !== undefined) return
-      const key = installKey(kind, name)
-      if (!(key in installed.items)) return
-      const items = { ...installed.items }
-      delete items[key]
-      await writeInstalled(manifest, { items })
+      await serialized('@install', async () => {
+        const manifest = installedFile(homes.agentsHome, projectRoot)
+        const installed = await readInstalled(manifest)
+        if (installed.error !== undefined) return
+        const key = installKey(kind, name)
+        if (!(key in installed.items)) return
+        const items = { ...installed.items }
+        delete items[key]
+        await writeInstalled(manifest, { items })
+      })
     },
 
     async search({ projectRoot, query, kind, limit = 50 }) {

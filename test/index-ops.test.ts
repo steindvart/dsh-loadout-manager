@@ -142,6 +142,27 @@ test('installs into a workspace, keeps the manifest there, and refuses an unmana
   )
 })
 
+test('two installs into one level keep both provenance records', async (t) => {
+  const { base, homes, service } = setup({})
+  t.after(() => rm(base, { recursive: true, force: true }))
+  writeFileSync(join(base, 'source/loadout-index.json'), index([
+    { name: 'tdd', description: 'Test first.', path: 'skills/tdd' },
+    { name: 'review', description: 'Review code.', path: 'skills/review' },
+  ]))
+  mkdirSync(join(base, 'source/skills/review'), { recursive: true })
+  writeFileSync(join(base, 'source/skills/review/SKILL.md'), skillFile('review'))
+  const view = await service.addSource(join(base, 'source'), undefined)
+  const source = view.sources[0]!.source
+  await Promise.all([
+    service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false }),
+    service.install({ source, kind: 'skill', name: 'review', projectRoot: undefined, force: false }),
+  ])
+  const state = await service.state(undefined)
+  assert.deepEqual(state.entries.find(entry => entry.name === 'review')?.installs.map(install => install.level), ['global'])
+  assert.match(await readFile(join(homes.agentsHome, '.loadout-manager/installed.json'), 'utf8'), /"skill\/tdd"/)
+  assert.match(await readFile(join(homes.agentsHome, '.loadout-manager/installed.json'), 'utf8'), /"skill\/review"/)
+})
+
 test('search matches names, descriptions, tags, and the kind filter', async (t) => {
   const { base, service } = setup({})
   t.after(() => rm(base, { recursive: true, force: true }))
