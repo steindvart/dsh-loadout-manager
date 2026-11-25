@@ -1,24 +1,24 @@
-# Client-часть dsh-loadout-manager: API DSH для страницы настроек
+# dsh-loadout-manager Client part: the DSH API for a settings page
 
-Заметка собрана для реализации Client-части (`client.js`) плагина `dsh-loadout-manager` по [SPEC.md](../SPEC.md). Версия DSH – `@deepseek-ai/dsh` 0.2.2-rc.2 (Desktop, исходники внутри `app.asar`).
+These notes were gathered to implement the Client part (`client.js`) of the `dsh-loadout-manager` plugin per [SPEC.md](../SPEC.md). DSH version: `@deepseek-ai/dsh` 0.2.2-rc.2 (Desktop, sources inside `app.asar`).
 
-Сокращения путей:
+Path abbreviations:
 
 - `A/` = `/usr/lib/deepseek-harness-desktop/resources/app.asar/dsh/node_modules/@deepseek-ai/`;
 - `dsh-doc/` = `A/dsh-agent-preset/skills/dsh-doc/`;
-- `better-sidebar/` = `~/.dsh/profiles/desktop/node_modules/dsh-better-sidebar/` (установленный сторонний плагин с Client-частью).
+- `better-sidebar/` = `~/.dsh/profiles/desktop/node_modules/dsh-better-sidebar/` (an installed third-party plugin with a Client part).
 
-Источники: исходники и README пакетов в `A/`, справка скилла `dsh-doc`, живой каталог Host-сервисов через `cordis_inspect_query` (Host `Service.listService`). Client-провайдеры Inspect (`Slots`, `Theme`, `Builtin`) во время работы не ответили (`timed out after 10000ms. Open or reconnect the Harness page`), поэтому живое дерево слотов и токены темы не сняты: всё про слоты и токены ниже взято из исходников. Кроме того, `cordis_inspect_query` отклонял любой непустой `input` (`"input" must be an object`), так что `Config.listConfigs` с фильтром тоже не выполнялся.
+Sources: the sources and READMEs of the packages in `A/`, the `dsh-doc` skill reference, and the live catalog of Host services through `cordis_inspect_query` (Host `Service.listService`). The Client Inspect providers (`Slots`, `Theme`, `Builtin`) did not answer at the time (`timed out after 10000ms. Open or reconnect the Harness page`), so the live slot tree and theme tokens were not captured: everything about slots and tokens below comes from the sources. In addition, `cordis_inspect_query` rejected any non-empty `input` (`"input" must be an object`), so `Config.listConfigs` with a filter did not run either.
 
-## 1. Формат `client.js` без сборки
+## 1. The `client.js` format without a build
 
-### Регистрация модуля
+### Module registration
 
-Браузерная часть – это классический скрипт (не ESM), который регистрирует фабрику через глобальный `window.__ModuleLoader__.load`. Образец – шаблон `dsh-doc/templates/decoration/client.js`:
+The browser part is a classic script (not ESM) that registers a factory through the global `window.__ModuleLoader__.load`. The reference is the `dsh-doc/templates/decoration/client.js` template:
 
 ```js
 window.__ModuleLoader__.load({
-  id: '@local/my-decoration',          // = имя пакета
+  id: '@local/my-decoration',          // = package name
   factory(require) {
     const React = require('react');
     const h = React.createElement;
@@ -35,13 +35,13 @@ window.__ModuleLoader__.load({
 });
 ```
 
-Контракт фабрики – `A/dsh-client-modules/src/client/manifest.ts:362-374` (`ClientBundleRegistration { id, chunk?, factory: (require) => Record<string, unknown> }`). `id` обязан совпадать с именем пакета: иначе загрузчик падает с `bundle ${url} loaded without registering "${id}" via __ModuleLoader__.load` (`A/dsh-client-modules/src/client/system.ts:377`). Фабрика выполняется лениво, один раз, при первой материализации; её результат – обычный Cordis-плагин (`inject`, `apply(ctx)`), как у Host-плагинов.
+The factory contract is `A/dsh-client-modules/src/client/manifest.ts:362-374` (`ClientBundleRegistration { id, chunk?, factory: (require) => Record<string, unknown> }`). `id` must match the package name; otherwise the loader fails with `bundle ${url} loaded without registering "${id}" via __ModuleLoader__.load` (`A/dsh-client-modules/src/client/system.ts:377`). The factory runs lazily, once, on first materialization; its result is an ordinary Cordis plugin (`inject`, `apply(ctx)`), like Host plugins.
 
-Установленный `better-sidebar/lib/client.js` (собран tsdown) начинается так же: `window.__ModuleLoader__.load({ id: "dsh-better-sidebar", factory: (require) => { ... let react = require("react"); ...` – формат одинаковый для собранных и рукописных бандлов.
+The installed `better-sidebar/lib/client.js` (built with tsdown) starts the same way: `window.__ModuleLoader__.load({ id: "dsh-better-sidebar", factory: (require) => { ... let react = require("react"); ...` – the format is the same for built and handwritten bundles.
 
-### Откуда берутся React и другие зависимости
+### Where React and other dependencies come from
 
-Не глобали, не import map и не `ctx`: их отдаёт аргумент `require` фабрики из замороженной таблицы модулей оболочки. Таблица найдена в собранном `A/dsh-web-frontend/dist/assets/index-ghOpC9uV.js` (функция `WJ()`):
+Not globals, not an import map, and not `ctx`: the factory's `require` argument supplies them from the shell's frozen module table. The table is in the built `A/dsh-web-frontend/dist/assets/index-ghOpC9uV.js` (function `WJ()`):
 
 ```js
 { react, "react/jsx-runtime", "react-dom", "react-dom/client", "@deepseek-ai/cordis", zod,
@@ -49,20 +49,20 @@ window.__ModuleLoader__.load({
   "@deepseek-ai/dsh-client-ui-primitives", "@deepseek-ai/dsh-client-ui-dockkit" }
 ```
 
-README `A/dsh-client-modules/README.md:55`: «The shell seeds a frozen module table (`PLATFORM_MODULES`); every dynamic bundle resolves its externals against exactly that baseline. `dsh.client.external` adds only exact non-baseline requests». `htm` в таблице нет, поэтому JSX заменяется на `React.createElement` (обычно `const h = React.createElement`). Модули из `dsh-client-ui-primitives` и других пакетов Harness плагину использовать нельзя (`dsh-doc/references/practices.md:35`), значит из таблицы нужен только `react` (и при желании `react-dom` для `createPortal`).
+README `A/dsh-client-modules/README.md:55`: "The shell seeds a frozen module table (`PLATFORM_MODULES`); every dynamic bundle resolves its externals against exactly that baseline. `dsh.client.external` adds only exact non-baseline requests". The table has no `htm`, so JSX is replaced with `React.createElement` (usually `const h = React.createElement`). A plugin must not use modules from `dsh-client-ui-primitives` and other Harness packages (`dsh-doc/references/practices.md:35`), so from the table it needs only `react` (and optionally `react-dom` for `createPortal`).
 
-### Поля `package.json` → `dsh.client`
+### `package.json` fields → `dsh.client`
 
-Тип – `A/dsh-package-manifest/src/types.ts:86-100`, разбор – `A/dsh-client-modules/src/client/manifest.ts:179-191`:
+Type: `A/dsh-package-manifest/src/types.ts:86-100`; parsing: `A/dsh-client-modules/src/client/manifest.ts:179-191`:
 
-| Поле | Тип | Смысл |
+| Field | Type | Meaning |
 |---|---|---|
-| `platform` | `string`, обязательно | `"web"` |
-| `inject` | `string[]` | имена пакетов, чьи фабрики должны прийти раньше («Informational package-name dependencies, not Cordis service injection»). Отсутствующий в графе пакет молча пропускается (`system.ts:275-278`) |
-| `immediately` | `boolean` | грузить скрипт на первой стадии загрузки; без него – общий application batch |
-| `external` | `string[]` | модули вне базовой таблицы; нам не нужно |
+| `platform` | `string`, required | `"web"` |
+| `inject` | `string[]` | names of packages whose factories must come first ("Informational package-name dependencies, not Cordis service injection"). A package missing from the graph is silently skipped (`system.ts:275-278`) |
+| `immediately` | `boolean` | load the script in the first loading stage; without it – the shared application batch |
+| `external` | `string[]` | modules outside the baseline table; we do not need it |
 
-Точка входа – экспорт `"./client"` в `exports` (шаблон: `"./client": "./client.js"`). README: «exports a `./client` bundle» (`A/dsh-client-modules/README.md:34`). Шаблон `dsh-doc/templates/decoration/package.json`:
+The entry point is the `"./client"` export in `exports` (template: `"./client": "./client.js"`). README: "exports a `./client` bundle" (`A/dsh-client-modules/README.md:34`). The `dsh-doc/templates/decoration/package.json` template:
 
 ```json
 "exports": { ".": "./index.js", "./client": "./client.js", "./locale/*.json": "./locale/*.json", "./icon": "./icon.svg" },
@@ -72,58 +72,58 @@ README `A/dsh-client-modules/README.md:55`: «The shell seeds a frozen module ta
 }
 ```
 
-Для нашей страницы в `inject` логично указать владельца слота настроек и сервисы, которыми пользуемся: `@deepseek-ai/dsh-client-locale`, `@deepseek-ai/dsh-client-ui-settings-general`, `@deepseek-ai/dsh-client-ui-sidebar-right`. Это влияет только на порядок загрузки; `ctx.slots.inject` всё равно ждёт объявления слота.
+For our page it makes sense to list the settings slot owner and the services we use in `inject`: `@deepseek-ai/dsh-client-locale`, `@deepseek-ai/dsh-client-ui-settings-general`, `@deepseek-ai/dsh-client-ui-sidebar-right`. This affects only the load order; `ctx.slots.inject` still waits for the slot declaration.
 
-### `apply(ctx)` и сервисы
+### `apply(ctx)` and services
 
-`inject` в возвращаемом объекте – это ключи Cordis-сервисов (`'slots'`, `'locale'`, `'sidebarRight'`, `'workspaces'`, `'connection'`). Обязательный `inject` держит плагин неактивным, пока сервиса нет; необязательные сервисы лучше брать через `ctx.get(name)` с проверкой на `undefined` или через `ctx.inject([...], cb)` (`dsh-doc/references/practices.md:20`).
+`inject` in the returned object lists Cordis service keys (`'slots'`, `'locale'`, `'sidebarRight'`, `'workspaces'`, `'connection'`). A required `inject` keeps the plugin inactive while the service is missing; optional services are better taken through `ctx.get(name)` with an `undefined` check or through `ctx.inject([...], cb)` (`dsh-doc/references/practices.md:20`).
 
-### Стили
+### Styles
 
-Есть два рабочих способа:
+There are two working approaches:
 
-1. Собранные бандлы кладут `<style>` в `document.head` прямо в фабрике и помечают его `data-plugin="<пакет>"`, `data-plugin-css="<id>"` (`better-sidebar/lib/client.js`, блок `\0dsh-css:`). Загрузчик сам собирает такие теги и удаляет их при выгрузке плагина: `claimStyles` (`A/dsh-client-modules/src/client/system.ts:66-86`), `removeOwnedStyles` (`A/dsh-client-modules/src/client/entry-lifecycle.ts:23-28`).
-2. `dsh-doc` рекомендует держать фабрику без побочных эффектов, а стили регистрировать в `apply` через `ctx.effect(() => { ...; return () => tag.remove() })` или рендерить `<style>` React-элементом внутри компонента (`dsh-doc/references/ui-plugin.md:13`).
+1. Built bundles put a `<style>` into `document.head` right in the factory and mark it with `data-plugin="<package>"`, `data-plugin-css="<id>"` (`better-sidebar/lib/client.js`, the `\0dsh-css:` block). The loader collects such tags itself and removes them when the plugin unloads: `claimStyles` (`A/dsh-client-modules/src/client/system.ts:66-86`), `removeOwnedStyles` (`A/dsh-client-modules/src/client/entry-lifecycle.ts:23-28`).
+2. `dsh-doc` recommends keeping the factory free of side effects and registering styles in `apply` through `ctx.effect(() => { ...; return () => tag.remove() })`, or rendering `<style>` as a React element inside the component (`dsh-doc/references/ui-plugin.md:13`).
 
-Для `client.js` без сборки удобнее второй путь: `ctx.effect` в `apply`, тег с `data-plugin="dsh-loadout-manager"`, чтобы загрузчик подчистил его и при сбое.
+For an unbuilt `client.js` the second approach is handier: `ctx.effect` in `apply`, with a tag carrying `data-plugin="dsh-loadout-manager"` so the loader cleans it up even after a failure.
 
-### Локализация в Client
+### Localization in the Client
 
-Сервис `ctx.locale` (`A/dsh-client-locale/src/client/index.ts:390-478`, README `A/dsh-client-locale/README.md:38-41`):
+The `ctx.locale` service (`A/dsh-client-locale/src/client/index.ts:390-478`, README `A/dsh-client-locale/README.md:38-41`):
 
 ```ts
-register(ns: string, dicts: Record<localeId, Record<string, string>>): () => void   // все языки разом
-register(ns: string, locale: string, dict: LocaleDict): () => void                  // один язык
+register(ns: string, dicts: Record<localeId, Record<string, string>>): () => void   // all languages at once
+register(ns: string, locale: string, dict: LocaleDict): () => void                  // one language
 bind(ns: string): (key: string, params?: Record<string, unknown>) => string
 ```
 
-- Плейсхолдеры – `{name}` (`index.ts:476-477`).
-- Поиск ключа: цепочка fallback активного языка в своём namespace, потом в `common`, потом сам ключ (`index.ts:470-475`). Цепочка заканчивается на `en`, поэтому `en` обязателен. Требование «и `zh`, и `en`» проверяет только TypeScript; в рантайме `register` принимает любой набор (`index.ts:404-425`).
-- Повторная регистрация той же пары (ns, locale) бросает исключение, поэтому регистрация идёт внутри `ctx.effect(() => ctx.locale.register(NS, {...}))` (так делают все встроенные пакеты, например `A/dsh-client-ui-settings-plugins/src/client/index.ts:37`).
-- Опция слота `locale: NS` даёт компоненту проп `t` (`A/dsh-client-ui-renderer/src/client/registry.ts:97-98`: «Declared dictionary namespace (the renderer synthesizes the `t` seat from it)»).
-- Файлы `locale/*.json` бандла служат только метаданным (`meta.title`, `meta.description`, `meta.detail`) для Plugin Manager. Client их не читает: тексты UI живут в словарях внутри `client.js`.
+- Placeholders are `{name}` (`index.ts:476-477`).
+- Key lookup: the fallback chain of the active language in its own namespace, then in `common`, then the key itself (`index.ts:470-475`). The chain ends with `en`, so `en` is required. The "both `zh` and `en`" requirement is checked only by TypeScript; at runtime `register` accepts any set (`index.ts:404-425`).
+- Registering the same (ns, locale) pair again throws, so registration goes inside `ctx.effect(() => ctx.locale.register(NS, {...}))` (as every built-in package does, for example `A/dsh-client-ui-settings-plugins/src/client/index.ts:37`).
+- The slot option `locale: NS` gives the component a `t` prop (`A/dsh-client-ui-renderer/src/client/registry.ts:97-98`: "Declared dictionary namespace (the renderer synthesizes the `t` seat from it)").
+- The bundle's `locale/*.json` files only serve metadata (`meta.title`, `meta.description`, `meta.detail`) for Plugin Manager. The Client does not read them: UI strings live in dictionaries inside `client.js`.
 
-## 2. Слоты `settings.section` и `settings.section.icon`
+## 2. The `settings.section` and `settings.section.icon` slots
 
-### Объявление и регистрация
+### Declaration and registration
 
-Типы – `A/dsh-client-ui-settings/src/client/contract/slots.ts:46-65`. Объявляет оба слота `dsh-client-ui-settings-general` как детей `sidebar.settings` (`A/dsh-client-ui-settings-general/src/client/index.ts:242-243`): `'settings.section': { kind: 'list', scope: 'root' }`, `'settings.section.icon': { kind: 'list', scope: 'root', inline: true }`. Регистрация – `ctx.slots.inject(key, () => ctx.slots.register(options, Component))`; `inject` переустанавливает регистрацию, когда объявление слота исчезает и появляется снова (`A/dsh-client-ui-renderer/src/client/registry.ts:194-271`).
+Types: `A/dsh-client-ui-settings/src/client/contract/slots.ts:46-65`. `dsh-client-ui-settings-general` declares both slots as children of `sidebar.settings` (`A/dsh-client-ui-settings-general/src/client/index.ts:242-243`): `'settings.section': { kind: 'list', scope: 'root' }`, `'settings.section.icon': { kind: 'list', scope: 'root', inline: true }`. Registration: `ctx.slots.inject(key, () => ctx.slots.register(options, Component))`; `inject` reinstalls the registration when the slot declaration disappears and comes back (`A/dsh-client-ui-renderer/src/client/registry.ts:194-271`).
 
-Опции регистрации (каталог `A/dsh-cordis-client-runner/src/client/slot-catalog.ts:3802-3858`, тип `ErasedRegisterOptions` – `registry.ts:84-100`):
+Registration options (catalog `A/dsh-cordis-client-runner/src/client/slot-catalog.ts:3802-3858`, type `ErasedRegisterOptions` – `registry.ts:84-100`):
 
-| Опция | Смысл |
+| Option | Meaning |
 |---|---|
 | `name` | `'settings.section'` |
-| `id` (обязательно) | ключ раздела; свой уникальный id добавляет новый пункт, чужой id заменяет встроенный раздел |
-| `order` | позиция в навигации по возрастанию, по умолчанию 0 |
-| `label` | `string \| (() => string)`; thunk перечитывается при каждой проекции, поэтому текст следует за языком |
-| `locale` | namespace словаря → проп `t` |
-| `inject` | `() => ({...})` – свои функции и `hooks` (см. ниже) |
-| `children` | объявление вложенных слотов (нам не нужно) |
+| `id` (required) | section key; a unique id of your own adds a new item, someone else's id replaces a built-in section |
+| `order` | ascending position in the navigation, 0 by default |
+| `label` | `string \| (() => string)`; the thunk is reread on every projection, so the text follows the language |
+| `locale` | dictionary namespace → the `t` prop |
+| `inject` | `() => ({...})` – your own functions and `hooks` (see below) |
+| `children` | declaration of nested slots (we do not need it) |
 
-Порядок встроенных разделов (из исходников): `account` −10, `general` 0, `models` 10, `plugins` 15, `agent-presets` 20. Для «Loadout Manager» подойдёт `order` около 25–30, чтобы раздел стоял после пресетов агента. Отдельного маршрута или URL у раздела нет: оболочка показывает активный раздел через `renderSlot('settings.section', { close: onClose }, { only: active })` (`A/dsh-client-ui-settings-general/src/client/SettingsRoot.tsx:109`), а `id` нужен и для `openSettings(sectionId)` в `settings.launcher` (`contract/slots.ts:160-171`).
+Built-in section order (from the sources): `account` −10, `general` 0, `models` 10, `plugins` 15, `agent-presets` 20. For "Loadout Manager" an `order` around 25–30 puts the section after the agent presets. A section has no route or URL of its own: the shell shows the active section through `renderSlot('settings.section', { close: onClose }, { only: active })` (`A/dsh-client-ui-settings-general/src/client/SettingsRoot.tsx:109`), and the `id` is also used by `openSettings(sectionId)` in `settings.launcher` (`contract/slots.ts:160-171`).
 
-Встроенный пример регистрации (`A/dsh-client-ui-agent-preset/src/client/index.ts:283-290`):
+A built-in registration example (`A/dsh-client-ui-agent-preset/src/client/index.ts:283-290`):
 
 ```ts
 ctx.slots.inject('settings.section', () => ctx.slots.register({
@@ -136,20 +136,20 @@ ctx.slots.inject('settings.section', () => ctx.slots.register({
 }, AgentPresetSection))
 ```
 
-Другие регистранты `settings.section`: `dsh-client-ui-settings-general` (`general`), `dsh-client-ui-settings-account` (`account`, `src/client/index.ts:318-323`), `dsh-client-ui-settings-models` (`models`, `src/client/index.ts:136-146`), `dsh-client-ui-settings-plugins` (`plugins`, `src/client/index.ts:76-84`).
+Other `settings.section` registrants: `dsh-client-ui-settings-general` (`general`), `dsh-client-ui-settings-account` (`account`, `src/client/index.ts:318-323`), `dsh-client-ui-settings-models` (`models`, `src/client/index.ts:136-146`), `dsh-client-ui-settings-plugins` (`plugins`, `src/client/index.ts:76-84`).
 
-### Пропсы компонента раздела
+### Section component props
 
-`PropsRuntime<'settings.section'>` = владелец + стандартные пропсы корневого скоупа + `inject`-грань + `t`:
+`PropsRuntime<'settings.section'>` = owner props + the standard root-scope props + the `inject` facet + `t`:
 
-- от владельца – только `close: () => void` (закрыть панель настроек; `contract/slots.ts:134-137`);
-- стандартные (`slot-catalog.ts:3832-3843`): `useRemoteAccess`, `useResource`, `useContextMenu`, `useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>`, `usePanelInfo`, `useSessions`, `useSessionStatus`, `useSessionRetainInfo`, `useSessionAccess`, `useWorkspaceAccess`;
-- `t` – если задан `locale`;
-- всё, что вернула функция `inject`. Особый ключ `hooks: { name: { getSnapshot, subscribe } }` превращается в проп `useName(selector)` (тип `PropsHooks` в каталоге `A/dsh-cordis-client-runner/src/client/api-catalog.ts`: ``[N in keyof HS as `use${Capitalize<N>}`]: SnapshotSelectorHook<...>``). Так подключают свои внешние хранилища, пример – `hooks.tabs` → `useTabs` в `A/dsh-client-ui-settings-plugins/src/client/index.ts:42-72` и `PluginsSettingsSection.tsx:33-36`.
+- from the owner, only `close: () => void` (closes the settings panel; `contract/slots.ts:134-137`);
+- standard (`slot-catalog.ts:3832-3843`): `useRemoteAccess`, `useResource`, `useContextMenu`, `useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>`, `usePanelInfo`, `useSessions`, `useSessionStatus`, `useSessionRetainInfo`, `useSessionAccess`, `useWorkspaceAccess`;
+- `t`, when `locale` is set;
+- everything the `inject` function returned. The special key `hooks: { name: { getSnapshot, subscribe } }` turns into a `useName(selector)` prop (type `PropsHooks` in the catalog `A/dsh-cordis-client-runner/src/client/api-catalog.ts`: ``[N in keyof HS as `use${Capitalize<N>}`]: SnapshotSelectorHook<...>``). This is how you plug in your own external stores; example: `hooks.tabs` → `useTabs` in `A/dsh-client-ui-settings-plugins/src/client/index.ts:42-72` and `PluginsSettingsSection.tsx:33-36`.
 
-### Иконка навигации
+### Navigation icon
 
-`settings.section.icon` – список, адресуемый по `id` раздела: «The registration id must equal the target section's id; unmatched ids never render. The icon's label option is not displayed» (`contract/slots.ts:58-65`). Оболочка вызывает `renderSlot('settings.section.icon', { size: 16, active }, { only: row.id, fallback: navIcon(row.id) })` (`SettingsRoot.tsx:91-95`); без регистрации показывается шестерёнка. Пропсы владельца – `{ size: number, active: boolean }` (`contract/slots.ts:140-145`). Во встроенных пакетах регистраций иконок нет (их глифы зашиты в `navIcon`), так что готового примера для `settings.section.icon` нет. Регистрация по образцу:
+`settings.section.icon` is a list addressed by the section `id`: "The registration id must equal the target section's id; unmatched ids never render. The icon's label option is not displayed" (`contract/slots.ts:58-65`). The shell calls `renderSlot('settings.section.icon', { size: 16, active }, { only: row.id, fallback: navIcon(row.id) })` (`SettingsRoot.tsx:91-95`); without a registration a gear is shown. Owner props are `{ size: number, active: boolean }` (`contract/slots.ts:140-145`). Built-in packages register no icons (their glyphs are hardcoded in `navIcon`), so there is no ready example for `settings.section.icon`. A registration along the same lines:
 
 ```js
 ctx.slots.inject('settings.section.icon', () => ctx.slots.register(
@@ -157,27 +157,27 @@ ctx.slots.inject('settings.section.icon', () => ctx.slots.register(
 // LoadoutNavIcon({ size }) => h('svg', { width: size, height: size, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', 'aria-hidden': true }, ...)
 ```
 
-### Живое дерево слотов
+### Live slot tree
 
-Не проверено: Client Inspect (`Slots.listSubTree`) не ответил. Статический каталог владельцев (`slot-catalog.ts:3847-3854`): `settings.section` объявляется записью в `sidebar.settings` (client-ui-settings-general) и существует, пока эта запись смонтирована; занимают его `AgentPresetSection 'agent-presets'`, `AccountSection 'account'`, `GeneralSection 'general'`, `ModelsSection 'models'`, `PluginsSettingsSection 'plugins'`. Сам `sidebar.settings` регистрируется только при доступе `settings/describe` (`settings-general/src/client/index.ts:208`).
+Not verified: Client Inspect (`Slots.listSubTree`) did not answer. The static owner catalog (`slot-catalog.ts:3847-3854`): `settings.section` is declared by an entry in `sidebar.settings` (client-ui-settings-general) and exists while that entry is mounted; it is occupied by `AgentPresetSection 'agent-presets'`, `AccountSection 'account'`, `GeneralSection 'general'`, `ModelsSection 'models'`, `PluginsSettingsSection 'plugins'`. `sidebar.settings` itself is registered only with `settings/describe` access (`settings-general/src/client/index.ts:208`).
 
-### Геометрия панели
+### Panel geometry
 
-Настройки – модальное окно шириной 800 px с колонкой навигации 188 px; колонка раздела `.options` имеет `padding: 0 24px 24px` и прокручивается сама (`A/dsh-client-ui-settings-general/src/client/SettingsRoot.module.css:95-118, 245-251`). На содержимое раздела остаётся около 540–550 px.
+Settings is an 800 px wide modal with a 188 px navigation column; the section column `.options` has `padding: 0 24px 24px` and scrolls on its own (`A/dsh-client-ui-settings-general/src/client/SettingsRoot.module.css:95-118, 245-251`). About 540–550 px remain for the section content.
 
-## 3. Вызов Host из Client
+## 3. Calling the Host from the Client
 
-### Typert Remote (`ctx.remote.*`) плагину без сборки недоступен
+### Typert Remote (`ctx.remote.*`) is unavailable to an unbuilt plugin
 
-Remote-методы Host объявляются декоратором `@Remote` в TypeScript, а Client получает их из сгенерированных артефактов `/remote`, которые монтирует `ctx.remote.$mount()` (`A/dsh/docs/subsystems/typert.md:477-499`; README `dsh-typert-registry`: «It performs no TypeScript analysis and generates no schemas; the generator and the loader handle those»). Подборку пробрасываемых Host-событий (`ctx.remote.$on`) делает приложение в `dsh-api-remotes` (README: «The Host entry owns the forwarded-event selection»), сторонний плагин своё событие туда не добавит. Собрать дескрипторы вручную теоретически можно, но формат внутренний и без генератора не документирован (не проверено).
+Host Remote methods are declared with the `@Remote` decorator in TypeScript, and the Client gets them from generated `/remote` artifacts mounted by `ctx.remote.$mount()` (`A/dsh/docs/subsystems/typert.md:477-499`; README `dsh-typert-registry`: "It performs no TypeScript analysis and generates no schemas; the generator and the loader handle those"). The selection of forwarded Host events (`ctx.remote.$on`) is made by the application in `dsh-api-remotes` (README: "The Host entry owns the forwarded-event selection"); a third-party plugin cannot add its own event there. Building the descriptors by hand is possible in theory, but the format is internal and undocumented without the generator (not verified).
 
-`host.call(method, args)` есть только у динамических пакетов `dsh-tool-cordis`/`dsh-cordis-client-runner`, которые живут до перезагрузки страницы (`A/dsh-cordis-client-runner/README.md:12, 32`: «Creator UI plugins use installed Client modules through Plugin Manager»). Для установленного бандла не подходит.
+`host.call(method, args)` exists only in the dynamic `dsh-tool-cordis`/`dsh-cordis-client-runner` packages, which live until the page reloads (`A/dsh-cordis-client-runner/README.md:12, 32`: "Creator UI plugins use installed Client modules through Plugin Manager"). It does not fit an installed bundle.
 
-`dsh-doc/references/user-actions.md:8` предлагает «a session command that `ctx.remote.commands.execute()` runs». Метод Host – `@Remote async execute(agent: Agent, line, submittedAttachments, signal)` (живой каталог Host `commands`), то есть он привязан к сессии. Для глобальной страницы настроек это неудобно: нужна сессия, и неясно, что такая команда пишет в лог сессии (не проверено).
+`dsh-doc/references/user-actions.md:8` suggests "a session command that `ctx.remote.commands.execute()` runs". The Host method is `@Remote async execute(agent: Agent, line, submittedAttachments, signal)` (live Host catalog, `commands`), so it is bound to a session. That is awkward for a global settings page: it needs a session, and it is unclear what such a command writes to the session log (not verified).
 
-### Рабочий путь: свой HTTP-маршрут Host + `fetch` из Client
+### The working path: a Host HTTP route of our own + `fetch` from the Client
 
-Так сделан `dsh-better-sidebar`. Host-сервисы `webServer` и `connection` есть в живом каталоге Host (`cordis_inspect_query` → `Service.listService`).
+This is how `dsh-better-sidebar` does it. The `webServer` and `connection` Host services are in the live Host catalog (`cordis_inspect_query` → `Service.listService`).
 
 Host (`better-sidebar/src/index.ts:1442, 1630-1687`):
 
@@ -198,37 +198,37 @@ ctx.effect(() => ctx.webServer.register({
 }), 'dsh-better-sidebar: /sidebar/api routes')
 ```
 
-Контракт сервисов (`A/dsh/docs/subsystems/web-server.md:9-49, 132-138, 216-222`):
+Service contract (`A/dsh/docs/subsystems/web-server.md:9-49, 132-138, 216-222`):
 
-- `ctx.webServer.register(route: { kind: 'exact' | 'prefix', path, handler(req: IncomingMessage, res: ServerResponse) }): () => void`; повтор `(kind, path)` бросает исключение.
-- `ctx.connection.requestRejection(request): ConnectionRequestRejection` – «Apply Connection's Host/Origin checks and browser authentication to another Web route»; `undefined` значит «пропустить». Без этой проверки маршрут открыт любому процессу на машине.
-- Сериализация – обычный JSON в теле POST; сервер только передаёт байты, ни валидации, ни кодеков нет. Ошибки плагин кодирует сам, конверт `{ ok, value | error: { code, message } }` повторяет стиль `RemoteResult` DSH.
+- `ctx.webServer.register(route: { kind: 'exact' | 'prefix', path, handler(req: IncomingMessage, res: ServerResponse) }): () => void`; a repeated `(kind, path)` throws.
+- `ctx.connection.requestRejection(request): ConnectionRequestRejection` – "Apply Connection's Host/Origin checks and browser authentication to another Web route"; `undefined` means "let through". Without this check the route is open to any process on the machine.
+- Serialization is plain JSON in the POST body; the server only passes bytes, with no validation or codecs. The plugin encodes errors itself; the `{ ok, value | error: { code, message } }` envelope mirrors the style of DSH's `RemoteResult`.
 
-Client (`better-sidebar/src/client/host-route-url.ts`, `desktop-env.ts`): URL маршрута строится относительно `document.baseURI` без ведущего слеша, `new URL('loadout/api/list', document.baseURI)`. Тогда работают и префикс reverse-proxy, и Desktop-оболочка `dsh-app://app/`, которая пересылает такие пути в Host той же схемой. Это утверждение взято из комментария `better-sidebar`; в Desktop-оболочке сам я его не проверял. Cookie сессии браузера уходят сами (same-origin).
+Client (`better-sidebar/src/client/host-route-url.ts`, `desktop-env.ts`): the route URL is built relative to `document.baseURI` without a leading slash, `new URL('loadout/api/list', document.baseURI)`. That way both a reverse-proxy prefix and the `dsh-app://app/` Desktop shell work, the latter forwarding such paths to the Host under the same scheme. This claim comes from a `better-sidebar` comment; I did not verify it in the Desktop shell myself. Browser session cookies are sent automatically (same-origin).
 
-### Обновления от Host
+### Updates from the Host
 
-Пробрасываемые события приложения сторонний плагин не расширит (см. выше). Варианты:
+A third-party plugin cannot extend the application's forwarded events (see above). Options:
 
-- перечитывать данные при монтировании раздела, после каждой своей операции и по событию `connection/reset` (`ctx.on('connection/reset', ...)`; «Wire-derived caches must repull», каталог `api-catalog.ts`, `EVENT_API`);
-- для настоящего push – свой WebSocket: Host `ctx.webServer.registerUpgrade({ path, handler })` + `ctx.connection.admitConnection(request)`, Client `ctx.connection.openWebSocket(path)` (`A/dsh-client-connection/src/client/index.ts:164-169`: «absolute logical channel path, resolved beneath the Host mount»). Так устроены сокеты `better-sidebar` (`/sidebar/ws/*`). Для MVP лишнее, на практике не проверено;
-- `ctx.remote.$on('plugin-manager/changed', ...)` – встроенное событие, которое шлёт Plugin Manager; так делает `dsh-client-ui-skill` (`src/client/index.ts:255`). Полезно, чтобы перечитать список после включения или выключения плагинов.
+- reread data when the section mounts, after each of our own operations, and on the `connection/reset` event (`ctx.on('connection/reset', ...)`; "Wire-derived caches must repull", catalog `api-catalog.ts`, `EVENT_API`);
+- for real push, a WebSocket of our own: Host `ctx.webServer.registerUpgrade({ path, handler })` + `ctx.connection.admitConnection(request)`, Client `ctx.connection.openWebSocket(path)` (`A/dsh-client-connection/src/client/index.ts:164-169`: "absolute logical channel path, resolved beneath the Host mount"). This is how the `better-sidebar` sockets (`/sidebar/ws/*`) work. Overkill for an MVP, not tried in practice;
+- `ctx.remote.$on('plugin-manager/changed', ...)` – a built-in event sent by Plugin Manager; `dsh-client-ui-skill` uses it (`src/client/index.ts:255`). Useful for rereading the list after plugins are turned on or off.
 
-## 4. Список workspace на Client
+## 4. The workspace list on the Client
 
-Источник – сервис `ctx.workspaces` из `dsh-api-workspace-controller` (`A/dsh-api-workspace-controller/src/client/service.ts:46-49, 118-128`):
+The source is the `ctx.workspaces` service from `dsh-api-workspace-controller` (`A/dsh-api-workspace-controller/src/client/service.ts:46-49, 118-128`):
 
 ```ts
 interface IWorkspaces { readonly list: { getSnapshot(): WorkspaceSnapshot; subscribe(l: () => void): () => void }; ... }
 ```
 
-Внутри компонента слота то же самое отдаёт стандартный проп `useWorkspaces` (есть у `settings.section`, см. п. 2): `props.useWorkspaces(s => s.items)`.
+Inside a slot component the standard `useWorkspaces` prop provides the same (available on `settings.section`, see section 2): `props.useWorkspaces(s => s.items)`.
 
-Форма данных (`A/dsh-api-workspace-controller/src/client/model.ts:32-41`, каталог `WorkspaceView`):
+Data shape (`A/dsh-api-workspace-controller/src/client/model.ts:32-41`, catalog `WorkspaceView`):
 
 ```ts
 interface WorkspaceSnapshot {
-  readonly items: readonly WorkspaceView[]          // в порядке Host
+  readonly items: readonly WorkspaceView[]          // in Host order
   readonly archivedSessionIds: readonly SessionId[]
   readonly pinnedSessionIds: readonly SessionId[]
   readonly state: 'idle' | 'loading' | 'error'
@@ -237,7 +237,7 @@ interface WorkspaceSnapshot {
 }
 interface WorkspaceView {
   readonly workspaceId: WorkspaceId
-  readonly path: string            // абсолютный каталог workspace
+  readonly path: string            // absolute workspace directory
   readonly title: string
   readonly sessionIds: readonly SessionId[]
   readonly createdAt: string
@@ -245,31 +245,31 @@ interface WorkspaceView {
 }
 ```
 
-Это зарегистрированные workspace из боковой панели. Понятия «открытого» workspace у DSH нет. Список синхронизирован с Host потоком `workspace.follow` и обновляется сам.
+These are the registered workspaces from the sidebar. DSH has no notion of an "open" workspace. The list is synced with the Host through the `workspace.follow` stream and updates by itself.
 
-Host видит тот же реестр как `ctx.workspaceRegistry.list(): Workspace[]` (живой каталог Host; поля `id`, `path`, `title`, `sessionIds` – `A/dsh-workspace/src/types.ts:69-100`). `dsh-client-ui-workspace` хранит только UI-состояние и списка не отдаёт.
+The Host sees the same registry as `ctx.workspaceRegistry.list(): Workspace[]` (live Host catalog; fields `id`, `path`, `title`, `sessionIds` – `A/dsh-workspace/src/types.ts:69-100`). `dsh-client-ui-workspace` holds only UI state and does not expose the list.
 
-`projectRoot` (ближайший предок с `.git`) из `path` должен вычислять Host-часть плагина, как это делает `dsh-skill-filesystem`.
+The plugin's Host part should compute `projectRoot` (the nearest ancestor with `.git`) from `path`, as `dsh-skill-filesystem` does.
 
-## 5. Превью файла в правой панели
+## 5. File preview in the right panel
 
-`dsh-client-ui-skill` открывает превью так (`A/dsh-client-ui-skill/src/client/index.ts:205-213`):
+`dsh-client-ui-skill` opens a preview like this (`A/dsh-client-ui-skill/src/client/index.ts:205-213`):
 
 ```ts
 const cwd = sessions.list.getSnapshot().byId[session.sessionId]?.cwd
 ctx.sidebarRight.openResource(fileAddressFor(session.sessionId, cwd, path))
 ```
 
-`inject` этого плагина содержит `'sidebarRight'` (`index.ts:80`).
+That plugin's `inject` contains `'sidebarRight'` (`index.ts:80`).
 
-Сигнатура: `ctx.sidebarRight.openResource(address: string, options?: SidebarRightOpenResourceOptions): void` (`A/dsh-client-ui-sidebar-right/src/client/service.ts:228-243`). Адрес – `dsh-resource://file/…`, тип вкладки подбирается по адресу; для `.md` это просмотрщик документов.
+Signature: `ctx.sidebarRight.openResource(address: string, options?: SidebarRightOpenResourceOptions): void` (`A/dsh-client-ui-sidebar-right/src/client/service.ts:228-243`). The address is `dsh-resource://file/…`, and the tab type is chosen by the address; for `.md` it is the document viewer.
 
-Ограничения для произвольного пути из страницы настроек:
+Limitations for an arbitrary path from the settings page:
 
-1. Нужна сессия, которая сейчас на экране. `openResource` вызывает `this.require()`, а тот бросает `sidebarRight: no session surface is mounted`, если `mounted` пуст (`service.ts:854-864`). `mounted` равен `undefined`, когда основную колонку занимает глобальная панель или сессия не выбрана (`service.ts:217-226`). Текущую сессию даёт `ctx.sidebarRight.mounted.getSnapshot()`.
-2. Адрес обязан нести сессию. Форма `dsh-resource://file/absolute/<path>` разбирается, но чтение падает с `workspace-file/unknown-workspace` (`A/dsh-api-workspace-files/README.md:94`, `src/client/provider.ts:5-14`). Рабочая форма – `dsh-resource://file/session/<sessionId>/<путь>`, путь может быть абсолютным (`README.md:94`: «leading slashes are preserved, as in `dsh-resource://file/session/s//etc/hosts`»).
-3. Чтение файлов не ограничено workspace: «The composed filesystem decides whether the path is readable; the service does not impose workspace containment on file reads» (`README.md:41`). Значит, `~/.agents/skills/x/SKILL.md` откроется через любую сессию, если файловая система сессии разрешает чтение. Как ведёт себя песочница сессии (`dsh-fs-sandbox`) при чтении вне workspace – не проверено.
-4. `fileAddressFor`/`sessionFileAddress` живут в `dsh-util-workspace-path`, которого нет в таблице модулей. Функцию придётся повторить (`A/dsh-util-workspace-path/src/file-address.ts:44-68`):
+1. A session must be on screen. `openResource` calls `this.require()`, which throws `sidebarRight: no session surface is mounted` when `mounted` is empty (`service.ts:854-864`). `mounted` is `undefined` when a global panel occupies the main column or no session is selected (`service.ts:217-226`). `ctx.sidebarRight.mounted.getSnapshot()` gives the current session.
+2. The address must carry a session. The `dsh-resource://file/absolute/<path>` form parses, but reading fails with `workspace-file/unknown-workspace` (`A/dsh-api-workspace-files/README.md:94`, `src/client/provider.ts:5-14`). The working form is `dsh-resource://file/session/<sessionId>/<path>`, and the path may be absolute (`README.md:94`: "leading slashes are preserved, as in `dsh-resource://file/session/s//etc/hosts`").
+3. File reads are not confined to the workspace: "The composed filesystem decides whether the path is readable; the service does not impose workspace containment on file reads" (`README.md:41`). So `~/.agents/skills/x/SKILL.md` opens through any session if the session filesystem allows the read. How the session sandbox (`dsh-fs-sandbox`) behaves on reads outside the workspace was not verified.
+4. `fileAddressFor`/`sessionFileAddress` live in `dsh-util-workspace-path`, which is not in the module table. The function has to be repeated (`A/dsh-util-workspace-path/src/file-address.ts:44-68`):
 
    ```js
    const enc = s => encodeURIComponent(s).replace(/%3A/gi, ':');
@@ -277,15 +277,15 @@ ctx.sidebarRight.openResource(fileAddressFor(session.sessionId, cwd, path))
      `dsh-resource://file/session/${enc(sid)}/${path.replace(/\\/g, '/').split('/').map(enc).join('/')}`;
    ```
 
-5. Настройки – модальное окно поверх приложения, портал в `document.body` (`SettingsRoot.tsx:57-114`). Чтобы вкладка была видна, после `openResource` надо вызвать проп `close()`. Похоже, что сессия за модалкой остаётся «на экране», но живьём это не проверено.
+5. Settings is a modal over the application, portaled into `document.body` (`SettingsRoot.tsx:57-114`). For the tab to be visible, call the `close()` prop after `openResource`. It looks like the session behind the modal stays "on screen", but this was not verified live.
 
-Если смонтированной сессии нет, остаются два пути: выключить кнопку «Открыть» с подсказкой или показать текст файла прямо на странице через свой Host-маршрут.
+Without a mounted session there are two paths: disable the Open button with a hint, or show the file text right on the page through our own Host route.
 
-## 6. Подтверждение и уведомления
+## 6. Confirmation and notifications
 
-Общего Client-сервиса для confirm-диалогов и тостов нет. Каждый встроенный пакет рисует свой `ConfirmDialog` на примитиве `Modal`: Plugin Manager (`A/dsh-client-ui-plugin-manager/src/client/PluginManagerPage.tsx:1536-1559`), Plugin Market (`A/dsh-client-ui-plugin-market/src/client/DiscoverSection.tsx:357`), Schedule (`TaskManagerPage.tsx:348`). Тосты – тоже локальный примитив `<Toast>` (`A/dsh-client-ui-schedule/src/client/DeleteToast.tsx:97-113`). Тосты workspace привязаны к своему домену (keyed-слот `workspace.toast`, `A/dsh-client-ui-workspace/src/client/contract/toast.ts:50-63`) и для чужих сообщений не годятся.
+There is no shared Client service for confirm dialogs and toasts. Each built-in package draws its own `ConfirmDialog` on the `Modal` primitive: Plugin Manager (`A/dsh-client-ui-plugin-manager/src/client/PluginManagerPage.tsx:1536-1559`), Plugin Market (`A/dsh-client-ui-plugin-market/src/client/DiscoverSection.tsx:357`), Schedule (`TaskManagerPage.tsx:348`). Toasts are also a local `<Toast>` primitive (`A/dsh-client-ui-schedule/src/client/DeleteToast.tsx:97-113`). Workspace toasts are tied to their own domain (the keyed `workspace.toast` slot, `A/dsh-client-ui-workspace/src/client/contract/toast.ts:50-63`) and do not suit other messages.
 
-Образец текста и действий (Plugin Manager):
+Reference text and actions (Plugin Manager):
 
 ```tsx
 <Modal open onClose={onCancel} title={t('confirmUninstallTitle', { name })} closeLabel={t('close')}
@@ -294,92 +294,92 @@ ctx.sidebarRight.openResource(fileAddressFor(session.sessionId, cwd, path))
            <Button variant="primary" className={css.dangerButton} onClick={onConfirm}>{t('confirmUninstall')}</Button></>} />
 ```
 
-`.dangerButton` перекрашивает основную кнопку: `--dsw-alias-button-primary-fill: var(--dsw-alias-state-error-primary)` (`PluginManagerPage.module.css:1404-1407`).
+`.dangerButton` recolors the primary button: `--dsw-alias-button-primary-fill: var(--dsw-alias-state-error-primary)` (`PluginManagerPage.module.css:1404-1407`).
 
-Следствие для плагина: подтверждение и ошибки рисует он сам. `Modal` из primitives импортировать нельзя (`dsh-doc/references/practices.md:35`), а писать DOM вне своего компонента или в `document.body` правила тоже запрещают (`practices.md:36`). Проще всего подтверждать прямо в строке: «Удалить в корзину? [Отмена] [Удалить]» вместо кнопки «Удалить». Ошибки выводить строкой под элементом, как `.reason`/`.failure` (`PluginManagerPage.module.css:265-270, 699-707`).
+Consequence for the plugin: it draws confirmation and errors itself. `Modal` cannot be imported from primitives (`dsh-doc/references/practices.md:35`), and the rules also forbid writing DOM outside your own component or into `document.body` (`practices.md:36`). The simplest option is to confirm right in the row: "Move to the trash? [Cancel] [Delete]" in place of the Delete button. Show errors as a line under the item, like `.reason`/`.failure` (`PluginManagerPage.module.css:265-270, 699-707`).
 
-Открытый вопрос: панель настроек закрывается по Escape через `useModalLayer` (`SettingsRoot.tsx:63-64`). Если наше подтверждение тоже должно реагировать на Escape, надо проверить, успевает ли `stopPropagation` на своём элементе раньше обработчика модалки. Не проверено.
+Open question: the settings panel closes on Escape through `useModalLayer` (`SettingsRoot.tsx:63-64`). If our confirmation should also react to Escape, check whether `stopPropagation` on our element runs before the modal's handler. Not verified.
 
-## 7. Токены темы и вёрстка
+## 7. Theme tokens and layout
 
-### Токены
+### Tokens
 
-Live-список (`Theme.listTokens`) не получен. Имена ниже взяты из `A/dsh-client-ui-theme/src/styles/design-platform.css` (132 токена `--dsw-*`), `base.css`, `focus.css` и подтверждены использованием во встроенных CSS.
+The live list (`Theme.listTokens`) was not obtained. The names below come from `A/dsh-client-ui-theme/src/styles/design-platform.css` (132 `--dsw-*` tokens), `base.css`, `focus.css`, and are confirmed by use in the built-in CSS.
 
-| Назначение | Токены |
+| Purpose | Tokens |
 |---|---|
-| Основной текст | `--dsw-alias-label-primary` |
-| Вторичный и приглушённый текст | `--dsw-alias-label-secondary`, `--dsw-alias-label-tertiary`, `--dsw-alias-label-caption` |
-| Границы и разделители | `--dsw-alias-border-l1` … `--dsw-alias-border-l4` (строки списка – `l2`, рамки – `l3`/`l4`), `--dsw-alias-border-selected` |
-| Поверхности | `--dsw-alias-bg-base`, `--dsw-alias-bg-layer-1/2/3`, `--dsw-alias-bg-module-platform` (подложка «чипа» и выбранного сегмента), `--dsw-alias-settings-card-fill`, `--dsw-alias-settings-card-stroke` (`base.css:32-33`), `--dsw-alias-bg-skeleton` |
-| Hover и press | `--dsw-alias-interactive-bg-hover`, `--dsw-alias-interactive-bg-active`, `--dsw-alias-interactive-bg-hover-danger` |
-| Акцент | `--dsw-alias-brand-primary` (включённый switch), `--dsw-alias-state-business-primary` (ссылки, focus), `--dsw-alias-button-primary-fill`, `--dsw-alias-button-primary-hover` |
-| Опасное действие и ошибка | `--dsw-alias-state-error-primary` |
-| Состояния | `--dsw-alias-state-success-primary`, `--dsw-alias-state-warn-primary`, `--dsw-alias-state-warn-tertiary` |
-| Switch | `--dsw-alias-switch-thumb`, `--dsw-alias-label-primary-foreground` (бегунок во включённом состоянии) |
-| Радиусы | `--dsw-radius-xs` 4, `-sm` 8, `-md` 12, `-lg` 16, `-xl` 20, `-panel` 28 px (`base.css:18-23`) |
-| Фокус | `--dsw-focus-ring-width` (2px), `--dsw-focus-ring-color` (`focus.css:3, 19`) |
-| Шрифты | `--dsw-font-family`, `--ds-font-family-code` (`base.css:9-13`) |
+| Primary text | `--dsw-alias-label-primary` |
+| Secondary and muted text | `--dsw-alias-label-secondary`, `--dsw-alias-label-tertiary`, `--dsw-alias-label-caption` |
+| Borders and dividers | `--dsw-alias-border-l1` … `--dsw-alias-border-l4` (list rows – `l2`, frames – `l3`/`l4`), `--dsw-alias-border-selected` |
+| Surfaces | `--dsw-alias-bg-base`, `--dsw-alias-bg-layer-1/2/3`, `--dsw-alias-bg-module-platform` (the "chip" and selected-segment background), `--dsw-alias-settings-card-fill`, `--dsw-alias-settings-card-stroke` (`base.css:32-33`), `--dsw-alias-bg-skeleton` |
+| Hover and press | `--dsw-alias-interactive-bg-hover`, `--dsw-alias-interactive-bg-active`, `--dsw-alias-interactive-bg-hover-danger` |
+| Accent | `--dsw-alias-brand-primary` (switch on), `--dsw-alias-state-business-primary` (links, focus), `--dsw-alias-button-primary-fill`, `--dsw-alias-button-primary-hover` |
+| Dangerous action and error | `--dsw-alias-state-error-primary` |
+| States | `--dsw-alias-state-success-primary`, `--dsw-alias-state-warn-primary`, `--dsw-alias-state-warn-tertiary` |
+| Switch | `--dsw-alias-switch-thumb`, `--dsw-alias-label-primary-foreground` (thumb in the on state) |
+| Radii | `--dsw-radius-xs` 4, `-sm` 8, `-md` 12, `-lg` 16, `-xl` 20, `-panel` 28 px (`base.css:18-23`) |
+| Focus | `--dsw-focus-ring-width` (2px), `--dsw-focus-ring-color` (`focus.css:3, 19`) |
+| Fonts | `--dsw-font-family`, `--ds-font-family-code` (`base.css:9-13`) |
 
-Токенов размера шрифта и отступов нет. Встроенные страницы пишут px напрямую: заголовок раздела 18/600, заголовок группы 14/500, имя в строке 13.5–14/500, описание 12–13 `label-tertiary`, моноширинная метка 11.5–12.
+There are no font-size or spacing tokens. Built-in pages write px directly: section heading 18/600, group heading 14/500, row name 13.5–14/500, description 12–13 `label-tertiary`, monospace label 11.5–12.
 
-### Как устроены похожие страницы
+### How similar pages are built
 
-SPEC ссылается на Plugin Manager, но это основная панель с колонкой до 960 px, липкой шапкой и карточками с иконками 48 px (`PluginManagerPage.module.css:9-91, 379-505`). Для узкой колонки настроек ближе разделы самих настроек:
+The SPEC points to Plugin Manager, but that is the main panel with a column up to 960 px, a sticky header, and cards with 48 px icons (`PluginManagerPage.module.css:9-91, 379-505`). For the narrow settings column the settings sections themselves are closer:
 
-- `PluginsSettingsSection` (`A/dsh-client-ui-settings-plugins/src/client/PluginsSettingsSection.tsx:53-56`, `.module.css:3-21`): `.section { display:flex; flex-direction:column; gap:12px; max-width:760px; color: label-primary }`, `<h2 class=heading>` 18px/600, `<p class=intro>` 13px `label-tertiary`, вкладки с подчёркиванием 2px.
-- `PluginInventorySettingsTab` (`A/dsh-client-ui-settings-plugin-inventory/src/client/PluginInventorySettingsTab.module.css:245-363`): группы `.group { gap:10px }`, соседние группы разделены `border-top: 0.5px solid border-l2; padding-top:14px`, заголовок группы 14px/22px, подзаголовок 12px `label-tertiary`, селектор-«пилюля» (`.switcher`) высотой 36 px на `bg-module-platform` – готовый образец кнопки выбора workspace.
-- Строки списка Plugin Manager (`PluginManagerPage.module.css:1600-1722`): `.row { padding:12px 2px; border-bottom:0.5px solid border-l2 }`, `.rowLine { display:flex; align-items:center; gap:16px }`, `.rowMain` колонкой с `gap:2px`, `.rowId` 13.5px/500, `.rowModule` моноширинный 11.5px `label-tertiary` (подходит для пути), выключенная строка – `.row[data-state='off'] .rowId { color: label-secondary }`, иконочная кнопка удаления `.deleteButton` 28×28 цвета `state-error-primary` с hover `interactive-bg-hover-danger`.
-- Трёхпозиционный выбор: ближайший образец – кубы темы «Светлая/Тёмная/Системная» (`A/dsh-client-ui-theme/src/client/AppearanceRow.tsx:42-62`, `.module.css:29-58`): `<button aria-pressed>`, у выбранного `background: bg-module-platform; border-color: border-selected`. Для строки нужна компактная сегментная версия с `role="radiogroup"`/`role="radio"`.
-- Switch: исходников `dsh-client-ui-primitives` в `app.asar` нет, они вшиты в `dsh-web-frontend`. Стили взяты из собранного `A/dsh-web-frontend/dist/assets/index-CSAdOBx6.css`: `.switch { box-sizing:border-box; width:36px; height:20px; padding:2px; border:0; border-radius:999px; background: var(--dsw-alias-border-l3) }`, `[aria-checked=true] { background: var(--dsw-alias-brand-primary) }`, бегунок 16×16 `border-radius:50%`, фон `--dsw-alias-label-primary-foreground` (у выключенного – `--dsw-alias-switch-thumb`), сдвиг `translate(16px)`, `transition: transform .12s ease`, фокус `outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset:2px`. Разметка – `<button role="switch" aria-checked>` (`practices.md:35`).
-- Hover-эффекты встроенные CSS прячут под `@media (hover: hover)` (`PluginManagerPage.module.css:1-7`).
+- `PluginsSettingsSection` (`A/dsh-client-ui-settings-plugins/src/client/PluginsSettingsSection.tsx:53-56`, `.module.css:3-21`): `.section { display:flex; flex-direction:column; gap:12px; max-width:760px; color: label-primary }`, `<h2 class=heading>` 18px/600, `<p class=intro>` 13px `label-tertiary`, tabs with a 2px underline.
+- `PluginInventorySettingsTab` (`A/dsh-client-ui-settings-plugin-inventory/src/client/PluginInventorySettingsTab.module.css:245-363`): groups `.group { gap:10px }`, neighboring groups separated by `border-top: 0.5px solid border-l2; padding-top:14px`, group heading 14px/22px, subheading 12px `label-tertiary`, a 36 px tall "pill" selector (`.switcher`) on `bg-module-platform` – a ready reference for the workspace picker button.
+- Plugin Manager list rows (`PluginManagerPage.module.css:1600-1722`): `.row { padding:12px 2px; border-bottom:0.5px solid border-l2 }`, `.rowLine { display:flex; align-items:center; gap:16px }`, `.rowMain` as a column with `gap:2px`, `.rowId` 13.5px/500, `.rowModule` monospace 11.5px `label-tertiary` (fits a path), an off row – `.row[data-state='off'] .rowId { color: label-secondary }`, an icon delete button `.deleteButton` 28×28 in `state-error-primary` with hover `interactive-bg-hover-danger`.
+- Three-way choice: the closest reference is the Light/Dark/System theme tiles (`A/dsh-client-ui-theme/src/client/AppearanceRow.tsx:42-62`, `.module.css:29-58`): `<button aria-pressed>`, the selected one with `background: bg-module-platform; border-color: border-selected`. A row needs a compact segmented version with `role="radiogroup"`/`role="radio"`.
+- Switch: the `dsh-client-ui-primitives` sources are not in `app.asar`; they are baked into `dsh-web-frontend`. Styles taken from the built `A/dsh-web-frontend/dist/assets/index-CSAdOBx6.css`: `.switch { box-sizing:border-box; width:36px; height:20px; padding:2px; border:0; border-radius:999px; background: var(--dsw-alias-border-l3) }`, `[aria-checked=true] { background: var(--dsw-alias-brand-primary) }`, a 16×16 thumb with `border-radius:50%`, background `--dsw-alias-label-primary-foreground` (`--dsw-alias-switch-thumb` when off), shift `translate(16px)`, `transition: transform .12s ease`, focus `outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset:2px`. Markup: `<button role="switch" aria-checked>` (`practices.md:35`).
+- Built-in CSS hides hover effects under `@media (hover: hover)` (`PluginManagerPage.module.css:1-7`).
 
-## 8. Чек-лист dsh-doc для бандла с Client-частью
+## 8. The dsh-doc checklist for a bundle with a Client part
 
-По `dsh-doc/references/host-plugin.md`, `plugin-details.md`, `ui-plugin.md`, `artwork.md`, `verification.md`, `plugin-development.md`:
+Per `dsh-doc/references/host-plugin.md`, `plugin-details.md`, `ui-plugin.md`, `artwork.md`, `verification.md`, `plugin-development.md`:
 
-- Манифест: `exports` – `"."`, `"./client"`, `"./locale/*.json"`, `"./icon"`; `files` – все рантайм-файлы, `cordis.patch.yml`, `locale/*.json`, `docs`, `icon.svg`; `dsh.bundle.patch` и `dsh.client` (п. 1). При установке из локального каталога `files` не фильтрует, но для публикации список надо сверить (`host-plugin.md:36`).
-- `locale/<язык>.json` → `meta.title`, `meta.description`, опционально `meta.detail`. Plugin Manager и настройки читают их без активации плагина. Нужны `en` и язык пользователя (`ru`); заголовки на английском – в sentence case (`host-plugin.md:33`). `meta.description` объясняет, что делает плагин и где его найти, с точными подписями UI (например, «Settings → Loadout Manager»), плюс ограничения (`plugin-details.md:3`). Заглушки шаблона оставлять нельзя.
-- Название раздела настроек берётся не из `locale/*.json`, а из `label: () => t('nav')` словаря, зарегистрированного в `client.js` (п. 1–2). Все видимые строки UI идут через `ctx.locale` (`ui-plugin.md:13`).
-- `docs/DETAIL.md` необязателен. Если он есть, это ровно одна строка с картинкой `![alt](preview.svg)`, SVG 640×300 без `text`, шрифтов, скриптов и `foreignObject`, читаемая в светлой и тёмной теме. Указанный, но отсутствующий файл – ошибка без fallback на README (`plugin-details.md:3-27`, `host-plugin.md:34`). Делается после того, как плагин заработал. Если обходимся без превью, убрать `meta.detail` из всех локалей и удалить `docs/DETAIL.md` с записью в `files`.
-- `icon.svg`: `width="36" height="36" viewBox="0 0 36 36"`, один главный объект в поле примерно 18–22 единицы, без подложки и плитки (её рисует Plugin Manager), плоская сдержанная заливка, без `<style>`, `<text>`, `<image>`, скриптов и анимации, прозрачные пустоты, читается в обеих темах. До 256 KiB, внутри пакета, без симлинков наружу (`artwork.md:14-23`, `host-plugin.md:52`). Перед рисованием посмотреть 2–3 иконки установленных плагинов. Иконку навигации в настройках (`settings.section.icon`) рисуем отдельно: 16 px, `stroke="currentColor"`, чтобы она наследовала цвет пункта.
-- Host-экспорт: либо `export function apply(ctx, config)` с `inject` и `Config`, либо сервис-класс по умолчанию; смешивать нельзя (`host-plugin.md:60-65`). Ресурсы – через `ctx.effect`/`ctx.on`.
-- Проверка страницы (`verification.md:5`): только токены темы, ни одного импорта Client-пакетов Harness, в консоли нет `slot entry crashed in '<slot>'`, страница читается в светлой и тёмной теме рядом с похожей встроенной. Перед сдачей – UX-ревью субагентом: находимость, основной сценарий, обратная связь, визуальная согласованность (`verification.md:9-11`).
-- Действия пользователя (`user-actions.md`): операция реализуется один раз как метод Host-сервиса, UI вызывает её через Client-доступную точку входа, и та же операция по возможности выставляется агенту как tool. Действия, которые дают или подтверждают полномочия, остаются только у пользователя.
+- Manifest: `exports` – `"."`, `"./client"`, `"./locale/*.json"`, `"./icon"`; `files` – all runtime files, `cordis.patch.yml`, `locale/*.json`, `docs`, `icon.svg`; `dsh.bundle.patch` and `dsh.client` (section 1). Installation from a local directory does not filter by `files`, but the list must be checked for publishing (`host-plugin.md:36`).
+- `locale/<language>.json` → `meta.title`, `meta.description`, optionally `meta.detail`. Plugin Manager and settings read them without activating the plugin. `en` and the user's language (`ru`) are needed; English titles in sentence case (`host-plugin.md:33`). `meta.description` explains what the plugin does and where to find it, with exact UI labels (for example, "Settings → Loadout Manager"), plus limitations (`plugin-details.md:3`). Template placeholders must not stay.
+- The settings section name comes not from `locale/*.json` but from `label: () => t('nav')` of the dictionary registered in `client.js` (sections 1–2). Every visible UI string goes through `ctx.locale` (`ui-plugin.md:13`).
+- `docs/DETAIL.md` is optional. When present, it is exactly one line with an image, `![alt](preview.svg)`: a 640×300 SVG without `text`, fonts, scripts, or `foreignObject`, readable in light and dark themes. A declared but missing file is an error with no fallback to the README (`plugin-details.md:3-27`, `host-plugin.md:34`). It is made after the plugin works. To go without a preview, remove `meta.detail` from every locale and delete `docs/DETAIL.md` along with its `files` entry.
+- `icon.svg`: `width="36" height="36" viewBox="0 0 36 36"`, one main object within roughly 18–22 units, no backdrop or tile (Plugin Manager draws it), a flat restrained fill, no `<style>`, `<text>`, `<image>`, scripts, or animation, transparent gaps, readable in both themes. Up to 256 KiB, inside the package, no symlinks leading out (`artwork.md:14-23`, `host-plugin.md:52`). Look at 2–3 icons of installed plugins before drawing. The settings navigation icon (`settings.section.icon`) is drawn separately: 16 px, `stroke="currentColor"`, so it inherits the item color.
+- Host export: either `export function apply(ctx, config)` with `inject` and `Config`, or a default service class; they must not be mixed (`host-plugin.md:60-65`). Resources go through `ctx.effect`/`ctx.on`.
+- Page check (`verification.md:5`): only theme tokens, no imports of Harness Client packages, no `slot entry crashed in '<slot>'` in the console, the page reads well in light and dark themes next to a similar built-in one. Before delivery – a UX review by a subagent: discoverability, the main scenario, feedback, visual consistency (`verification.md:9-11`).
+- User actions (`user-actions.md`): an operation is implemented once as a Host service method, the UI calls it through a Client-accessible entry point, and where possible the same operation is exposed to the agent as a tool. Actions that grant or confirm authority stay with the user only.
 
-## 9. Hot reload и проверка
+## 9. Hot reload and verification
 
-- Host-часть `dsh-client-hmr` раз в `pollIntervalMs` (500 мс) опрашивает stat `client.js` каждой строки графа и при изменении mtime, ctime или размера шлёт браузеру кадр `rebuilt`. Браузер перезапускает плагин без перезагрузки страницы, состояние React теряется (`A/dsh-client-hmr/src/index.ts:1-8, 68-90`, README «Design concept»). Для бандла без сборки это значит: правка `client.js` в каталоге, установленном ссылкой, должна подхватываться сама. `pnpm run dev:web` нужен только для пересборки исходников DSH из чекаута и к установленному бандлу отношения не имеет. Смонтирован ли `dsh-client-hmr` в композиции Desktop, проверить не удалось (запрос `Config.listConfigs` с фильтром отклонён). Если правка не подхватилась, остаётся обновить страницу.
-- Правка одного `package.json` (в том числе `dsh.client`) не замечается до перезапуска записи плагина или Host (`A/dsh-client-modules/README.md:149`).
-- Host-часть (`index.js`) обновляется при следующей перекомпоновке профиля (например, после операции Plugin Manager или изменения профиля): «Profile recompositions … also replace plugins whose loaded files below the profile directory changed on disk. This covers … the targets of linked packages» (README `A/dsh-hmr`). Иначе нужен перезапуск. `host-plugin.md:75`: «replacing an installed package requires restart to load a fresh JavaScript module generation».
-- Новый бандл после установки может включиться через HMR без перезапуска (`host-plugin.md:75`). Если Host сменил релиз, страница новые плагины не применяет, пока её не перезагрузят (`A/dsh-client-modules/README.md:51`).
-- Сбои загрузки видны в Settings → Plugins → Plugin list, там же есть Retry (`A/dsh-client-hmr/README.md`, «Failure policy»).
-- Порядок проверки после установки (`plugin-development.md:20`): прочитать `application` и `warnings` из результата установки; затем `cordis_inspect_query` Client `Slots.listSubTree` с `root: 'settings.section'` – в `occupants` должен появиться `id 'loadout'`; затем открыть Settings → Loadout, проверить обе темы и консоль.
+- The Host part of `dsh-client-hmr` polls the stat of each graph row's `client.js` every `pollIntervalMs` (500 ms) and, when mtime, ctime, or size changes, sends the browser a `rebuilt` frame. The browser restarts the plugin without reloading the page, and React state is lost (`A/dsh-client-hmr/src/index.ts:1-8, 68-90`, README "Design concept"). For an unbuilt bundle this means an edit to `client.js` in a directory installed as a link should be picked up by itself. `pnpm run dev:web` is only for rebuilding DSH sources from a checkout and has nothing to do with an installed bundle. Whether `dsh-client-hmr` is mounted in the Desktop composition could not be checked (the filtered `Config.listConfigs` request was rejected). If an edit is not picked up, reload the page.
+- An edit to `package.json` alone (including `dsh.client`) is not noticed until the plugin entry or the Host restarts (`A/dsh-client-modules/README.md:149`).
+- The Host part (`index.js`) updates on the next profile recomposition (for example, after a Plugin Manager operation or a profile change): "Profile recompositions … also replace plugins whose loaded files below the profile directory changed on disk. This covers … the targets of linked packages" (README `A/dsh-hmr`). Otherwise a restart is needed. `host-plugin.md:75`: "replacing an installed package requires restart to load a fresh JavaScript module generation".
+- A new bundle may come up through HMR after installation without a restart (`host-plugin.md:75`). If the Host changed releases, the page does not apply new plugins until it is reloaded (`A/dsh-client-modules/README.md:51`).
+- Load failures show in Settings → Plugins → Plugin list, which also offers Retry (`A/dsh-client-hmr/README.md`, "Failure policy").
+- Post-install check order (`plugin-development.md:20`): read `application` and `warnings` from the install result; then `cordis_inspect_query` Client `Slots.listSubTree` with `root: 'settings.section'` – `id 'loadout'` should appear in `occupants`; then open Settings → Loadout, check both themes and the console.
 
-## Выводы для реализации
+## Conclusions for the implementation
 
-Что должна сделать реализация:
+What the implementation must do:
 
-1. `client.js` – классический скрипт `window.__ModuleLoader__.load({ id: 'dsh-loadout-manager', factory(require) {...} })`. React берётся из `require('react')`, элементы строятся через `React.createElement`. Плагин возвращает `{ inject: ['slots', 'locale'], apply(ctx) }`, а `sidebarRight`, `workspaces` и `connection` получает через `ctx.get(...)`, чтобы не зависеть от них жёстко.
-2. В `package.json`: `exports["./client"] = "./client.js"`, `dsh.client = { platform: 'web', inject: [...] }` (п. 1), плюс `./locale/*.json` и `./icon`.
-3. В `apply`:
+1. `client.js` – a classic script `window.__ModuleLoader__.load({ id: 'dsh-loadout-manager', factory(require) {...} })`. React comes from `require('react')`, elements are built with `React.createElement`. The plugin returns `{ inject: ['slots', 'locale'], apply(ctx) }` and gets `sidebarRight`, `workspaces`, and `connection` through `ctx.get(...)` so as not to depend on them hard.
+2. In `package.json`: `exports["./client"] = "./client.js"`, `dsh.client = { platform: 'web', inject: [...] }` (section 1), plus `./locale/*.json` and `./icon`.
+3. In `apply`:
    - `ctx.effect(() => ctx.locale.register('loadout', { en, ru, zh? }))`;
-   - стили – `ctx.effect` с тегом `<style data-plugin="dsh-loadout-manager">`;
+   - styles – `ctx.effect` with a `<style data-plugin="dsh-loadout-manager">` tag;
    - `ctx.slots.inject('settings.section', () => ctx.slots.register({ name: 'settings.section', id: 'loadout', order: 25, label: () => t('nav'), locale: 'loadout', inject: () => ({ hooks: { loadout: store }, api }) }, LoadoutSection))`;
-   - иконка – отдельная регистрация в `settings.section.icon` с тем же `id: 'loadout'`.
-4. Связь с Host – свой маршрут `ctx.webServer.register({ kind: 'prefix', path: '/loadout/api', handler })` с проверкой `ctx.connection.requestRejection(req) === undefined`, только `POST` с JSON и конвертом `{ ok, value | error: { code, message } }`. Client обращается к `new URL('loadout/api/<method>', document.baseURI)`. На Host сервисы `webServer` и `connection` брать через `ctx.inject(['webServer', 'connection'], ...)`, чтобы фильтр скиллов и правила работали и без Web-сервера.
-5. Данные перечитываются при монтировании раздела, после каждой операции, по `connection/reset` и по `ctx.remote.$on('plugin-manager/changed')` (если `remote` есть). Push-канал не нужен.
-6. Выбор workspace строится из `props.useWorkspaces(s => s.items)`: `{ workspaceId, path, title }`. Host получает `path` и сам считает `projectRoot`.
-7. «Открыть»: взять `sid = ctx.sidebarRight.mounted.getSnapshot()`; если сессия есть, вызвать `openResource(sessionFileAddress(sid, absPath))`, затем `props.close()`. Если `undefined`, кнопка неактивна с подсказкой, либо файл показывается прямо на странице через Host-маршрут.
-8. «Удалить» подтверждается в самой строке (без модалки в `body`), ошибка выводится строкой под элементом. Тостов нет.
-9. Свои контролы: switch по стилям из п. 7, трёхпозиционный сегмент `role="radiogroup"` по образцу кубов темы. Только токены `--dsw-alias-*` и `--dsw-radius-*`, ширина колонки около 550 px.
+   - the icon – a separate registration in `settings.section.icon` with the same `id: 'loadout'`.
+4. Host communication – our own route `ctx.webServer.register({ kind: 'prefix', path: '/loadout/api', handler })` checked with `ctx.connection.requestRejection(req) === undefined`, `POST` only, with JSON and the `{ ok, value | error: { code, message } }` envelope. The Client calls `new URL('loadout/api/<method>', document.baseURI)`. On the Host, take the `webServer` and `connection` services through `ctx.inject(['webServer', 'connection'], ...)` so the skill filter and rules work without the Web server too.
+5. Data is reread when the section mounts, after each operation, on `connection/reset`, and on `ctx.remote.$on('plugin-manager/changed')` (when `remote` exists). No push channel is needed.
+6. The workspace picker is built from `props.useWorkspaces(s => s.items)`: `{ workspaceId, path, title }`. The Host receives `path` and computes `projectRoot` itself.
+7. Open: take `sid = ctx.sidebarRight.mounted.getSnapshot()`; if there is a session, call `openResource(sessionFileAddress(sid, absPath))`, then `props.close()`. If it is `undefined`, the button is disabled with a hint, or the file is shown right on the page through the Host route.
+8. Delete is confirmed in the row itself (no modal in `body`), and an error is shown as a line under the item. No toasts.
+9. Own controls: a switch styled as in section 7, a three-way `role="radiogroup"` segment modeled on the theme tiles. Only `--dsw-alias-*` and `--dsw-radius-*` tokens, column width around 550 px.
 
-Где SPEC расходится с фактами или требует уточнения:
+Where the SPEC diverges from the facts or needs clarification:
 
-- «Client вызывает их через Remote или Service». Typert Remote и `ctx.remote.$on` без генератора недоступны, а Client-сервисы Host-операций не дают. Реальный путь – HTTP-маршрут Host (п. 3).
-- «Превью файла в правой боковой панели, как делает `dsh-client-ui-skill`». Работает только при сессии на экране и с адресом, привязанным к сессии; адрес `absolute` не читается. Страница настроек к сессии не привязана, поэтому нужны `close()` и запасной вариант (п. 5).
-- «Список из открытых workspace». У DSH есть только зарегистрированные workspace (`WorkspaceSnapshot.items`), признака «открыт» нет. Искать дальше в `dsh-workspace` или `dsh-client-ui-workspace` не нужно: источник – `ctx.workspaces` / `useWorkspaces` (п. 4).
-- «Образец списка – страница Plugin Manager». Это широкая основная панель; раздел настроек занимает примерно 550 px внутри модалки 800 px. Строки берём из Plugin Manager (`.row`, `.rowId`, `.rowModule`, `.deleteButton`), а каркас – из разделов настроек (`PluginsSettingsSection`, `PluginInventorySettingsTab`) (п. 7).
-- «Свои контролы вместо импорта primitives». Исходников primitives в `app.asar` нет, поэтому разметку и CSS копируем из собранного CSS (значения switch приведены в п. 7) или из отрисованной страницы.
-- `dsh-doc` (`user-actions.md`) советует выставить те же операции агенту как tool. В SPEC этого нет. Нужно решить: переключение состояния скилла или правила можно отдать агенту, а удаление в корзину лучше оставить только пользователю.
-- Название раздела «Loadout Manager» задаётся словарём Client (`label`), а не `locale/*.json`. Метаданные плагина (`meta.title`) – отдельная строка для Plugin Manager.
+- "The Client calls them through Remote or Service". Typert Remote and `ctx.remote.$on` are unavailable without the generator, and Client services do not expose Host operations. The real path is a Host HTTP route (section 3).
+- "File preview in the right sidebar, as `dsh-client-ui-skill` does". It works only with a session on screen and a session-bound address; an `absolute` address does not read. The settings page is not bound to a session, so `close()` and a fallback are needed (section 5).
+- "A list of open workspaces". DSH has only registered workspaces (`WorkspaceSnapshot.items`), with no "open" flag. No need to search further in `dsh-workspace` or `dsh-client-ui-workspace`: the source is `ctx.workspaces` / `useWorkspaces` (section 4).
+- "The reference for a list is the Plugin Manager page". That is a wide main panel; a settings section takes about 550 px inside an 800 px modal. Take the rows from Plugin Manager (`.row`, `.rowId`, `.rowModule`, `.deleteButton`) and the frame from the settings sections (`PluginsSettingsSection`, `PluginInventorySettingsTab`) (section 7).
+- "Own controls instead of importing primitives". The primitives sources are not in `app.asar`, so markup and CSS are copied from the built CSS (switch values are in section 7) or from the rendered page.
+- `dsh-doc` (`user-actions.md`) advises exposing the same operations to the agent as a tool. The SPEC does not say so. To decide: switching a skill or rule state can be given to the agent, while moving to the trash is better left to the user only.
+- The "Loadout Manager" section name is set by the Client dictionary (`label`), not by `locale/*.json`. The plugin metadata (`meta.title`) is a separate string for Plugin Manager.

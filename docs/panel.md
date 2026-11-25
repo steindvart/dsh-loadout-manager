@@ -1,33 +1,33 @@
-# Панель
+# Panel
 
-Панель глобальная и не привязана к сессии. Это пункт левого меню рядом с Plugins и Automation tasks: иконка и подпись в слоте `sidebar.panellist` (`id: 'loadout'`, `order: 20`), страница – в слоте `main` с `key: 'loadout'`, в центральной колонке вместо чата. Вёрстка – как у страницы Plugins (колонка до 960 px). Страница показывает одну область за раз. Сверху вниз:
+The panel is global and not tied to a session. It is a left sidebar item next to Plugins and Automation tasks: the icon and label go into the `sidebar.panellist` slot (`id: 'loadout'`, `order: 20`), the page into the `main` slot with `key: 'loadout'`, in the center column in place of the chat. The layout follows the Plugins page (a column up to 960 px). The page shows one scope at a time. From top to bottom:
 
-Шапка повторяет страницу Plugins и остаётся на месте при прокрутке: слева заголовок, подзаголовок и строка с путём области и `loadout.json`, справа выбор области, последней строкой – вкладки.
+The header mirrors the Plugins page and stays in place on scroll: on the left the title, the subtitle, and a line with the scope path and `loadout.json`; on the right the scope picker; the tabs as the last row.
 
-## Выбор области
+## Scope picker
 
-Список в стиле контурной кнопки: «Глобальные», затем зарегистрированные workspace (`props.useWorkspaces(s => s.items)`). Без workspace список неактивен. Выбор запоминается в `localStorage`.
+A list styled as an outline button: Global, then the registered workspaces (`props.useWorkspaces(s => s.items)`). Without workspaces the list is disabled. The choice is remembered in `localStorage`.
 
-- «Глобальные» – из `$DSH_HOME/skills`, `$DSH_AGENTS_HOME/skills`, custom-корней, `~/.dsh/rules/`, `~/.agents/rules/`; пишет в `~/.agents/loadout.json`.
-- Workspace – из `<projectRoot>/.dsh/skills`, `<projectRoot>/.agents/skills` и `<projectRoot>/.agents/rules/`, где `projectRoot` – ближайший предок с `.git`; пишет в `<projectRoot>/.agents/loadout.json`.
+- Global – from `$DSH_HOME/skills`, `$DSH_AGENTS_HOME/skills`, custom roots, `~/.dsh/rules/`, `~/.agents/rules/`; writes to `~/.agents/loadout.json`.
+- Workspace – from `<projectRoot>/.dsh/skills`, `<projectRoot>/.agents/skills`, and `<projectRoot>/.agents/rules/`, where `projectRoot` is the nearest ancestor with `.git`; writes to `<projectRoot>/.agents/loadout.json`.
 
-## Вкладки по видам элементов
+## Tabs by item kind
 
-«Скиллы», «Инструкции» (Instructions) и «MCP» с числом элементов (`role="tablist"`, стрелки и Home/End, стиль `SegmentedTabs` размера `sm`). Новый вид – одна запись в списке `KINDS` в `src/client/items.tsx` и один список в контракте `src/shared/api.ts`. Выбранная вкладка запоминается.
+Skills, Instructions, and MCP with item counts (`role="tablist"`, arrow keys and Home/End, `SegmentedTabs` style at size `sm`). A new kind is one entry in the `KINDS` list in `src/client/items.tsx` and one list in the `src/shared/api.ts` contract. The selected tab is remembered.
 
-- **«Инструкции»** показывает всё, что идёт в контекст рядом с правилами, двумя разделами в том же порядке: сначала «Файлы инструкций», то есть то, что грузит `dsh-agent-instructions` (значения по умолчанию: глобально `AGENTS.md` в `$DSH_HOME` и `$DSH_AGENTS_HOME`; в workspace – `AGENTS.md`, `CLAUDE.md`, `AGENTS.local.md`, `CLAUDE.local.md` в каждой папке от корня проекта до папки workspace, группы по папке), затем «Правила» по источнику. У каждого раздела заголовок 16/600 с числом элементов и своя подсказка, если он пуст. У файлов инструкций вместо переключателя метка «Всегда загружается»: загрузкой управляет DSH, а не `loadout.json`; удаления нет. Если пресет переопределил кандидатов в своём Config, список может разойтись с тем, что видит агент.
-- **«MCP»** – серверы `ctx.mcpManager` (настроенные в профиле и зарегистрированные плагинами), сгруппированные по источнику. В строке: имя, статус с цветной точкой (подключён, подключается, переподключение, ошибка, ждёт учётные данные, остановлен, выключен), транспорт и команда или URL, текст последней ошибки. «Инструменты (N)» раскрывает инструменты сервера (`mcp__<сервер>__*` из `ctx.tools.definitions()`, имя без префикса и описание). «Проверить» – отдельное тестовое подключение `mcpManager.probe` (до 10 с): имя и версия сервера и список его инструментов, даже у выключенного сервера. «Перезапустить» – `mcpManager.restart`. Отдельного поля «описание» в MCP нет.
-  - В «Глобальных» переключатель запускает или останавливает сервер: `servers.<имя>.enabled` строки `mcp-manager` через `ctx.settings.mutate`, тот же путь, что у формы настроек DSH. Серверы плагинов не переключаются: они работают, пока включён плагин.
-  - В workspace переключатель скрывает или показывает инструменты сервера агентам этого проекта: `"mcp": { "<имя>": false }` в проектном `loadout.json`; перед каждым шагом агента плагин снимает и ставит `ctx.tools.restrict({ deny })` на `agent.ctx`. Сам сервер продолжает работать.
-  - Пока на вкладке есть подключающиеся серверы, страница перечитывает состояние раз в 2 с.
+- **Instructions** shows everything that goes into the context next to the rules, in two sections in the same order: first Instruction files, that is, what `dsh-agent-instructions` loads (by default: globally `AGENTS.md` in `$DSH_HOME` and `$DSH_AGENTS_HOME`; in a workspace `AGENTS.md`, `CLAUDE.md`, `AGENTS.local.md`, `CLAUDE.local.md` in every folder from the project root down to the workspace folder, grouped by folder), then Rules by source. Each section has a 16/600 heading with the item count and its own hint when empty. Instruction files carry an Always loaded label instead of a switch: DSH controls their loading, not `loadout.json`; they cannot be deleted. If a preset overrides the candidates in its Config, the list may differ from what the agent sees.
+- **MCP** – `ctx.mcpManager` servers (configured in the profile and registered by plugins), grouped by source. A row has the name, a status with a colored dot (connected, connecting, reconnecting, failed, waiting for credentials, stopped, off), the transport with the command or URL, and the last error text. Tools (N) expands the server's tools (`mcp__<server>__*` from `ctx.tools.definitions()`, the name without the prefix and the description). Check is a separate test connection through `mcpManager.probe` (up to 10 s): the server's name and version and its tool list, even for a server that is off. Restart is `mcpManager.restart`. MCP has no separate "description" field.
+  - In Global the switch starts or stops the server: `servers.<name>.enabled` in the `mcp-manager` row through `ctx.settings.mutate`, the same path the DSH settings form uses. Plugin servers cannot be switched: they run while their plugin is on.
+  - In a workspace the switch hides or shows the server's tools for this project's agents: `"mcp": { "<name>": false }` in the project `loadout.json`; before every agent step the plugin removes and sets `ctx.tools.restrict({ deny })` on `agent.ctx`. The server itself keeps running.
+  - While the tab has connecting servers, the page rereads the state every 2 s.
 
-## Список выбранного вида
+## List of the selected kind
 
-Группировка по источнику: над каждой группой заголовок 14/500 с числом элементов, сами строки – в карточке (`--dsw-alias-settings-card-fill` / `-stroke`, как в разделах Models и Agent presets). В строке справа «Открыть», кнопка удаления 28×28 и переключатель; подтверждение удаления и текст файла – под строкой.
+Grouped by source: above each group a 14/500 heading with the item count, the rows themselves in a card (`--dsw-alias-settings-card-fill` / `-stroke`, as in the Models and Agent presets sections). On the right of a row: Open, a 28×28 delete button, and the switch; the delete confirmation and the file text appear under the row.
 
-Custom-корни панель выводит из `path` кандидатов реестра с `source: 'custom'` (scope пресета по умолчанию, `acquireScope()`), сами корни сканирует своим сканером, чтобы показать и перекрытые дубликаты. Custom-скиллы глобальные. Файлы внутри `app.asar` (`dsh-doc`, `office*`) только для чтения: переключать можно, удалять нельзя.
+The panel derives custom roots from the `path` of registry candidates with `source: 'custom'` (the default preset scope, `acquireScope()`) and scans those roots with its own scanner, so overridden duplicates show too. Custom skills are global. Files inside `app.asar` (`dsh-doc`, `office*`) are read-only: they can be switched but not deleted.
 
-В строке: имя и описание (из frontmatter), у скилла – версия, если она есть (`metadata.version` по формату Agent Skills, иначе `version` верхнего уровня), путь, переключатель (у скилла – трёхпозиционный), «Открыть» и «Удалить».
+A row has the name and description (from frontmatter), the version for a skill when present (`metadata.version` per the Agent Skills format, otherwise top-level `version`), the path, the switch (three-way for a skill), Open, and Delete.
 
-- «Открыть»: текст файла раскрывается прямо в строке (читает Host). Правая панель с превью недоступна: пока страница занимает центральную колонку, сессии на экране нет.
-- «Удалить»: подтверждение в самой строке, затем `gio trash -- <path>` на Host. Если корзина недоступна, показать ошибку и не удалять безвозвратно.
+- Open: the file text expands right in the row (the Host reads it). The right preview pane is unavailable: while the page occupies the center column, no session is on screen.
+- Delete: confirmation in the row itself, then `gio trash -- <path>` on the Host. If the trash is unavailable, show an error and do not delete permanently.

@@ -1,11 +1,11 @@
-# Состояние вкл/выкл – `loadout.json`
+# On/off state – `loadout.json`
 
-Состояние хранится в файлах, а не в профиле DSH, чтобы его можно было закоммитить и разделить с командой:
+The state is kept in files rather than in the DSH profile, so it can be committed and shared with a team:
 
-- `<projectRoot>/.agents/loadout.json` – скиллы и правила проекта (`.dsh/skills`, `.agents/skills`, `.agents/rules` проекта);
-- `~/.agents/loadout.json` – глобальные скиллы и правила (`$DSH_HOME/skills`, `$DSH_AGENTS_HOME/skills`, `customSkillDirs`, `~/.dsh/rules`, `~/.agents/rules`).
+- `<projectRoot>/.agents/loadout.json` – project skills and rules (the project's `.dsh/skills`, `.agents/skills`, `.agents/rules`);
+- `~/.agents/loadout.json` – global skills and rules (`$DSH_HOME/skills`, `$DSH_AGENTS_HOME/skills`, `customSkillDirs`, `~/.dsh/rules`, `~/.agents/rules`).
 
-Каждый файл управляет только элементами своего уровня: проектный файл не может выключить глобальный скилл или правило, и наоборот. Отсутствующая запись означает «включено». Набросок формата (глобальный файл):
+Each file controls only the items of its own level: the project file cannot turn off a global skill or rule, and the other way round. A missing entry means "on". Format sketch (global file):
 
 ```json
 {
@@ -14,6 +14,6 @@
 }
 ```
 
-Скиллы адресуются по имени, правила – как `<источник>/<file>` (`project`, `dsh`, `agents`), потому что в глобальном уровне два корня правил и одноимённые файлы в них – разные правила.
+Skills are addressed by name, rules as `<source>/<file>` (`project`, `dsh`, `agents`), because the global level has two rule roots and same-name files in them are different rules.
 
-Если одноимённый скилл есть и в проекте, и глобально, DSH выбирает один по рангу (см. таблицу корней в [skills.md](skills.md)). Состояние скилла определяет `loadout.json` того уровня, где лежит выигравший кандидат. Выключение проигравшего ни на что не влияет, и панель помечает его как перекрытый.
+When a same-name skill exists both in the project and globally, DSH picks one by rank (see the root table in [skills.md](skills.md)). The skill's state comes from the `loadout.json` of the level where the winning candidate lives. Turning off the losing one has no effect, and the panel marks it as overridden.

@@ -1,28 +1,28 @@
-# Скиллы
+# Skills
 
-Панель показывает скиллы из всех корней, которые сканирует `dsh-skill-filesystem` (таблица ниже), включая `<projectRoot>/.dsh/skills` и custom-корни (`customSkillDirs`, в том числе встроенные скиллы из `app.asar`), сгруппированные по источнику. Как они делятся на глобальные и скиллы workspace – см. [panel.md](panel.md).
+The panel shows skills from every root that `dsh-skill-filesystem` scans (table below), including `<projectRoot>/.dsh/skills` and custom roots (`customSkillDirs`, built-in skills from `app.asar` among them), grouped by source. How they split into global and workspace skills is described in [panel.md](panel.md).
 
-## Состояния
+## States
 
-У каждого скилла три состояния:
+Every skill has three states:
 
-- `on` – как сейчас: в каталоге модели и в меню `/`;
-- `manual` – скрыт из каталога модели (в контекст запроса не попадает), но вызывается вручную через `/name`;
-- `off` – скрыт везде.
+- `on` – as today: in the model catalog and in the `/` menu;
+- `manual` – hidden from the model catalog (stays out of the request context), but invoked by hand through `/name`;
+- `off` – hidden everywhere.
 
-Скилл, у которого во frontmatter уже стоит `disable-model-invocation: true`, показывается как `manual`, и включить его выше `manual` нельзя: файл – источник истины.
+A skill whose frontmatter already sets `disable-model-invocation: true` shows as `manual` and cannot be raised above `manual`: the file is the source of truth.
 
-Удаление перемещает каталог `<name>/` или файл `<name>.md` в корзину после подтверждения в UI.
+Deletion moves the `<name>/` directory or the `<name>.md` file to the trash after confirmation in the UI.
 
-## Фильтр скиллов: теневой провайдер в слое агента
+## Skill filter: a shadow provider in the agent layer
 
-Файлы скиллов плагин не трогает. В слушателе `agent/created` (получает и субагентов) он регистрирует провайдер на `agent.ctx.skills` – это слой агента, он ближе слоя пресета. Disposer держится и в эффекте плагина. Для каждого скилла, у которого `loadout.json` сужает политику файла, провайдер отдаёт кандидата с тем же `name`, `description`, `whenToUse`, `source` и политикой:
+The plugin leaves skill files untouched. In the `agent/created` listener (which also receives subagents) it registers a provider on `agent.ctx.skills` – the agent layer, which sits closer than the preset layer. The disposer is also held in the plugin's effect. For each skill whose `loadout.json` narrows the file's policy, the provider returns a candidate with the same `name`, `description`, `whenToUse`, `source`, and the policy:
 
-- `manual` → `{ modelInvocable: false, userInvocable: true }`; `get()` берёт оригинал из реестра и возвращает его с нашей политикой и `provider`;
-- `off` → `{ modelInvocable: false, userInvocable: false }`; `get()` возвращает `undefined`.
+- `manual` → `{ modelInvocable: false, userInvocable: true }`; `get()` takes the original from the registry and returns it with our policy and `provider`;
+- `off` → `{ modelInvocable: false, userInvocable: false }`; `get()` returns `undefined`.
 
-Оригиналы `list()` и `get()` читают из реестра со scope пресета агента: `ctx.agentPresets.acquireScope(composedPreset(agent.ctx))` → `ctx.skills.list/get({ cwd, scope: lease.key })`. Цепочка `[presetKey]` не включает слой агента, рекурсии нет. Так покрываются и custom-скиллы, корни которых плагин не знает. Уровень `loadout.json` выбирается по `source` победителя: `project-*` – проектный, остальные – глобальный.
+The originals for `list()` and `get()` are read from the registry with the agent's preset scope: `ctx.agentPresets.acquireScope(composedPreset(agent.ctx))` → `ctx.skills.list/get({ cwd, scope: lease.key })`. The `[presetKey]` chain does not include the agent layer, so there is no recursion. This also covers custom skills whose roots the plugin does not know. The `loadout.json` level is chosen by the winner's `source`: `project-*` is the project level, everything else is global.
 
-Каталог модели обновляется штатно: `dsh-tool-skill` сравнивает digest на следующем `pre-step` и дописывает новый каталог. После изменения `loadout.json` (панель, инструмент, `fs/observed`) плагин вызывает `invalidate()` у всех живых провайдеров.
+The model catalog updates the standard way: `dsh-tool-skill` compares the digest on the next `pre-step` and appends the new catalog. After `loadout.json` changes (panel, tool, `fs/observed`), the plugin calls `invalidate()` on every live provider.
 
-Ограничение DSH: меню `/` у сессии, где агент ещё не создан, читает реестр без слоя агента и показывает `off`-скиллы.
+DSH limitation: the `/` menu of a session whose agent has not been created yet reads the registry without the agent layer and shows `off` skills.

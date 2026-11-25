@@ -1,37 +1,37 @@
-# Правила (rules)
+# Rules
 
-Правило – плоский файл `<file>.md` в корне правил (как в Kilo Code). Frontmatter необязателен; если он есть, панель берёт из него `name` и `description`, как у скиллов. Без frontmatter имя – это `<file>`, описания нет. В контекст модели уходит тело файла без frontmatter.
+A rule is a flat `<file>.md` file in a rule root (as in Kilo Code). Frontmatter is optional; when present, the panel takes `name` and `description` from it, as for skills. Without frontmatter the name is `<file>` and there is no description. The model's context gets the file body without frontmatter.
 
-Идентификатор правила (ключ в `loadout.json`) строится по имени файла, а не по `name` из frontmatter, чтобы переименование в frontmatter не сбрасывало состояние.
+The rule identifier (its key in `loadout.json`) is built from the file name rather than from the frontmatter `name`, so renaming in frontmatter does not reset the state.
 
-## Корни правил
+## Rule roots
 
-| Уровень | Путь |
+| Level | Path |
 |---|---|
-| проект | `<projectRoot>/.agents/rules/` |
-| глобальный | `~/.dsh/rules/` (`$DSH_HOME/rules`) |
-| глобальный | `~/.agents/rules/` (`$DSH_AGENTS_HOME/rules`) |
+| project | `<projectRoot>/.agents/rules/` |
+| global | `~/.dsh/rules/` (`$DSH_HOME/rules`) |
+| global | `~/.agents/rules/` (`$DSH_AGENTS_HOME/rules`) |
 
-Каждое правило включается и выключается по отдельности; удаляется в корзину после подтверждения. По умолчанию включено.
+Each rule is switched on and off on its own and is moved to the trash after confirmation. A rule is on by default.
 
-Включённые правила попадают в контекст запроса наравне с AGENTS.md: тот же формат `<system-reminder>`, тот же приоритет («workspace instructions»), отдельное сообщение сразу после baseline `dsh-agent-instructions`.
+Enabled rules enter the request context on a par with AGENTS.md: the same `<system-reminder>` format, the same priority ("workspace instructions"), a separate message right after the `dsh-agent-instructions` baseline.
 
-Субагенты получают правила так же, как основной агент. Проверить при реализации, как `dsh-agent-instructions` доставляет AGENTS.md дочерним агентам, и повторить тот же путь.
+Subagents get rules the same way as the main agent. During implementation, check how `dsh-agent-instructions` delivers AGENTS.md to child agents and follow the same path.
 
-Установку правил (создание в UI, импорт, URL) в первую версию не включаем: файлы кладутся руками.
+Installing rules (creating them in the UI, import, URL) is out of the first version: files are placed by hand.
 
-## Правила в контексте
+## Rules in the context
 
-Механика повторяет `dsh-agent-instructions` и работает только у агентов, в композиции которых он есть: `ctx.agentPresets.inspectCompositions(agent.ctx)` содержит модуль `@deepseek-ai/dsh-agent-instructions`.
+The mechanism mirrors `dsh-agent-instructions` and works only for agents whose composition includes it: `ctx.agentPresets.inspectCompositions(agent.ctx)` contains the `@deepseek-ai/dsh-agent-instructions` module.
 
-- Слушатель `agent/pre-step` (waterfall): сначала `await next()`, на `reject` и на пустом первом шаге решение возвращается без изменений.
-- На первом подходящем шаге – baseline со всеми включёнными правилами (сначала `dsh`, `agents`, потом `project`). Вставка – сразу после последнего сообщения `agent-instructions`, иначе после последнего claimed-сообщения; решение распространяется (spread).
-- На каждом шаге правила сверяются заново (`stat` + дайджест, watcher не нужен). Разница с увиденным – одно сообщение с секциями `Additional rule from` / `Updated rule from` / `Rule removed`.
-- Сообщение – `user/message` с `source: { kind: 'dsh-loadout-manager-rules', form: 'instructions', baseline?: true, projectRoot, snapshot }`, где `snapshot` – `{ displayPath: digest }` после этого сообщения. Состояние восстанавливается из последнего такого сообщения на поверхности сессии (`session.deriveMessages()`), поэтому replay, resume, fork и compaction работают без отдельного хранилища. Смена `projectRoot` – новый baseline.
-- `displayPath`: `~/.dsh/rules/<file>.md`, `~/.agents/rules/<file>.md`, проектные – относительно `projectRoot`.
-- Бюджет `maxBytes` (Config, по умолчанию 65536) на одно сообщение: сначала отбрасываются самые широкие правила, потом обрезается последнее, в начале – маркер `Rule budget N bytes: …`. Отброшенные записываются в снапшот как `omitted:<digest>` и не повторяются, пока не изменятся.
+- An `agent/pre-step` listener (waterfall): `await next()` first; on `reject` and on an empty first step the decision is returned unchanged.
+- On the first eligible step – a baseline with every enabled rule (`dsh` first, then `agents`, then `project`). It is inserted right after the last `agent-instructions` message, otherwise after the last claimed message; the decision is spread.
+- On every step the rules are checked again (`stat` + digest, no watcher needed). The difference from what was seen is one message with `Additional rule from` / `Updated rule from` / `Rule removed` sections.
+- The message is a `user/message` with `source: { kind: 'dsh-loadout-manager-rules', form: 'instructions', baseline?: true, projectRoot, snapshot }`, where `snapshot` is `{ displayPath: digest }` after this message. The state is restored from the last such message on the session surface (`session.deriveMessages()`), so replay, resume, fork, and compaction work without separate storage. A change of `projectRoot` means a new baseline.
+- `displayPath`: `~/.dsh/rules/<file>.md`, `~/.agents/rules/<file>.md`, project rules relative to `projectRoot`.
+- The `maxBytes` budget (Config, 65536 by default) applies per message: the broadest rules are dropped first, then the last one is truncated, and a `Rule budget N bytes: …` marker goes at the start. Dropped rules are recorded in the snapshot as `omitted:<digest>` and are not repeated until they change.
 
-Шаблон baseline (текст для модели, английский, как у AGENTS.md):
+Baseline template (text for the model, in English, like AGENTS.md):
 
 ```markdown
 <system-reminder>
