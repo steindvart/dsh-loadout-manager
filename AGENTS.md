@@ -1,32 +1,32 @@
 # dsh-loadout-manager
 
-DSH-плагин (бандл профиля): переключает скиллы в `on`/`manual`/`off` и подключает файлы правил в контекст агента рядом с AGENTS.md. Решения – [docs/SPEC.md](docs/SPEC.md) и тематические файлы в `docs/`, они окончательные; меняй их только после согласия пользователя. Факты об API DSH 0.2.2-rc.2 со ссылками на исходники – [docs/research/](docs/research/).
+A DSH plugin (profile bundle): switches skills between `on`/`manual`/`off`, connects rule files to the agent context next to AGENTS.md, and manages MCP servers per scope. Design decisions live in [docs/SPEC.md](docs/SPEC.md) and the topic files in `docs/`; they are final, so change them only with the user's agreement. Facts about the DSH 0.2.2-rc.2 API with links to the sources are in [docs/research/](docs/research/).
 
-## Раскладка
+## Layout
 
-- `src/index.ts` – Host `apply(ctx, config)`: только связывание сервисов DSH с модулями из `src/host/`.
-- `src/host/` – логика Host. Чистые модули с тестами: `frontmatter`, `loadout`, `inventory`, `rules`. Остальные – тонкие адаптеры к `ctx` (провайдер скиллов, `pre-step`, маршруты, инструмент).
-- `src/shared/api.ts` – контракт маршрутов `/api/dsh-loadout-manager/<op>`: запросы и ответы, общие для Host и Client. Меняешь поле ответа – меняй его здесь, компилятор покажет обе стороны.
-- `src/client/` – страница Loadout Manager на React (TSX), стили в `Loadout.module.css`, тексты в `locale.ts` (`en` – источник ключей, `ru` обязан совпадать).
-- `lib/` – собранные `index.js` и `client.js`, на них указывает `package.json`. Коммитятся: бандл установлен ссылкой на этот каталог, DSH читает их из рабочей копии.
-- `test/*.test.ts` – `node:test`; `client.test.ts` грузит собранный `lib/client.js` так, как его грузит DSH.
+- `src/index.ts` – the Host `apply(ctx, config)`: only wires DSH services to the modules in `src/host/`.
+- `src/host/` – Host logic. Pure modules with tests: `frontmatter`, `loadout`, `inventory`, `rules`. The rest are thin adapters to `ctx` (skill provider, `pre-step`, routes, tool).
+- `src/shared/api.ts` – the contract of the `/api/dsh-loadout-manager/<op>` routes: requests and responses shared by Host and Client. To change a response field, change it here and let the compiler show both sides.
+- `src/client/` – the Loadout Manager page in React (TSX), styles in `Loadout.module.css`, strings in `locale.ts` (`en` is the source of keys; `ru` must match it).
+- `lib/` – the built `index.js` and `client.js` that `package.json` points to. They are committed: DSH reads them straight from the checkout when the bundle is installed from a local directory or a Git URL.
+- `test/*.test.ts` – `node:test`; `client.test.ts` loads the built `lib/client.js` the way DSH loads it.
 
-## Сборка и проверки
+## Build and checks
 
-- `npm run check` – `tsc` и все тесты; `npm test` сначала собирает `lib/`. Перед коммитом – зелёный `npm run check` и закоммиченный свежий `lib/`.
-- Зависимости только в `devDependencies`: в рантайм ничего не ставится. Пакеты `@deepseek-ai/*` нужны ради типов, их версия равна целевой версии DSH.
-- Из `@deepseek-ai/*` импортируй только типы (`import type`). Значения приходят через сервисы `ctx`; сборка падает на импорте значения (`hostSelfContained`, `clientPurityGate` в `tsdown.config.ts`). Host-бандл не держит внешних импортов, кроме `node:*`; Client берёт из таблицы модулей оболочки только `react` и `react/jsx-runtime`.
-- Сервисы DSH бери через `ctx.get('name')`, в том числе на `agent.ctx`: без объявленного `inject` Cordis бросает исключение на `ctx.name`. Исключение в serial-слушателе `agent/created` обрывает создание агента, поэтому всё внутри него оборачивай в `try/catch`.
-- Если тип сервиса или события не находится, поищи пакет, который расширяет `Context`, `MessageSourceMap` или `LocaleNamespaceMap`, и добавь его в `devDependencies` той же версии.
+- `npm run check` runs `tsc` and every test; `npm test` builds `lib/` first. Before a commit: `npm run check` is green and the fresh `lib/` is committed.
+- Dependencies go only into `devDependencies`: nothing is installed at runtime. The `@deepseek-ai/*` packages are there for their types, at the target DSH version.
+- Import only types from `@deepseek-ai/*` (`import type`). Values come through `ctx` services; the build fails on a value import (`hostSelfContained`, `clientPurityGate` in `tsdown.config.ts`). The Host bundle keeps no external imports except `node:*`; the Client takes only `react` and `react/jsx-runtime` from the shell's module table.
+- Get DSH services through `ctx.get('name')`, on `agent.ctx` too: without a declared `inject`, Cordis throws on `ctx.name`. An exception in the serial `agent/created` listener aborts agent creation, so wrap everything inside it in `try/catch`.
+- When a service or event type is missing, look for the package that extends `Context`, `MessageSourceMap`, or `LocaleNamespaceMap` and add it to `devDependencies` at the same version.
 
-## Среда
+## Environment
 
-- Host DSH – Electron 44 / Node 24: целевой синтаксис `node24`, тесты идут на системном Node без сборки (`.ts` из `test/` и `src/`).
-- Исходники DSH лежат в `/usr/lib/deepseek-harness-desktop/resources/app.asar/dsh/node_modules/@deepseek-ai/<pkg>/`. Инструмент read их читает, а `ls`, grep и glob – нет; для листинга и поиска: `cd /tmp; ELECTRON_RUN_AS_NODE=1 "$DSH_NODE_EXECUTABLE" -e "..."`. Перед опорой на метод или событие DSH сверь его с `docs/research/`, типами в `node_modules/@deepseek-ai` или исходником, факты бери через скилл `dsh-doc`.
+- The DSH Host runs on Electron 44 / Node 24: the target syntax is `node24`, and tests run on the system Node without a build (`.ts` straight from `test/` and `src/`).
+- DSH sources ship inside the desktop app's `app.asar`, under `dsh/node_modules/@deepseek-ai/<pkg>/`. A file read tool can open files there, but `ls`, grep, and glob cannot; to list or search, run the DSH binary as Node: `ELECTRON_RUN_AS_NODE=1 <dsh-binary> -e "..."`. Before relying on a DSH method or event, check it against `docs/research/`, the types in `node_modules/@deepseek-ai`, or the source; take DSH facts from the built-in `dsh-doc` skill.
 
-## Работа
+## Workflow
 
-- Чистые модули – через скилл `tdd`: тест на шве (публичная функция модуля), потом код. Адаптеры к `ctx` проверяются на живом DSH после установки.
-- Коммит после каждого законченного шага; сообщение на английском, формат conventional commits (`type(scope): описание`), перед текстом загрузить `humanizer`.
-- Установка, включение и удаление бандла в профиле (`plugin_manager`) – только после явного «да» пользователя. Изменения Host вступают в силу после перезагрузки бандла (выключить и включить) или перезапуска DSH; `lib/client.js` DSH подхватывает при обновлении страницы.
-- Перед установкой: `npm run check` зелёный и пройден чеклист `dsh-doc` → `references/host-plugin.md` (локали `en`/`ru`, `assets/icon.svg`, `assets/DETAIL*.md`).
+- Pure modules are written test-first: a test at the seam (the module's public function), then the code. Adapters to `ctx` are verified on a live DSH after installation.
+- Commit after each finished step, in English, in the conventional commits format (`type(scope): description`).
+- Install, enable, or remove the bundle in a DSH profile only after the user's explicit yes. Host changes take effect after the bundle is reloaded (turned off and on) or DSH restarts; DSH picks up `lib/client.js` on a page reload.
+- Before installation: `npm run check` is green and the `dsh-doc` → `references/host-plugin.md` checklist passes (`en`/`ru` locales, `assets/icon.svg`, `assets/DETAIL*.md`).
