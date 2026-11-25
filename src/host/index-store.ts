@@ -41,10 +41,14 @@ export interface CachedIndex {
   kind: IndexSourceKind
   /** Last successful read, Unix milliseconds. */
   fetchedAt?: number
+  /** Last read attempt, successful or not, Unix milliseconds. */
+  checkedAt?: number
   /** Last read failure; the cached entries stay usable. */
   error?: string
   title?: string
   description?: string
+  /** Final URL of an HTTP index after redirects; relative paths resolve against it. */
+  base?: string
   /** Git commit the entries were read at. */
   commit?: string
   skills: CachedSkill[]
