@@ -45,7 +45,7 @@
 }
 ```
 
-Список источников лежит в `~/.agents/loadout-indexes.json`. Источником может быть git-репозиторий (`https://github.com/owner/repo` или `owner/repo`), абсолютный локальный каталог или HTTP-ссылка на файл индекса. Формат, архивы для HTTP и правила обновления описаны в [docs/index.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/index.md).
+Список источников лежит в `~/.agents/loadout-indexes.json`. Источником может быть git-репозиторий (`https://github.com/owner/repo` или `owner/repo`), абсолютный локальный каталог или HTTP-ссылка на файл индекса. Источники, формат индекса и архивы для HTTP описаны в [docs/indexes.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/indexes.md), установка и обновление – в [docs/catalog.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/catalog.md).
 
 ### Управление MCP
 

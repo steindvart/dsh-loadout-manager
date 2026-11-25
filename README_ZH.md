@@ -47,7 +47,7 @@ DeepSeek Harness（DSH）插件。原版 DSH 没有一个页面能同时查看�
 }
 ```
 
-来源列表保存在 `~/.agents/loadout-indexes.json`。来源可以是 Git 仓库（`https://github.com/owner/repo` 或 `owner/repo`）、绝对本地目录，或索引文件的 HTTP 链接。格式、HTTP 归档和更新规则见 [docs/index.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/index.md)。
+来源列表保存在 `~/.agents/loadout-indexes.json`。来源可以是 Git 仓库（`https://github.com/owner/repo` 或 `owner/repo`）、绝对本地目录，或索引文件的 HTTP 链接。来源、索引格式和 HTTP 归档见 [docs/indexes.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/indexes.md)，安装和更新规则见 [docs/catalog.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/catalog.md)。
 
 ### MCP 管理
 

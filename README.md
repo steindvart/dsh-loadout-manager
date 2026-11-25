@@ -45,7 +45,7 @@ A minimal index:
 }
 ```
 
-Sources are listed in `~/.agents/loadout-indexes.json`. A source can be a git repository (`https://github.com/owner/repo` or `owner/repo`), an absolute local directory, or an HTTP URL to the index file. [docs/index.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/index.md) covers the format, HTTP archives, and update rules.
+Sources are listed in `~/.agents/loadout-indexes.json`. A source can be a git repository (`https://github.com/owner/repo` or `owner/repo`), an absolute local directory, or an HTTP URL to the index file. [docs/indexes.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/indexes.md) covers sources, the index format, and HTTP archives; [docs/catalog.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/catalog.md) covers installs and updates.
 
 ### MCP management
 

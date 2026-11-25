@@ -1,0 +1,45 @@
+# Catalog
+
+The Catalog subpage installs skills and rules from the [indexes](indexes.md) the user configures. Installing copies an entry into the selected scope. The plugin does not run anything from an index, and the installed files stay ordinary skill and rule files: the Skills and Instructions tabs list them and switch them like any other. The page layout is in [panel.md](panel.md); its strings live in `src/client/locale.ts` next to the other page copy.
+
+## Where copies go
+
+| Level | Skills | Rules | Provenance |
+| --- | --- | --- | --- |
+| Global | `~/.agents/skills/<name>/` | `~/.agents/rules/<name>.md` | `~/.agents/.loadout-manager/installed.json` |
+| Workspace | `<project>/.agents/skills/<name>/` | `<project>/.agents/rules/<name>.md` | `<project>/.agents/.loadout-manager/installed.json` |
+
+The provenance file records the source, entry path, version, git revision or digest, and the digest of the installed content. The Catalog subpage uses it to show where a copy came from and whether the source has newer content.
+
+## Installing and updating
+
+An install refuses to overwrite:
+
+- a file or directory that exists without provenance (`unmanaged`);
+- a copy installed from another index (`conflict`);
+- a copy whose content no longer matches its recorded digest, unless the user confirms a replacement (`modified`).
+
+A replacement is staged under `.loadout-manager/work`, outside the roots DSH scans, the old copy is renamed into `.loadout-manager/backups`, and only then does the new copy take its name. The first install writes `.loadout-manager/.gitignore` with `work/` and `backups/`, unless the file exists, so these never land in a project commit. After a successful rename the old copy goes to the trash through `gio trash`. If the trash is unavailable, the new copy stays and the row names the leftover backup; nothing is deleted permanently.
+
+An update is available when the source content changed (a git tree or blob id, a local digest) or when the index declares a newer `version` than the installed copy. Versions compare as SemVer when both parse, so `1.10.0` is newer than `1.9.0`; an unreadable pair falls back to plain inequality. A copy with no recorded version updates once the index gains one. HTTP entries have no digest, so their `version` is the only signal. The version stored for a copy is the index `version`, else the one in the skill's frontmatter.
+
+Installs and refreshes of one source run one at a time, so a refresh never resets a git clone while an install copies from it.
+
+## Deleting
+
+Deleting an installed skill or rule from a Catalog row, or through the Skills or Instructions tab, also removes the provenance record of that path, so the Catalog subpage stops treating it as managed. A same-named skill or rule in another root, such as `~/.dsh/skills`, keeps the record of the managed copy. The Catalog button acts on the copy of the current scope; a copy installed in the other scope is removed from that scope's page.
+
+## Checks before installing
+
+On top of the checks made when a source is read, an install:
+
+- reads a rule through a size limit of 1 MiB, and a skill or archive through 20 MiB and 2000 files;
+- refuses symbolic links inside a skill;
+- checks archive member names before extraction and refuses absolute paths and `..`;
+- checks the unpacked size and file count of an archive before extraction: a gzip stream is inflated in memory through the limit, and a zip is measured from its central directory;
+- reads `SKILL.md` after staging and requires its `name` to match the entry and its `description` to be non-empty;
+- writes files atomically and never leaves a partially replaced skill.
+
+## Agent access
+
+The `loadout` tool gains `action: "search"`: it searches the cached catalog, with an optional `query`, `kind`, and `limit`, and reports installed copies and available updates. It never fetches a source and cannot install. Installation stays with the user on the page.
