@@ -12,7 +12,7 @@ Every skill has three states:
 
 A skill whose frontmatter already sets `disable-model-invocation: true` shows as `manual` and cannot be raised above `manual`: the file is the source of truth.
 
-The Catalog tab installs skills from indexes into `$DSH_AGENTS_HOME/skills` (Global) or `<project>/.agents/skills` (Workspace); since those are the `user-agents` and `project-agents` roots, the usual rank rules apply. See [index.md](index.md).
+The Catalog subpage installs skills from indexes into `$DSH_AGENTS_HOME/skills` (Global) or `<project>/.agents/skills` (Workspace); since those are the `user-agents` and `project-agents` roots, the usual rank rules apply. See [index.md](index.md).
 
 Deletion moves the `<name>/` directory or the `<name>.md` file to the trash after confirmation in the UI.
 

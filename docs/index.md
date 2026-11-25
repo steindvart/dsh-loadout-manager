@@ -1,6 +1,6 @@
 # Skill and rule indexes
 
-The Catalog tab installs skills and rules from indexes the user configures. An index is a JSON document that lists entries; the same format covers both kinds, so one repository can publish both. Installing copies the entry into the selected scope. The plugin does not run anything from an index, and the entry files stay ordinary skill and rule files afterwards.
+The Catalog subpage installs skills and rules from indexes the user configures. An index is a JSON document that lists entries; the same format covers both kinds, so one repository can publish both. Installing copies the entry into the selected scope. The plugin does not run anything from an index, and the entry files stay ordinary skill and rule files afterwards.
 
 ## Sources
 
@@ -78,7 +78,7 @@ Rules are single files. They may have frontmatter, but it is optional, as it is 
 
 The Host caches each source under `$DSH_HOME/loadout-manager/indexes/<hash>/`: a `cache.json` with the validated entries, a `repo/` working clone for git, and temporary space for archives. The cache is reused for ten minutes.
 
-Opening the Catalog tab refreshes sources whose last attempt is older than ten minutes. The buttons refresh one source or all of them. A failed read keeps the previous entries and records the error on the source, so one broken repository does not empty the rest of the catalog. A failed read also counts as an attempt, which keeps the tab from retrying it on every open.
+Opening the Catalog subpage refreshes sources whose last attempt is older than ten minutes. The buttons refresh one source or all of them. A failed read keeps the previous entries and records the error on the source, so one broken repository does not empty the rest of the catalog. A failed read also counts as an attempt, which keeps the page from retrying it on every open.
 
 Git sources are cloned with depth 1 and read at a pinned commit. A refresh fetches `origin HEAD`, resets the clone, and computes each entry's git tree or blob id, which is the update marker. Local sources are hashed with SHA-256 over sorted relative file names and contents. HTTP sources have no cheap content marker; their update marker is the entry's `version`.
 
@@ -89,7 +89,7 @@ Git sources are cloned with depth 1 and read at a pinned commit. A refresh fetch
 | Global | `~/.agents/skills/<name>/` | `~/.agents/rules/<name>.md` | `~/.agents/.loadout-manager/installed.json` |
 | Workspace | `<project>/.agents/skills/<name>/` | `<project>/.agents/rules/<name>.md` | `<project>/.agents/.loadout-manager/installed.json` |
 
-The provenance file records the source, entry path, version, git revision or digest, and the digest of the installed content. The Catalog tab uses it to show where a copy came from and whether the source has newer content.
+The provenance file records the source, entry path, version, git revision or digest, and the digest of the installed content. The Catalog subpage uses it to show where a copy came from and whether the source has newer content.
 
 An install refuses to overwrite:
 
@@ -101,7 +101,7 @@ A replacement is staged under `.loadout-manager/work`, outside the roots DSH sca
 
 An update is available when the source content changed (a git tree or blob id, a local digest) or when the index declares a newer `version` than the installed copy. Versions compare as SemVer when both parse, so `1.10.0` is newer than `1.9.0`; an unreadable pair falls back to plain inequality. A copy with no recorded version updates once the index gains one. HTTP entries have no digest, so their `version` is the only signal.
 
-Deleting an installed skill or rule from a Catalog row, or through the Skills or Instructions tab, also removes its provenance record, so the Catalog tab stops treating the path as managed. The Catalog button acts on the copy of the current scope; a copy installed in the other scope is removed from that scope's page.
+Deleting an installed skill or rule from a Catalog row, or through the Skills or Instructions tab, also removes its provenance record, so the Catalog subpage stops treating the path as managed. The Catalog button acts on the copy of the current scope; a copy installed in the other scope is removed from that scope's page.
 
 ## Validation and limits
 

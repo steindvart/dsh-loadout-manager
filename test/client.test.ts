@@ -135,13 +135,13 @@ test('the page switches tabs and scope and asks the Host for the chosen workspac
 
   await act(async () => { root.render(React.createElement(Page!, { t, useWorkspaces: (select: (s: { items: typeof workspaces }) => unknown) => select({ items: workspaces }) })) })
   await settle()
-  assert.deepEqual(tabs(), ['Skills1*', 'Catalog', 'Instructions2', 'MCP2'])
+  assert.deepEqual(tabs(), ['Skills1*', 'Instructions2', 'MCP2'])
   assert.deepEqual(names(), ['~/.agents/skills'])
   const version = document.querySelector('[title="Version 3.0.0"]')
   assert.equal(version?.textContent, 'v3.0.0', 'the skill row shows its frontmatter version')
 
   await act(async () => { (document.getElementById('dshlo-tab-rules') as HTMLButtonElement).click() })
-  assert.deepEqual(tabs(), ['Skills1', 'Catalog', 'Instructions2*', 'MCP2'])
+  assert.deepEqual(tabs(), ['Skills1', 'Instructions2*', 'MCP2'])
   assert.deepEqual([...document.querySelectorAll('h2')].map(h => h.textContent), ['Instruction files', 'Rules'])
   assert.ok(document.body.textContent?.includes('Always loaded'))
 
@@ -177,7 +177,7 @@ test('the page switches tabs and scope and asks the Host for the chosen workspac
   await act(async () => { root.unmount() })
 })
 
-test('the catalog tab lists indexed skills and installs one into the current scope', async () => {
+test('the catalog subpage lists indexed skills and installs one into the current scope', async () => {
   const { window, plugin } = loadBundle()
   window.localStorage.clear()
   const calls = fakeHost(window, () => ({ global: level('/home/me/.agents') }))
@@ -197,7 +197,7 @@ test('the catalog tab lists indexed skills and installs one into the current sco
   await act(async () => { root.render(React.createElement(Page!, { t, useWorkspaces: () => [] })) })
   await settle()
 
-  await act(async () => { (document.getElementById('dshlo-tab-catalog') as HTMLButtonElement).click() })
+  await act(async () => { (document.getElementById('dshlo-open-catalog') as HTMLButtonElement).click() })
   await settle()
   assert.deepEqual(calls.filter(([op]) => op.startsWith('index-')).map(([op]) => op), ['index-refresh'])
   assert.ok(text().includes('Team skills') && text().includes('tdd') && text().includes('Test first'))
@@ -210,10 +210,15 @@ test('the catalog tab lists indexed skills and installs one into the current sco
     ['index-install', { source: 'owner/repo', kind: 'skill', name: 'tdd', force: false }],
   ])
   assert.deepEqual(calls.filter(([op]) => op === 'index-state').length, 1)
+  assert.ok(document.querySelector('nav[aria-label="Breadcrumbs"]'), 'the catalog page has breadcrumbs')
+  assert.equal(document.querySelectorAll('[role=tab]').length, 0, 'the catalog subpage has no kind tabs')
+  await act(async () => { (document.getElementById('dshlo-back') as HTMLButtonElement).click() })
+  await settle()
+  assert.equal(document.querySelectorAll('[role=tab]').length, 3, 'Back returns to the loadout tabs')
   await act(async () => { root.unmount() })
 })
 
-test('the catalog removes an installed copy after confirmation', async () => {
+test('the catalog subpage removes an installed copy after confirmation', async () => {
   const { window, plugin } = loadBundle()
   window.localStorage.clear()
   const installed: IndexView = {
@@ -240,7 +245,7 @@ test('the catalog removes an installed copy after confirmation', async () => {
   const button = (label: string) => [...document.querySelectorAll('button')].find(item => item.textContent === label)!
   await act(async () => { root.render(React.createElement(Page!, { t, useWorkspaces: () => [] })) })
   await settle()
-  await act(async () => { (document.getElementById('dshlo-tab-catalog') as HTMLButtonElement).click() })
+  await act(async () => { (document.getElementById('dshlo-open-catalog') as HTMLButtonElement).click() })
   await settle()
 
   const remove = document.querySelector('button[aria-label="Delete"]') as HTMLButtonElement
@@ -283,7 +288,7 @@ test('a locally changed update asks for confirmation before replacing the copy',
   const button = (label: string) => [...document.querySelectorAll('button')].find(item => item.textContent === label)!
   await act(async () => { root.render(React.createElement(Page!, { t, useWorkspaces: () => [] })) })
   await settle()
-  await act(async () => { (document.getElementById('dshlo-tab-catalog') as HTMLButtonElement).click() })
+  await act(async () => { (document.getElementById('dshlo-open-catalog') as HTMLButtonElement).click() })
   await settle()
   await act(async () => { button('Update').click() })
   assert.ok(text().includes('This copy has local changes. Updating replaces them.'))

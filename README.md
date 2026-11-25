@@ -10,7 +10,7 @@ A plugin for DeepSeek Harness (DSH). Stock DSH has no single page that shows whi
 
 ### Overview by level
 
-Loadout Manager appears in the left sidebar. At the top of the page you pick a scope: Global or one of your workspaces. The Skills, Catalog, Instructions, and MCP tabs show everything the agent gets in that scope, including the AGENTS.md and CLAUDE.md files DSH loads on its own. Any file opens right in its row.
+Loadout Manager appears in the left sidebar. At the top of the page you pick a scope: Global or one of your workspaces. The Skills, Instructions, and MCP tabs show everything the agent gets in that scope, including the AGENTS.md and CLAUDE.md files DSH loads on its own. The Catalog page opens from the header and is covered below. Any file opens right in its row.
 
 ### Skill management
 
@@ -28,7 +28,7 @@ A rule is a Markdown file in `~/.dsh/rules/`, `~/.agents/rules/`, or `<project>/
 
 ### Catalog
 
-An index is a JSON file that lists skills and rules. Point the plugin at a git repository, a local directory, or an HTTP URL to `loadout-index.json`, then open the Catalog tab. Search across sources, install an entry into the chosen scope, update it when the source publishes newer content or a newer version, and delete an installed copy from the same row. The tab shows where each installed copy came from and marks local edits; an update asks before replacing them.
+An index is a JSON file that lists skills and rules. Point the plugin at a git repository, a local directory, or an HTTP URL to `loadout-index.json`, then open the Catalog page from the Loadout Manager header. Search across sources, install an entry into the chosen scope, update it when the source publishes newer content or a newer version, and delete an installed copy from the same row. The page shows where each installed copy came from and marks local edits; an update asks before replacing them.
 
 A minimal index:
 

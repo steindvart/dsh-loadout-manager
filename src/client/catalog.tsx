@@ -1,7 +1,7 @@
 /**
- * The Catalog tab: configured indexes, their entries, and install/update
- * actions. The tab refreshes stale sources when it opens and then works from
- * the Host cache; installing is always an explicit user action.
+ * The Catalog subpage: configured indexes, their entries, and
+ * install/update/remove actions. It refreshes stale sources when it opens and
+ * then works from the Host cache; installing is always an explicit user action.
  */
 
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
