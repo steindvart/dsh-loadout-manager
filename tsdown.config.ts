@@ -13,7 +13,7 @@
  * Types are checked by `tsc --noEmit` (npm run typecheck), not by tsdown.
  */
 import { readFile } from 'node:fs/promises'
-import { basename } from 'node:path'
+import { basename, relative, resolve } from 'node:path'
 import { builtinModules } from 'node:module'
 import type { UserConfig } from 'tsdown'
 import { transform } from 'lightningcss'
@@ -62,6 +62,9 @@ function hostSelfContained(): BuildPlugin {
 const CSS_VIRTUAL_PREFIX = '\0dsh-loadout-manager-css:'
 const CSS_VIRTUAL_SUFFIX = '.mjs'
 
+/** Repository root. CSS module ids and class hashes use paths relative to it, so `lib/` builds the same on any machine. */
+const ROOT = import.meta.dirname
+
 /** `*.module.css` → hashed class map plus a style tag injected once per file. */
 function cssModules(): BuildPlugin {
   return {
@@ -70,20 +73,22 @@ function cssModules(): BuildPlugin {
       if (!source.endsWith('.module.css')) return null
       const resolved = await this.resolve(source, importer, { skipSelf: true })
       if (resolved === null) return null
-      return CSS_VIRTUAL_PREFIX + resolved.id + CSS_VIRTUAL_SUFFIX
+      return CSS_VIRTUAL_PREFIX + relative(ROOT, resolved.id) + CSS_VIRTUAL_SUFFIX
     },
     async load(virtualId: string) {
       if (!virtualId.startsWith(CSS_VIRTUAL_PREFIX)) return null
-      const fileId = virtualId.slice(CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length)
+      const relativeId = virtualId.slice(CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length)
+      const fileId = resolve(ROOT, relativeId)
       this.addWatchFile(fileId)
       const { code, exports: cssExports } = transform({
-        filename: fileId,
+        filename: relativeId,
         code: await readFile(fileId),
         cssModules: { pattern: 'dshlo_[local]_[hash]' },
         minify: true,
       })
+      // lightningcss returns exports in hash-map order; sort them so the output is stable.
       const classMap: Record<string, string> = {}
-      for (const [local, entry] of Object.entries(cssExports ?? {})) {
+      for (const [local, entry] of Object.entries(cssExports ?? {}).sort(([a], [b]) => a.localeCompare(b))) {
         classMap[local] = [entry.name, ...entry.composes.map(item => item.name)].join(' ')
       }
       const tagId = `${PLUGIN_ID}/${basename(fileId)}`
