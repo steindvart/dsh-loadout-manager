@@ -315,7 +315,6 @@ function EntryRow({
   const here = entry.installs.find(install => install.level === level)
   const foreign = here?.foreign === true
   const update = here?.updateAvailable === true
-  const canInstall = here === undefined && !foreign
   return (
     <div className={css.row}>
       <div className={css.rowLine}>
@@ -343,7 +342,7 @@ function EntryRow({
             ? <span className={css.fixed}>{t('catalogForeign')}</span>
             : update
               ? <button type="button" className={css.btn} data-tone="outline" disabled={busy} onClick={() => { if (here?.modified === true) onConfirm(); else onInstall(false) }}>{busy ? t('loading') : t('catalogUpdate')}</button>
-              : canInstall
+              : here === undefined
                 ? <button type="button" className={css.btn} data-tone="outline" disabled={busy} onClick={() => { onInstall(false) }}>{busy ? t('loading') : t('catalogInstall')}</button>
                 : <span className={css.fixed}>{t('catalogInstalled')}</span>}
           {here === undefined

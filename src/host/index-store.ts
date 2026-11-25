@@ -285,7 +285,8 @@ export async function digestTree(root: string): Promise<string> {
   return `sha256:${hash.digest('hex')}`
 
   async function walk(dir: string, prefix: string, top: boolean): Promise<void> {
-    for (const entry of (await readdir(dir, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+    // Code-unit order: `localeCompare` would tie the digest to the ICU locale of the Host.
+    for (const entry of (await readdir(dir, { withFileTypes: true })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
       if (entry.name === '.git' || (top && entry.name === INDEX_FILE)) continue
       const path = join(dir, entry.name)
       const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`

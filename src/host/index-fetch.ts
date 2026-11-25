@@ -205,7 +205,7 @@ async function stageHttpSkill(cache: CachedIndex, entry: IndexSkillEntry, option
   }
   const directory = entry.path === '.' ? new URL('.', base).href : ensureDirectoryUrl(entryUrl)
   const files = entry.files ?? ['SKILL.md']
-  if (files.length > 2000) throw new Error(`${entry.name}: more than 2000 files`)
+  if (files.length > MAX_SKILL_FILES) throw new Error(`${entry.name}: more than ${String(MAX_SKILL_FILES)} files`)
   // Resolve every URL first, so an entry that leaves the index origin fetches nothing.
   const urls = files.map(file => [file, resolveUrl(directory, file)] as const)
   let bytesTotal = 0
@@ -349,7 +349,7 @@ async function fetchBytes(url: string, maxBytes: number, timeoutMs: number, fetc
   if (reader === undefined) {
     const fallback = new Uint8Array(await response.arrayBuffer())
     if (fallback.byteLength > maxBytes) throw new Error(`${url} is larger than ${String(maxBytes)} bytes`)
-    return { bytes: fallback, url: response.url }
+    return { bytes: fallback, url: finalUrl(response, url) }
   }
   const chunks: Uint8Array[] = []
   let total = 0
@@ -363,7 +363,12 @@ async function fetchBytes(url: string, maxBytes: number, timeoutMs: number, fetc
     }
     chunks.push(value)
   }
-  return { bytes: Buffer.concat(chunks), url: response.url }
+  return { bytes: Buffer.concat(chunks), url: finalUrl(response, url) }
+}
+
+/** The URL after redirects; a `Response` built by hand reports an empty one. */
+function finalUrl(response: Response, requested: string): string {
+  return response.url === '' ? requested : response.url
 }
 
 function git(args: readonly string[], cwd?: string): Promise<string> {

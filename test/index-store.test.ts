@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync, chmodSync, statSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -150,4 +151,16 @@ test('readBytes enforces its limit and refuses a link', async (t) => {
   assert.equal(Buffer.from(await readBytes(join(base, 'small.md'), 5)).toString('utf8'), 'abc')
   await assert.rejects(readBytes(join(base, 'large.md'), 5), /larger than 5 bytes/)
   await assert.rejects(readBytes(join(base, 'link.md'), 5), /symbolic link/)
+})
+
+test('a tree digest orders names by code unit, whatever the locale', async (t) => {
+  const root = tree({ 'b.md': 'b', 'B.md': 'B', '_x.md': 'x', 'a/c.md': 'c' })
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const hash = createHash('sha256')
+  hash.update('file\0B.md\0').update('B').update('\0')
+  hash.update('file\0_x.md\0').update('x').update('\0')
+  hash.update('dir\0a\0')
+  hash.update('file\0a/c.md\0').update('c').update('\0')
+  hash.update('file\0b.md\0').update('b').update('\0')
+  assert.equal(await digestTree(root), `sha256:${hash.digest('hex')}`)
 })

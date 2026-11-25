@@ -187,6 +187,21 @@ test('refreshes an HTTP index and fetches a skill by its files list and a rule b
   assert.equal(failed.skills.length, 1)
 })
 
+test('an HTTP response without a final URL resolves entries against the source', async (t) => {
+  const base = tree({})
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const requested: string[] = []
+  const fetchImpl = (async (input: string | URL | Request) => {
+    requested.push(String(input))
+    return new Response(String(input).endsWith('/index.json') ? index([], [{ name: 'style', path: 'rules/style.md' }]) : 'Rule.\n')
+  }) as typeof fetch
+  const dshHome = join(base, 'home')
+  const cache = await refreshSource(classifySource('https://idx.example/team/index.json'), { dshHome, fetchImpl })
+  assert.equal(cache.base, 'https://idx.example/team/index.json')
+  assert.equal(Buffer.from(await ruleContent(cache, cache.rules[0]!, { dshHome, fetchImpl })).toString('utf8'), 'Rule.\n')
+  assert.deepEqual(requested, ['https://idx.example/team/index.json', 'https://idx.example/team/rules/style.md'])
+})
+
 test('HTTP entries stay on the origin of their index', async (t) => {
   const base = tree({})
   t.after(() => rm(base, { recursive: true, force: true }))
