@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -266,4 +266,30 @@ test('reports a source that is not an index, and installing from it fails clearl
     service.install({ source: classifySource(empty).id, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false }),
     /lists no skill named "tdd"/,
   )
+})
+
+test('a versioned skill entry still needs a SKILL.md that names it and describes it', async (t) => {
+  const { base, homes, service, source } = setup({
+    'source/skills/tdd/SKILL.md': '---\nname: something-else\n---\n# body\n',
+  })
+  t.after(() => rm(base, { recursive: true, force: true }))
+  writeFileSync(join(source, 'loadout-index.json'), index([{ name: 'tdd', version: '2.0.0', path: 'skills/tdd' }]))
+  await service.addSource(source, undefined)
+  await assert.rejects(
+    service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false }),
+    /SKILL\.md names the skill "something-else"/,
+  )
+  writeFileSync(join(source, 'skills/tdd/SKILL.md'), '---\nname: tdd\n---\n# body\n')
+  await service.refresh(undefined, {})
+  await assert.rejects(
+    service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false }),
+    /needs a non-empty description/,
+  )
+  assert.equal(existsSync(join(homes.agentsHome, 'skills/tdd')), false)
+
+  writeFileSync(join(source, 'skills/tdd/SKILL.md'), skillFile('tdd', '1.5.0'))
+  await service.refresh(undefined, {})
+  await service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false })
+  const state = await service.state(undefined)
+  assert.equal(state.entries[0]?.installs[0]?.version, '2.0.0', 'the index version wins over the frontmatter one')
 })

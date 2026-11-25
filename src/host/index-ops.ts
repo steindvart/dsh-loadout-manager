@@ -270,7 +270,8 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
         let version: string | undefined
         if (kind === 'skill') {
           await stageSkill(cache, entry as CachedSkill, { dshHome: homes.dshHome }, staging)
-          version = entry.version ?? await validateSkill(staging, entry.name)
+          const fileVersion = await validateSkill(staging, entry.name)
+          version = entry.version ?? fileVersion
         } else {
           const bytes = await ruleContent(cache, entry as CachedRule, { dshHome: homes.dshHome })
           if (bytes.byteLength === 0) throw new OperationError('install-failed', `${entry.path} is empty`)
@@ -278,13 +279,12 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
           version = entry.version
         }
         const digest = kind === 'skill' ? await digestTree(staging) : await digestFile(staging)
-        const resolvedVersion = version ?? entry.version
         const item: InstalledItem = {
           kind,
           name,
           source: source.id,
           path: entry.path,
-          ...resolvedVersion !== undefined ? { version: resolvedVersion } : {},
+          ...version !== undefined ? { version } : {},
           ...entry.oid !== undefined ? { oid: entry.oid } : {},
           digest,
           ...cache.commit !== undefined ? { commit: cache.commit } : {},
