@@ -28,7 +28,7 @@ A rule is a Markdown file in `~/.dsh/rules/`, `~/.agents/rules/`, or `<project>/
 
 ### Catalog
 
-An index is a JSON file that lists skills and rules. Point the plugin at a git repository, a local directory, or an HTTP URL to `loadout-index.json`, then open the Catalog tab. Search across sources, install an entry into the chosen scope, and update it when the source publishes newer content. The tab shows where each installed copy came from and marks local edits; an update asks before replacing them.
+An index is a JSON file that lists skills and rules. Point the plugin at a git repository, a local directory, or an HTTP URL to `loadout-index.json`, then open the Catalog tab. Search across sources, install an entry into the chosen scope, update it when the source publishes newer content, and delete an installed copy from the same row. The tab shows where each installed copy came from and marks local edits; an update asks before replacing them.
 
 A minimal index:
 

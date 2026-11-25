@@ -27,6 +27,7 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
   const [rowError, setRowError] = useState<Readonly<Record<string, string>>>({})
   const [rowNote, setRowNote] = useState<Readonly<Record<string, string>>>({})
   const [confirmKey, setConfirmKey] = useState<string | undefined>(undefined)
+  const [removeConfirmKey, setRemoveConfirmKey] = useState<string | undefined>(undefined)
   const [removingSource, setRemovingSource] = useState<string | undefined>(undefined)
   const [query, setQuery] = useState('')
   const [draft, setDraft] = useState('')
@@ -94,6 +95,7 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
 
   const install = async (entry: IndexEntryView, force: boolean): Promise<void> => {
     const key = entryKey(entry)
+    setRemoveConfirmKey(undefined)
     setActionBusy(key)
     setRowError(rest => without(rest, key))
     try {
@@ -109,6 +111,23 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
       } else {
         setRowError(rest => ({ ...rest, [key]: messageOf(failure) }))
       }
+    } finally {
+      setActionBusy(undefined)
+    }
+  }
+
+  const remove = async (entry: IndexEntryView, path: string): Promise<void> => {
+    const key = entryKey(entry)
+    setActionBusy(key)
+    setRowError(rest => without(rest, key))
+    try {
+      await call('remove', { ...target(), path })
+      setRemoveConfirmKey(undefined)
+      setConfirmKey(undefined)
+      setView(await call('index-state', target()))
+      await onChanged()
+    } catch (failure) {
+      setRowError(rest => ({ ...rest, [key]: messageOf(failure) }))
     } finally {
       setActionBusy(undefined)
     }
@@ -250,11 +269,18 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
                     level={currentLevel}
                     busy={actionBusy === entryKey(entry)}
                     confirming={confirmKey === entryKey(entry)}
+                    confirmingRemove={removeConfirmKey === entryKey(entry)}
                     error={rowError[entryKey(entry)]}
                     note={rowNote[entryKey(entry)]}
                     onInstall={force => { void install(entry, force) }}
-                    onConfirm={() => { setConfirmKey(entryKey(entry)) }}
+                    onConfirm={() => { setConfirmKey(entryKey(entry)); setRemoveConfirmKey(undefined) }}
                     onCancel={() => { setConfirmKey(undefined) }}
+                    onRemove={() => {
+                      const install = entry.installs.find(item => item.level === currentLevel)
+                      if (install !== undefined) void remove(entry, install.path)
+                    }}
+                    onRemoveConfirm={() => { setRemoveConfirmKey(entryKey(entry)); setConfirmKey(undefined) }}
+                    onRemoveCancel={() => { setRemoveConfirmKey(undefined) }}
                   />
                 ))}
               </div>
@@ -272,14 +298,20 @@ interface EntryRowProps {
   level: Scope['level']
   busy: boolean
   confirming: boolean
+  confirmingRemove: boolean
   error: string | undefined
   note: string | undefined
   onInstall(force: boolean): void
   onConfirm(): void
   onCancel(): void
+  onRemove(): void
+  onRemoveConfirm(): void
+  onRemoveCancel(): void
 }
 
-function EntryRow({ t, entry, level, busy, confirming, error, note, onInstall, onConfirm, onCancel }: EntryRowProps): ReactNode {
+function EntryRow({
+  t, entry, level, busy, confirming, confirmingRemove, error, note, onInstall, onConfirm, onCancel, onRemove, onRemoveConfirm, onRemoveCancel,
+}: EntryRowProps): ReactNode {
   const here = entry.installs.find(install => install.level === level)
   const foreign = here?.foreign === true
   const update = here?.updateAvailable === true
@@ -314,6 +346,21 @@ function EntryRow({ t, entry, level, busy, confirming, error, note, onInstall, o
               : canInstall
                 ? <button type="button" className={css.btn} data-tone="outline" disabled={busy} onClick={() => { onInstall(false) }}>{busy ? t('loading') : t('catalogInstall')}</button>
                 : <span className={css.fixed}>{t('catalogInstalled')}</span>}
+          {here === undefined
+            ? null
+            : (
+              <button
+                type="button"
+                className={css.btn}
+                data-tone="danger"
+                aria-label={t('delete')}
+                title={t('delete')}
+                disabled={busy}
+                onClick={onRemoveConfirm}
+              >
+                <TrashGlyph />
+              </button>
+            )}
         </div>
       </div>
       {confirming
@@ -322,6 +369,15 @@ function EntryRow({ t, entry, level, busy, confirming, error, note, onInstall, o
             {t('catalogModifiedConfirm')}
             <button type="button" className={css.btn} data-tone="outline" onClick={onCancel}>{t('cancel')}</button>
             <button type="button" className={css.btn} data-tone="dangerText" disabled={busy} onClick={() => { onInstall(true) }}>{t('catalogReplace')}</button>
+          </div>
+        )
+        : null}
+      {confirmingRemove
+        ? (
+          <div className={css.confirm}>
+            {t('confirmDelete')}
+            <button type="button" className={css.btn} data-tone="outline" onClick={onRemoveCancel}>{t('cancel')}</button>
+            <button type="button" className={css.btn} data-tone="dangerText" disabled={busy} onClick={onRemove}>{t('confirm')}</button>
           </div>
         )
         : null}

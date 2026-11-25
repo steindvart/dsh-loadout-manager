@@ -101,7 +101,7 @@ A replacement is staged under `.loadout-manager/work`, outside the roots DSH sca
 
 Updates compare the source revision: a git tree or blob id, a local digest, or, for HTTP, the entry version. An HTTP entry without a version has no update detection.
 
-Deleting an installed skill or rule through the Skills or Instructions tab also removes its provenance record, so the Catalog tab stops treating the path as managed.
+Deleting an installed skill or rule from a Catalog row, or through the Skills or Instructions tab, also removes its provenance record, so the Catalog tab stops treating the path as managed. The Catalog button acts on the copy of the current scope; a copy installed in the other scope is removed from that scope's page.
 
 ## Validation and limits
 

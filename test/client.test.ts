@@ -213,6 +213,49 @@ test('the catalog tab lists indexed skills and installs one into the current sco
   await act(async () => { root.unmount() })
 })
 
+test('the catalog removes an installed copy after confirmation', async () => {
+  const { window, plugin } = loadBundle()
+  window.localStorage.clear()
+  const installed: IndexView = {
+    ...indexView,
+    entries: [{
+      ...indexView.entries[0]!,
+      installs: [{ level: 'global', version: '1.0.0', installedAt: 1, updateAvailable: false, modified: false, foreign: false, path: '/home/me/.agents/skills/tdd' }],
+    }],
+  }
+  const calls = fakeHost(window, () => ({ global: level('/home/me/.agents') }), installed)
+  let Page: ComponentType<Record<string, unknown>> | undefined
+  plugin.apply({
+    effect: (f: () => unknown) => f(),
+    locale: { register: () => () => {}, bind: () => (key: string) => key },
+    slots: { inject: (_n: string, f: () => unknown) => f(), register: (o: { name: string }, c: ComponentType<Record<string, unknown>>) => { if (o.name === 'main') Page = c } },
+  })
+  const React = require('react') as typeof import('react')
+  const { createRoot } = require('react-dom/client') as typeof import('react-dom/client')
+  const { act } = require('react-dom/test-utils') as { act(callback: () => Promise<void>): Promise<void> }
+  const t = (key: keyof typeof en, params?: Record<string, unknown>) => en[key].replace(/\{(\w+)\}/g, (_m, name: string) => String(params?.[name] ?? ''))
+  const root = createRoot(document.getElementById('root')!)
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
+  const text = () => document.body.textContent ?? ''
+  const button = (label: string) => [...document.querySelectorAll('button')].find(item => item.textContent === label)!
+  await act(async () => { root.render(React.createElement(Page!, { t, useWorkspaces: () => [] })) })
+  await settle()
+  await act(async () => { (document.getElementById('dshlo-tab-catalog') as HTMLButtonElement).click() })
+  await settle()
+
+  const remove = document.querySelector('button[aria-label="Delete"]') as HTMLButtonElement
+  assert.ok(remove, 'an installed entry has a delete button')
+  await act(async () => { remove.click() })
+  assert.ok(text().includes('Move to the trash?'))
+  assert.equal(calls.filter(([op]) => op === 'remove').length, 0, 'removal waits for confirmation')
+
+  await act(async () => { button('Move to trash').click() })
+  await settle()
+  assert.deepEqual(calls.filter(([op]) => op === 'remove'), [['remove', { path: '/home/me/.agents/skills/tdd' }]])
+  assert.deepEqual(calls.filter(([op]) => op === 'index-state').length, 1)
+  await act(async () => { root.unmount() })
+})
+
 test('a locally changed update asks for confirmation before replacing the copy', async () => {
   const { window, plugin } = loadBundle()
   window.localStorage.clear()

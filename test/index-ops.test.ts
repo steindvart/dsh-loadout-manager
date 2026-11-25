@@ -142,6 +142,18 @@ test('installs into a workspace, keeps the manifest there, and refuses an unmana
   )
 })
 
+test('forget drops the provenance record but leaves the installed files', async (t) => {
+  const { base, homes, service } = setup({})
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const view = await service.addSource(join(base, 'source'), undefined)
+  const source = view.sources[0]!.source
+  await service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false })
+  await service.forget('skill', 'tdd', undefined)
+  assert.deepEqual((await service.state(undefined)).entries[0]?.installs, [])
+  assert.match(await readFile(join(homes.agentsHome, 'skills/tdd/SKILL.md'), 'utf8'), /name: tdd/)
+  assert.doesNotMatch(await readFile(join(homes.agentsHome, '.loadout-manager/installed.json'), 'utf8'), /skill\/tdd/)
+})
+
 test('two installs into one level keep both provenance records', async (t) => {
   const { base, homes, service } = setup({})
   t.after(() => rm(base, { recursive: true, force: true }))
