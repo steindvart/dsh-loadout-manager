@@ -198,6 +198,19 @@ html[data-platform='darwin'] .head { padding-top: calc(28px + var(--dsh-frame-to
   .tabIndicator, .tab, .switch::after { transition: none; }
 }
 
+/* Catalog: source list, entry search, and status badges. */
+.catalogMeta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
+.catalogHeadAction { margin-left: auto; }
+.catalogTools, .addRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.input { box-sizing: border-box; flex: 1 1 240px; min-width: 0; height: 32px; padding: 0 10px; border: 0; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; line-height: 20px; }
+.input::placeholder { color: var(--dsw-alias-label-tertiary); }
+.input:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag { padding: 0 6px; border-radius: var(--dsw-radius-xs); background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; }
+.badge[data-tone='warn'] { color: var(--dsw-alias-state-warn-primary); }
+.badge[data-tone='info'] { color: var(--dsw-alias-state-business-primary); }
+.btn[data-tone='dangerText'] { color: var(--dsw-alias-state-error-primary); }
+
 /* Row extras and page states: Plugin Manager .status / .failure (13px). */
 .confirm { display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
 .error { font-size: 13px; line-height: 20px; color: var(--dsw-alias-state-error-primary); overflow-wrap: anywhere; }

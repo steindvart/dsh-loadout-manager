@@ -6,6 +6,7 @@ import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store'
 import type { StateView } from '../shared/api.ts'
 import { call, messageOf, stored } from './api.ts'
 import { ChevronIcon, ScopeIcon, type T } from './controls.tsx'
+import { CatalogPanel } from './catalog.tsx'
 import { countOf, KINDS, Sections, Tabs, type Scope } from './items.tsx'
 import { isSettling } from './mcp.tsx'
 import css from './Loadout.module.css'
@@ -77,7 +78,9 @@ export function LoadoutPage({ t, useWorkspaces = noWorkspaces }: LoadoutPageProp
   const projectRoot = current?.workspace?.projectRoot ?? workspacePath
   const rulesHint = workspacePath === undefined ? '~/.agents/rules' : `${projectRoot}/.agents/rules`
   const locked = group?.error !== undefined
-  const counts = group === undefined ? {} : Object.fromEntries(KINDS.map(item => [item.id, countOf(item, group)]))
+  const counts = group === undefined
+    ? {}
+    : Object.fromEntries(KINDS.filter(item => item.id !== 'catalog').map(item => [item.id, countOf(item, group)]))
 
   return (
     <div className={css.page} aria-busy={group === undefined && error === undefined}>
@@ -127,18 +130,20 @@ export function LoadoutPage({ t, useWorkspaces = noWorkspaces }: LoadoutPageProp
             : null}
           {group === undefined && error === undefined ? <div className={css.empty} role="status">{t('loading')}</div> : null}
           {group?.error !== undefined ? <div className={css.error} role="alert">{t('malformed', { path: group.loadoutPath, error: group.error })}</div> : null}
-          {group !== undefined && kind !== undefined
-            ? (
-              <Sections
-                key={`${scopeValue}:${kind.id}`}
-                sections={kind.sections(t, group, { level: scope.level, rulesHint, loadoutPath: group.loadoutPath })}
-                t={t}
-                scope={scope}
-                locked={locked}
-                reload={reload}
-              />
-            )
-            : null}
+          {kind?.id === 'catalog'
+            ? <CatalogPanel key={scopeValue} t={t} scope={scope} onChanged={reload} />
+            : group !== undefined && kind !== undefined
+              ? (
+                <Sections
+                  key={`${scopeValue}:${kind.id}`}
+                  sections={kind.sections(t, group, { level: scope.level, rulesHint, loadoutPath: group.loadoutPath })}
+                  t={t}
+                  scope={scope}
+                  locked={locked}
+                  reload={reload}
+                />
+              )
+              : null}
         </div>
       </div>
     </div>

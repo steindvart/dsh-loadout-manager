@@ -29,6 +29,17 @@ test('the same tree always has the same digest; a changed file changes it', asyn
   assert.match(await digestFile(join(first, 'SKILL.md')), /^sha256:[0-9a-f]{64}$/)
 })
 
+test('the source index file is not part of a skill digest or a copied skill', async (t) => {
+  const source = tree({ 'SKILL.md': 'x', 'loadout-index.json': '{"format":1}', 'notes.md': 'n' })
+  const copy = tree({ 'SKILL.md': 'x', 'notes.md': 'n' })
+  t.after(() => Promise.all([source, copy].map(path => rm(path, { recursive: true, force: true }))))
+  const target = mkdtempSync(join(tmpdir(), 'loadout-index-copy-'))
+  t.after(() => rm(target, { recursive: true, force: true }))
+  assert.equal(await digestTree(source), await digestTree(copy))
+  await copySkillTree(source, join(target, 'skill'))
+  assert.equal(await digestTree(join(target, 'skill')), await digestTree(copy))
+})
+
 test('copying a skill keeps modes and refuses symbolic links', async (t) => {
   const source = tree({ 'SKILL.md': 'x', 'run.sh': '#!/bin/sh\n' })
   chmodSync(join(source, 'run.sh'), 0o755)

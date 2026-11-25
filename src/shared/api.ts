@@ -10,6 +10,8 @@ export type SkillState = 'on' | 'manual' | 'off'
 export type Level = 'global' | 'project'
 export type SkillSource = 'project-dsh' | 'project-agents' | 'custom' | 'user-dsh' | 'user-agents'
 export type RuleSource = 'dsh' | 'agents' | 'project'
+export type IndexKind = 'skill' | 'rule'
+export type IndexSourceKind = 'git' | 'local' | 'http'
 
 export interface SkillView {
   name: string
@@ -108,6 +110,65 @@ export interface StateView {
   workspace?: WorkspaceView
 }
 
+/** One configured index source and what its last read learned. */
+export interface IndexSourceView {
+  /** Canonical source string as stored in the index list. */
+  source: string
+  kind: IndexSourceKind
+  title?: string
+  description?: string
+  /** Last successful read, Unix milliseconds. */
+  fetchedAt?: number
+  /** Last read failure; cached entries stay listed. */
+  error?: string
+  /** Skills and rules the last successful read listed. */
+  itemCount: number
+}
+
+/** An installed copy of one catalog entry in one scope. */
+export interface IndexInstallView {
+  level: Level
+  version?: string
+  installedAt: number
+  /** The source lists newer content. */
+  updateAvailable: boolean
+  /** The installed copy no longer matches the content that was installed. */
+  modified: boolean
+  /** The installed copy came from another index. */
+  foreign: boolean
+  /** The installed skill directory or rule file. */
+  path: string
+}
+
+/** One skill or rule an index offers. */
+export interface IndexEntryView {
+  source: string
+  kind: IndexKind
+  name: string
+  description?: string
+  version?: string
+  tags: string[]
+  /** Copies installed in the scopes the page can see. */
+  installs: IndexInstallView[]
+}
+
+export interface IndexView {
+  /** `~/.agents/loadout-indexes.json`. */
+  sourcesPath: string
+  /** Set when the source list file is malformed. */
+  sourcesError?: string
+  /** Set when an installed-items manifest is malformed. */
+  installsError?: string
+  sources: IndexSourceView[]
+  entries: IndexEntryView[]
+}
+
+/** Read-only catalog answer for the `loadout` tool. */
+export interface IndexSearchView {
+  entries: IndexEntryView[]
+  sources: Array<{ source: string, error?: string }>
+}
+
 /** Request bodies by operation. `workspacePath` must be a registered workspace. */
 export interface Requests {
   'state': { workspacePath?: string }
@@ -119,6 +180,14 @@ export interface Requests {
   'mcp-set': { workspacePath?: string, name: string, enabled: boolean }
   'mcp-restart': { name: string }
   'mcp-probe': { name: string }
+  /** Cached catalog only: never fetches. */
+  'index-state': { workspacePath?: string }
+  /** Fetch one source or all of them; `ifStale` skips reads younger than the TTL. */
+  'index-refresh': { workspacePath?: string, source?: string, ifStale?: boolean }
+  'index-add-source': { workspacePath?: string, source: string }
+  'index-remove-source': { workspacePath?: string, source: string }
+  /** Install or update one entry into the selected scope. */
+  'index-install': { workspacePath?: string, source: string, kind: IndexKind, name: string, force?: boolean }
 }
 
 export interface Responses {
@@ -130,6 +199,11 @@ export interface Responses {
   'mcp-set': { name: string, level: Level, enabled: boolean, savedTo: string }
   'mcp-restart': { name: string }
   'mcp-probe': McpProbeView
+  'index-state': IndexView
+  'index-refresh': IndexView
+  'index-add-source': IndexView
+  'index-remove-source': IndexView
+  'index-install': { source: string, kind: IndexKind, name: string, level: Level, path: string, action: 'installed' | 'updated', note?: string }
 }
 
 export type Operation = keyof Requests

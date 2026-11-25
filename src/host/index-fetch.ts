@@ -13,7 +13,7 @@ import { INDEX_FILE, parseIndexDocument, type IndexSkillEntry } from './index-do
 import type { IndexSource } from './index-sources.ts'
 import {
   MAX_ARCHIVE_BYTES, MAX_INDEX_BYTES, MAX_RULE_BYTES, cacheDir, cacheFile, copySkillTree, digestFile, digestTree,
-  readCache, removeDirectory, repoDir, within, writeCache,
+  readCache, readTextFile, removeDirectory, repoDir, within, writeCache,
   type CachedIndex, type CachedRule, type CachedSkill,
 } from './index-store.ts'
 
@@ -81,8 +81,7 @@ async function refreshGit(source: IndexSource, { dshHome }: FetchOptions): Promi
     await git(['clean', '-fdq'], dir)
   }
   const commit = (await git(['rev-parse', 'HEAD'], dir)).trim()
-  const text = await readFile(join(dir, INDEX_FILE), 'utf8')
-  if (Buffer.byteLength(text) > MAX_INDEX_BYTES) throw new Error(`${INDEX_FILE} is larger than ${String(MAX_INDEX_BYTES)} bytes`)
+  const text = await readTextFile(join(dir, INDEX_FILE), MAX_INDEX_BYTES)
   const document = parseIndexDocument(text, `${source.id}/${INDEX_FILE}`)
   const skills: CachedSkill[] = []
   for (const entry of document.skills) {
@@ -111,8 +110,7 @@ async function refreshGit(source: IndexSource, { dshHome }: FetchOptions): Promi
 async function refreshLocal(source: IndexSource): Promise<CachedIndex> {
   const info = await stat(source.id)
   if (!info.isDirectory()) throw new Error(`${source.id} is not a directory`)
-  const text = await readFile(join(source.id, INDEX_FILE), 'utf8')
-  if (Buffer.byteLength(text) > MAX_INDEX_BYTES) throw new Error(`${INDEX_FILE} is larger than ${String(MAX_INDEX_BYTES)} bytes`)
+  const text = await readTextFile(join(source.id, INDEX_FILE), MAX_INDEX_BYTES)
   const document = parseIndexDocument(text, `${source.id}/${INDEX_FILE}`)
   const skills: CachedSkill[] = []
   for (const entry of document.skills) {
@@ -224,7 +222,10 @@ async function stageArchive(url: string, options: FetchOptions, staging: string)
     await writeFile(archive, bytes)
     const extracted = join(temp, 'extracted')
     await mkdir(extracted)
-    if (new URL(url).pathname.toLowerCase().endsWith('.zip')) {
+    const zip = new URL(url).pathname.toLowerCase().endsWith('.zip')
+    const entries = await listArchive(archive, zip, options.signal)
+    if (entries.some(entry => !safeArchivePath(entry))) throw new Error('the archive contains an unsafe path')
+    if (zip) {
       await runTool('unzip', ['-q', '-o', archive, '-d', extracted], options.signal)
     } else {
       await runTool('tar', ['-xzf', archive, '-C', extracted, '--no-same-owner', '--no-same-permissions'], options.signal)
@@ -239,12 +240,13 @@ async function stageArchive(url: string, options: FetchOptions, staging: string)
 /** The archive root holding SKILL.md: itself, or its single top-level directory. */
 async function skillRoot(extracted: string): Promise<string> {
   if (existsSync(join(extracted, 'SKILL.md'))) return extracted
-  const entries = await readdir(extracted, { withFileTypes: true })
-  const directories = entries.filter(entry => entry.isDirectory())
-  if (directories.length === 1 && entries.length === 1) {
-    const root = join(extracted, directories[0]?.name ?? '')
-    if (existsSync(join(root, 'SKILL.md'))) return root
+  const candidates: string[] = []
+  for (const entry of await readdir(extracted, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const root = join(extracted, entry.name)
+    if (existsSync(join(root, 'SKILL.md'))) candidates.push(root)
   }
+  if (candidates.length === 1) return candidates[0] as string
   throw new Error('the archive must contain SKILL.md at its root or inside one top-level directory')
 }
 
@@ -354,17 +356,29 @@ function git(args: readonly string[], cwd?: string): Promise<string> {
   })
 }
 
-function runTool(command: string, args: readonly string[], signal?: AbortSignal): Promise<void> {
+function runTool(command: string, args: readonly string[], signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(command, args, { timeout: GIT_TIMEOUT_MS, signal, maxBuffer: GIT_MAX_BUFFER }, (error, _stdout, stderr) => {
+    execFile(command, args, { timeout: GIT_TIMEOUT_MS, signal, maxBuffer: GIT_MAX_BUFFER }, (error, stdout, stderr) => {
       if (error === null) {
-        resolve()
+        resolve(stdout)
         return
       }
       const code = (error as NodeJS.ErrnoException).code
       reject(new Error(code === 'ENOENT' ? `${command} is not installed` : `${command} failed: ${stderr.trim() || error.message}`))
     })
   })
+}
+
+/** Archive member names, read before extraction so a `../` entry never reaches the disk. */
+function listArchive(archive: string, zip: boolean, signal?: AbortSignal): Promise<string[]> {
+  return runTool(zip ? 'unzip' : 'tar', zip ? ['-Z1', archive] : ['-tzf', archive], signal)
+    .then(stdout => stdout.split('\n').map(line => line.trim()).filter(line => line !== ''))
+}
+
+function safeArchivePath(path: string): boolean {
+  const normalized = path.replaceAll('\\', '/')
+  if (normalized.startsWith('/') || /^[A-Za-z]:/.test(normalized)) return false
+  return normalized.split('/').every(part => part !== '..')
 }
 
 function messageOf(error: unknown): string {

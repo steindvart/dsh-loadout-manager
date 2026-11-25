@@ -29,7 +29,7 @@ export type Section = SectionText & (
 
 export interface Kind {
   id: string
-  label: 'skills' | 'instructionsTab' | 'mcpTab'
+  label: 'skills' | 'catalogTab' | 'instructionsTab' | 'mcpTab'
   sections(t: T, group: LevelView, context: { level: Level, rulesHint: string, loadoutPath: string }): Section[]
 }
 
@@ -44,6 +44,11 @@ export const KINDS: readonly Kind[] = [
     id: 'skills',
     label: 'skills',
     sections: (t, group) => [{ kind: 'skill', items: group.skills, empty: t('noSkills') }],
+  },
+  {
+    id: 'catalog',
+    label: 'catalogTab',
+    sections: () => [],
   },
   {
     id: 'rules',

@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { JSDOM } from 'jsdom'
 import type { ComponentType } from 'react'
-import type { Requests, StateView } from '../src/shared/api.ts'
+import type { IndexView, Requests, StateView } from '../src/shared/api.ts'
 import { en } from '../src/client/locale.ts'
 
 const require = createRequire(import.meta.url)
@@ -39,7 +39,16 @@ function loadBundle() {
   return { window, registration, plugin }
 }
 
-function fakeHost(window: Window, state: (body: Requests['state']) => StateView) {
+const indexView: IndexView = {
+  sourcesPath: '/home/me/.agents/loadout-indexes.json',
+  sources: [{ source: 'owner/repo', kind: 'git', title: 'Team skills', fetchedAt: 1, itemCount: 2 }],
+  entries: [
+    { source: 'owner/repo', kind: 'skill', name: 'tdd', description: 'Test first', version: '1.0.0', tags: ['testing'], installs: [] },
+    { source: 'owner/repo', kind: 'rule', name: 'style', description: 'Short functions', tags: [], installs: [] },
+  ],
+}
+
+function fakeHost(window: Window, state: (body: Requests['state']) => StateView, index: IndexView = indexView) {
   const calls: Array<[string, unknown]> = []
   // In a browser `window` is `globalThis`; here the bundle reads the global, so replace both.
   globalThis.fetch = window.fetch = async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -47,6 +56,8 @@ function fakeHost(window: Window, state: (body: Requests['state']) => StateView)
     const body = JSON.parse(String(init?.body ?? '{}')) as Requests['state']
     calls.push([op, body])
     const value = op === 'state' ? state(body)
+      : op === 'index-refresh' || op === 'index-state' ? index
+      : op === 'index-install' ? { source: 'owner/repo', kind: 'skill', name: 'tdd', level: 'global', path: '/home/me/.agents/skills/tdd', action: 'installed' }
       : op === 'mcp-probe' ? { ok: true, serverName: 'mcp-servers/everything', serverVersion: '1.0.0', tools: ['echo', 'add'], truncated: false, durationMs: 120 }
       : { ok: true }
     return new Response(JSON.stringify({ ok: true, value }), { headers: { 'content-type': 'application/json' } })
@@ -124,13 +135,13 @@ test('the page switches tabs and scope and asks the Host for the chosen workspac
 
   await act(async () => { root.render(React.createElement(Page!, { t, useWorkspaces: (select: (s: { items: typeof workspaces }) => unknown) => select({ items: workspaces }) })) })
   await settle()
-  assert.deepEqual(tabs(), ['Skills1*', 'Instructions2', 'MCP2'])
+  assert.deepEqual(tabs(), ['Skills1*', 'Catalog', 'Instructions2', 'MCP2'])
   assert.deepEqual(names(), ['~/.agents/skills'])
   const version = document.querySelector('[title="Version 3.0.0"]')
   assert.equal(version?.textContent, 'v3.0.0', 'the skill row shows its frontmatter version')
 
   await act(async () => { (document.getElementById('dshlo-tab-rules') as HTMLButtonElement).click() })
-  assert.deepEqual(tabs(), ['Skills1', 'Instructions2*', 'MCP2'])
+  assert.deepEqual(tabs(), ['Skills1', 'Catalog', 'Instructions2*', 'MCP2'])
   assert.deepEqual([...document.querySelectorAll('h2')].map(h => h.textContent), ['Instruction files', 'Rules'])
   assert.ok(document.body.textContent?.includes('Always loaded'))
 
@@ -163,5 +174,41 @@ test('the page switches tabs and scope and asks the Host for the chosen workspac
     ['mcp-probe', { name: 'everything' }],
     ['mcp-set', { workspacePath: '/work/repo', name: 'everything', enabled: false }],
   ])
+  await act(async () => { root.unmount() })
+})
+
+test('the catalog tab lists indexed skills and installs one into the current scope', async () => {
+  const { window, plugin } = loadBundle()
+  window.localStorage.clear()
+  const calls = fakeHost(window, () => ({ global: level('/home/me/.agents') }))
+  let Page: ComponentType<Record<string, unknown>> | undefined
+  plugin.apply({
+    effect: (f: () => unknown) => f(),
+    locale: { register: () => () => {}, bind: () => (key: string) => key },
+    slots: { inject: (_n: string, f: () => unknown) => f(), register: (o: { name: string }, c: ComponentType<Record<string, unknown>>) => { if (o.name === 'main') Page = c } },
+  })
+  const React = require('react') as typeof import('react')
+  const { createRoot } = require('react-dom/client') as typeof import('react-dom/client')
+  const { act } = require('react-dom/test-utils') as { act(callback: () => Promise<void>): Promise<void> }
+  const t = (key: keyof typeof en, params?: Record<string, unknown>) => en[key].replace(/\{(\w+)\}/g, (_m, name: string) => String(params?.[name] ?? ''))
+  const root = createRoot(document.getElementById('root')!)
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
+  const text = () => document.body.textContent ?? ''
+  await act(async () => { root.render(React.createElement(Page!, { t, useWorkspaces: () => [] })) })
+  await settle()
+
+  await act(async () => { (document.getElementById('dshlo-tab-catalog') as HTMLButtonElement).click() })
+  await settle()
+  assert.deepEqual(calls.filter(([op]) => op.startsWith('index-')).map(([op]) => op), ['index-refresh'])
+  assert.ok(text().includes('Team skills') && text().includes('tdd') && text().includes('Test first'))
+  assert.ok(text().includes('Install'))
+
+  const button = (label: string) => [...document.querySelectorAll('button')].find(item => item.textContent === label)!
+  await act(async () => { button('Install').click() })
+  await settle()
+  assert.deepEqual(calls.filter(([op]) => op === 'index-install'), [
+    ['index-install', { source: 'owner/repo', kind: 'skill', name: 'tdd', force: false }],
+  ])
+  assert.deepEqual(calls.filter(([op]) => op === 'index-state').length, 1)
   await act(async () => { root.unmount() })
 })

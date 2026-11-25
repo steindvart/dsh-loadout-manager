@@ -7,7 +7,7 @@
 import { createHash } from 'node:crypto'
 import { chmod, copyFile, mkdir, readFile, readdir, readlink, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve, sep } from 'node:path'
-import type { IndexRuleEntry, IndexSkillEntry } from './index-doc.ts'
+import { INDEX_FILE, type IndexRuleEntry, type IndexSkillEntry } from './index-doc.ts'
 import type { IndexSourceKind } from './index-sources.ts'
 
 export const INDEX_CACHE_DIR = 'loadout-manager/indexes'
@@ -126,6 +126,7 @@ export async function readCache(path: string): Promise<CachedIndex | undefined> 
     const value = JSON.parse(text) as unknown
     if (!isRecord(value) || value.format !== 1 || typeof value.source !== 'string' || !isSourceKind(value.kind)) return undefined
     if (!Array.isArray(value.skills) || !Array.isArray(value.rules)) return undefined
+    if (!value.skills.every(isCachedEntry) || !value.rules.every(isCachedEntry)) return undefined
     return value as unknown as CachedIndex
   } catch {
     return undefined
@@ -189,7 +190,7 @@ export async function digestTree(root: string): Promise<string> {
 
   async function walk(dir: string, prefix: string): Promise<void> {
     for (const entry of (await readdir(dir, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
-      if (entry.name === '.git') continue
+      if (entry.name === '.git' || entry.name === INDEX_FILE) continue
       const path = join(dir, entry.name)
       const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`
       if (entry.isSymbolicLink()) {
@@ -218,7 +219,7 @@ export async function copySkillTree(from: string, to: string): Promise<void> {
 
   async function walk(sourceDir: string, targetDir: string): Promise<void> {
     for (const entry of await readdir(sourceDir, { withFileTypes: true })) {
-      if (entry.name === '.git') continue
+      if (entry.name === '.git' || entry.name === INDEX_FILE) continue
       const source = join(sourceDir, entry.name)
       const target = join(targetDir, entry.name)
       if (entry.isSymbolicLink()) throw new Error(`${source} is a symbolic link; skills from an index may not contain links`)
@@ -266,6 +267,13 @@ function isAbsent(error: unknown): boolean {
 
 function isSourceKind(value: unknown): value is IndexSourceKind {
   return value === 'git' || value === 'http' || value === 'local'
+}
+
+function isCachedEntry(value: unknown): boolean {
+  return isRecord(value)
+    && typeof value.name === 'string'
+    && typeof value.path === 'string'
+    && Array.isArray(value.tags)
 }
 
 function isInstalledItem(value: unknown): value is InstalledItem {
