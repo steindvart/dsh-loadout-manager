@@ -1,7 +1,7 @@
 {
   "name": "dsh-loadout-manager",
   "version": "0.1.0",
-  "description": "Turn skills on, off, or manual-only and load rule files into agent context next to AGENTS.md. Loadout Manager in the left sidebar.",
+  "description": "Manage skills, rules, and MCP servers globally or per project, with on, off, and manual states. Loadout Manager in the left sidebar.",
   "private": true,
   "type": "module",
   "license": "MIT",
