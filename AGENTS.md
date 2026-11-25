@@ -13,7 +13,7 @@ A DSH plugin (profile bundle): switches skills between `on`/`manual`/`off`, conn
 
 ## Build and checks
 
-- `npm run check` runs `tsc` and every test; `npm test` builds `lib/` first. Before a commit: `npm run check` is green and the fresh `lib/` is committed.
+- `npm run check` runs ESLint, `tsc`, and every test; `npm test` builds `lib/` first. Before a commit: `npm run check` is green and the fresh `lib/` is committed. CI (`.github/workflows/ci.yml`) runs the same steps and fails when the committed `lib/` differs from a fresh build.
 - Dependencies go only into `devDependencies`: nothing is installed at runtime. The `@deepseek-ai/*` packages are there for their types, at the target DSH version.
 - Import only types from `@deepseek-ai/*` (`import type`). Values come through `ctx` services; the build fails on a value import (`hostSelfContained`, `clientPurityGate` in `tsdown.config.ts`). The Host bundle keeps no external imports except `node:*`; the Client takes only `react` and `react/jsx-runtime` from the shell's module table.
 - Get DSH services through `ctx.get('name')`, on `agent.ctx` too: without a declared `inject`, Cordis throws on `ctx.name`. An exception in the serial `agent/created` listener aborts agent creation, so wrap everything inside it in `try/catch`.

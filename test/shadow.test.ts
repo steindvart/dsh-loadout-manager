@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import type { Context } from '@deepseek-ai/cordis'
 import { registerShadows } from '../src/host/shadow.ts'
 
-type Listener = (...args: any[]) => unknown
+type Listener = (...args: unknown[]) => unknown
 
 /** Minimal Cordis-like context: services are reachable only through `get()`, as without `inject`. */
 function fakeCtx(services: Record<string, unknown>) {

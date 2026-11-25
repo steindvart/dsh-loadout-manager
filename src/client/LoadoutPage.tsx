@@ -50,6 +50,8 @@ export function LoadoutPage({ t, useWorkspaces = noWorkspaces }: LoadoutPageProp
     }
   }, [workspacePath])
 
+  // reload() sets state only after the awaited request, so the effect does not render in a cascade.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void reload() }, [reload])
 
   // MCP servers connect in the background: re-read while any of them is still settling.

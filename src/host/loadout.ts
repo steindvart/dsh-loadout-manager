@@ -30,7 +30,7 @@ export function parseLoadout(text: string | undefined): Loadout {
   try {
     value = JSON.parse(text)
   } catch (error) {
-    throw new Error(`loadout.json is not valid JSON: ${(error as Error).message}`)
+    throw new Error(`loadout.json is not valid JSON: ${(error as Error).message}`, { cause: error })
   }
   if (!isRecord(value)) throw new Error('loadout.json must contain a JSON object')
   return value

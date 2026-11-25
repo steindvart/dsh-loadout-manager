@@ -130,7 +130,7 @@ function Row({ t, scope, locked, reload, entry }: RowProps & { entry: Item }): R
   const [confirming, setConfirming] = useState(false)
   const [preview, setPreview] = useState<Responses['read'] | undefined>(undefined)
   const target = scope.workspacePath === undefined ? {} : { workspacePath: scope.workspacePath }
-  const { kind, item } = entry
+  const { item } = entry
 
   const run = useCallback(async (operation: () => Promise<unknown>) => {
     setBusy(true)
