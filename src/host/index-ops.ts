@@ -200,19 +200,23 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
       } catch (error) {
         throw new OperationError('bad-request', messageOf(error))
       }
-      const list = await readSourcesStrict()
-      if (!list.sources.some(item => item.id === source.id)) {
-        await writeAtomic(list.path, serializeIndexesFile([...list.sources.map(item => item.id), source.id]))
-      }
-      await serialized(source.id, async () => { await refreshSource(source, { dshHome: homes.dshHome }) })
-      return await view(await context(projectRoot))
+      return await serialized('@sources', async () => {
+        const list = await readSourcesStrict()
+        if (!list.sources.some(item => item.id === source.id)) {
+          await writeAtomic(list.path, serializeIndexesFile([...list.sources.map(item => item.id), source.id]))
+        }
+        await serialized(source.id, async () => { await refreshSource(source, { dshHome: homes.dshHome }) })
+        return await view(await context(projectRoot))
+      })
     },
 
     async removeSource(source, projectRoot) {
-      const list = await readSourcesStrict()
-      if (!list.sources.some(item => item.id === source)) throw new OperationError('unknown-source', `"${source}" is not a configured index source`)
-      await writeAtomic(list.path, serializeIndexesFile(list.sources.filter(item => item.id !== source).map(item => item.id)))
-      return await view(await context(projectRoot))
+      return await serialized('@sources', async () => {
+        const list = await readSourcesStrict()
+        if (!list.sources.some(item => item.id === source)) throw new OperationError('unknown-source', `"${source}" is not a configured index source`)
+        await writeAtomic(list.path, serializeIndexesFile(list.sources.filter(item => item.id !== source).map(item => item.id)))
+        return await view(await context(projectRoot))
+      })
     },
 
     async install({ source: sourceId, kind, name, projectRoot, force }) {

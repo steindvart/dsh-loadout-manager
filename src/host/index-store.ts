@@ -185,19 +185,19 @@ export function digestBytes(bytes: Uint8Array): string {
  */
 export async function digestTree(root: string): Promise<string> {
   const hash = createHash('sha256')
-  await walk(root, '')
+  await walk(root, '', true)
   return `sha256:${hash.digest('hex')}`
 
-  async function walk(dir: string, prefix: string): Promise<void> {
+  async function walk(dir: string, prefix: string, top: boolean): Promise<void> {
     for (const entry of (await readdir(dir, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
-      if (entry.name === '.git' || entry.name === INDEX_FILE) continue
+      if (entry.name === '.git' || (top && entry.name === INDEX_FILE)) continue
       const path = join(dir, entry.name)
       const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`
       if (entry.isSymbolicLink()) {
         hash.update(`link\0${relative}\0${await readlink(path).catch(() => '')}\0`)
       } else if (entry.isDirectory()) {
         hash.update(`dir\0${relative}\0`)
-        await walk(path, relative)
+        await walk(path, relative, false)
       } else if (entry.isFile()) {
         hash.update(`file\0${relative}\0`)
         hash.update(await readFile(path))
@@ -215,17 +215,17 @@ export async function copySkillTree(from: string, to: string): Promise<void> {
   let files = 0
   let bytes = 0
   await mkdir(to, { recursive: true })
-  await walk(from, to)
+  await walk(from, to, true)
 
-  async function walk(sourceDir: string, targetDir: string): Promise<void> {
+  async function walk(sourceDir: string, targetDir: string, top: boolean): Promise<void> {
     for (const entry of await readdir(sourceDir, { withFileTypes: true })) {
-      if (entry.name === '.git' || entry.name === INDEX_FILE) continue
+      if (entry.name === '.git' || (top && entry.name === INDEX_FILE)) continue
       const source = join(sourceDir, entry.name)
       const target = join(targetDir, entry.name)
       if (entry.isSymbolicLink()) throw new Error(`${source} is a symbolic link; skills from an index may not contain links`)
       if (entry.isDirectory()) {
         await mkdir(target)
-        await walk(source, target)
+        await walk(source, target, false)
         continue
       }
       if (!entry.isFile()) throw new Error(`${source} is not a regular file`)
