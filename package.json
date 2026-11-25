@@ -2,7 +2,16 @@
   "name": "dsh-loadout-manager",
   "version": "1.0.0",
   "description": "Shows skills and MCP servers globally and per project, lets you manage them, and adds rules to the agent context next to AGENTS.md.",
-  "private": true,
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "plugin",
+    "skills",
+    "rules",
+    "mcp",
+    "agents"
+  ],
   "type": "module",
   "license": "MIT",
   "author": "Ivan Kalashnikov",
@@ -32,7 +41,8 @@
     "README*.md"
   ],
   "engines": {
-    "node": ">=24"
+    "node": ">=24",
+    "dsh": ">=0.2.2-rc.2 <0.3.0-0"
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\" && tsdown",

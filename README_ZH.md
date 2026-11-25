@@ -50,7 +50,13 @@ DeepSeek Harness（DSH）插件。原版 DSH 没有一个页面能同时查看�
 
 ## 安装
 
-插件适用于 DSH 0.2.2-rc.2。在 DSH 中打开“插件 → 添加插件”，填入仓库目录或其 Git 地址。构建好的 `lib/` 已包含在仓库中，克隆后无需再构建。
+插件支持 DSH 0.2.2-rc.2 及之后的 0.2.x 版本，已在 0.2.2-rc.2 上测试。在 DSH 中打开“插件 → 添加插件”，填入 npm 包名 `dsh-loadout-manager`。也可以使用 DSH 命令行：
+
+```sh
+dsh plugin --profile <配置名> add dsh-loadout-manager
+```
+
+该表单同样接受仓库的 Git 地址或本地克隆目录。构建好的 `lib/` 已包含在仓库中，克隆后无需再构建。
 
 插件配置中的 `maxBytes` 参数限制单条规则消息的大小：默认 65536 字节，设为 `0` 则停用规则。
 

@@ -48,7 +48,13 @@ States are written to `~/.agents/loadout.json` for the global level and to `<pro
 
 ## Installation
 
-The plugin is built for DSH 0.2.2-rc.2. In DSH, open Plugins → Add plugin and enter the repository directory or its Git URL. The built `lib/` is committed to the repository, so there is nothing to build after cloning.
+The plugin supports DSH 0.2.2-rc.2 and later 0.2.x versions; it is tested on 0.2.2-rc.2. In DSH, open Plugins → Add plugin and enter the npm package name `dsh-loadout-manager`. From the DSH command line:
+
+```sh
+dsh plugin --profile <profile> add dsh-loadout-manager
+```
+
+The same form also accepts the repository's Git URL or a local checkout. The built `lib/` is committed to the repository, so there is nothing to build after cloning.
 
 The `maxBytes` option in the plugin config limits the size of one rules message: 65536 bytes by default, and `0` turns rules off.
 
