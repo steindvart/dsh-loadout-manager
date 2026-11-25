@@ -53,4 +53,4 @@ npm run build   # только сборка
 
 Host-часть лежит в `src/host/`, страница – в `src/client/`. Типы запросов и ответов между ними описаны в `src/shared/api.ts`. В рантайме плагин ни от чего не зависит: пакеты `@deepseek-ai/*` в `devDependencies` нужны только ради типов DSH. Собранный `lib/` хранится в репозитории, поэтому каталог можно установить в DSH сразу после `git pull`.
 
-Устройство и решения описаны в [docs/SPEC.md](docs/SPEC.md), заметки об API DSH – в [docs/research/](docs/research/).
+Устройство и решения описаны в [docs/SPEC.md](docs/SPEC.md) и тематических файлах рядом с ним, заметки об API DSH – в [docs/research/](docs/research/).
