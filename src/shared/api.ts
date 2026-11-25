@@ -1,5 +1,5 @@
 /**
- * Wire contract between the Host and the Loadout page: the Fetch routes
+ * Wire contract between the Host and the Loadout Manager page: the Fetch routes
  * `POST /api/dsh-loadout-manager/<op>`, their request bodies, and the views they
  * return. Both halves import these types, so a change to one side that the
  * other does not follow fails `npm run typecheck`. Types only: no values,

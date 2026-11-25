@@ -1,4 +1,4 @@
-/** Tabs, rows, and grouped sections of the Loadout page. */
+/** Tabs, rows, and grouped sections of the Loadout Manager page. */
 
 import { useCallback, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { InstructionView, Level, LevelView, McpServerView, Responses, RuleView, SkillView } from '../shared/api.ts'

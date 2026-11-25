@@ -1,5 +1,5 @@
 /**
- * Owner-only Fetch routes for the Loadout page:
+ * Owner-only Fetch routes for the Loadout Manager page:
  * `POST /api/dsh-loadout-manager/<op>` with a JSON body, answering an `Envelope`.
  * The request body is untrusted JSON, so every field is validated here;
  * `Handlers` makes the compiler require one handler per contract operation.

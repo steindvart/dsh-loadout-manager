@@ -1,4 +1,4 @@
-/** The Loadout page: scope picker, kind tabs, and the selected kind's sections. */
+/** The Loadout Manager page: scope picker, kind tabs, and the selected kind's sections. */
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'

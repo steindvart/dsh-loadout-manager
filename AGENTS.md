@@ -7,7 +7,7 @@ DSH-плагин (бандл профиля): переключает скилл�
 - `src/index.ts` – Host `apply(ctx, config)`: только связывание сервисов DSH с модулями из `src/host/`.
 - `src/host/` – логика Host. Чистые модули с тестами: `frontmatter`, `loadout`, `inventory`, `rules`. Остальные – тонкие адаптеры к `ctx` (провайдер скиллов, `pre-step`, маршруты, инструмент).
 - `src/shared/api.ts` – контракт маршрутов `/api/dsh-loadout-manager/<op>`: запросы и ответы, общие для Host и Client. Меняешь поле ответа – меняй его здесь, компилятор покажет обе стороны.
-- `src/client/` – страница Loadout на React (TSX), стили в `Loadout.module.css`, тексты в `locale.ts` (`en` – источник ключей, `ru` обязан совпадать).
+- `src/client/` – страница Loadout Manager на React (TSX), стили в `Loadout.module.css`, тексты в `locale.ts` (`en` – источник ключей, `ru` обязан совпадать).
 - `lib/` – собранные `index.js` и `client.js`, на них указывает `package.json`. Коммитятся: бандл установлен ссылкой на этот каталог, DSH читает их из рабочей копии.
 - `test/*.test.ts` – `node:test`; `client.test.ts` грузит собранный `lib/client.js` так, как его грузит DSH.
 

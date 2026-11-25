@@ -1,6 +1,6 @@
 /**
  * dsh-loadout-manager Host half: skill shadowing in each agent's layer, rule
- * injection next to AGENTS.md, and the operations the Loadout page and the
+ * injection next to AGENTS.md, and the operations the Loadout Manager page and the
  * `loadout` tool call. Wiring only; behaviour lives in ./host.
  */
 

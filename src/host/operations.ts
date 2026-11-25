@@ -1,5 +1,5 @@
 /**
- * Operations shared by the Loadout page (Fetch routes) and the `loadout`
+ * Operations shared by the Loadout Manager page (Fetch routes) and the `loadout`
  * tool. Every file operation re-scans and accepts only paths the scan
  * returned, so a caller cannot reach arbitrary files.
  */

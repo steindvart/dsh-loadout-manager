@@ -1,5 +1,5 @@
 /**
- * MCP servers as the Loadout page sees them: which global tools belong to
+ * MCP servers as the Loadout Manager page sees them: which global tools belong to
  * which server, which tools a workspace hides, and the status reduced to
  * what the page shows. Pure: callers pass the manager's data in.
  */

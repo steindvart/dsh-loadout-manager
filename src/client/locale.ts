@@ -7,8 +7,8 @@
 export const NS = 'loadout'
 
 export const en = {
-  nav: 'Loadout',
-  title: 'Loadout',
+  nav: 'Loadout Manager',
+  title: 'Loadout Manager',
   intro: 'Choose which skills and rules agents carry. Changes apply from the next agent step.',
   global: 'Global',
   globalHint: 'Skills and rules from ~/.dsh, ~/.agents, and built-in skills',
@@ -25,7 +25,7 @@ export const en = {
   noGlobalInstructions: 'No AGENTS.md in ~/.dsh or ~/.agents.',
   noProjectInstructions: 'No AGENTS.md, CLAUDE.md, or their .local.md variants from the project root down to this workspace.',
   alwaysLoaded: 'Always loaded',
-  alwaysLoadedHint: 'DSH adds this file to the context of every session in this scope. Loadout does not switch it.',
+  alwaysLoadedHint: 'DSH adds this file to the context of every session in this scope. Loadout Manager does not switch it.',
   projectRoot: 'Project root',
   'state.on': 'On',
   'state.manual': 'Manual',
@@ -92,8 +92,8 @@ export const en = {
 export type LoadoutKey = keyof typeof en
 
 export const ru: Record<LoadoutKey, string> = {
-  nav: 'Loadout',
-  title: 'Loadout',
+  nav: 'Loadout Manager',
+  title: 'Loadout Manager',
   intro: 'Выберите, какие скиллы и правила берут с собой агенты. Изменения действуют со следующего шага агента.',
   global: 'Глобальные',
   globalHint: 'Скиллы и правила из ~/.dsh, ~/.agents и встроенные скиллы',
@@ -110,7 +110,7 @@ export const ru: Record<LoadoutKey, string> = {
   noGlobalInstructions: 'В ~/.dsh и ~/.agents нет AGENTS.md.',
   noProjectInstructions: 'От корня проекта до этого workspace нет AGENTS.md, CLAUDE.md и их вариантов .local.md.',
   alwaysLoaded: 'Всегда загружается',
-  alwaysLoadedHint: 'DSH добавляет этот файл в контекст каждой сессии этой области. Loadout его не переключает.',
+  alwaysLoadedHint: 'DSH добавляет этот файл в контекст каждой сессии этой области. Loadout Manager его не переключает.',
   projectRoot: 'Корень проекта',
   'state.on': 'Вкл',
   'state.manual': 'Вручную',

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Minimal MCP server over stdio (newline-delimited JSON-RPC), for exercising
- * the Loadout plugin's MCP tab: three tools, no dependencies, no network.
+ * the Loadout Manager plugin's MCP tab: three tools, no dependencies, no network.
  *
  * Framing matches `@modelcontextprotocol/client`'s StdioClientTransport:
  * each message is one line of JSON terminated by `\n`.

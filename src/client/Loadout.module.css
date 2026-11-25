@@ -1,4 +1,4 @@
-/* The Loadout page. Layout and sizes follow the Plugins page; colors come from theme tokens only.
+/* The Loadout Manager page. Layout and sizes follow the Plugins page; colors come from theme tokens only.
    Class names are hashed by the build (CSS Modules), so they need no plugin prefix. */
 
 .page {

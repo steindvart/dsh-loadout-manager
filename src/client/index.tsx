@@ -1,5 +1,5 @@
 /**
- * dsh-loadout-manager Client half: the Loadout page in the left sidebar panel list.
+ * dsh-loadout-manager Client half: the Loadout Manager page in the left sidebar panel list.
  * The build wraps this module into `window.__ModuleLoader__.load({ id,
  * factory })`; its exports `inject` and `apply` form the Cordis plugin.
  */

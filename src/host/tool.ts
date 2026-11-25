@@ -1,6 +1,6 @@
 /**
  * The `loadout` agent tool: list skills and rules with their states, and
- * switch one. It calls the same operations as the Loadout page; deleting
+ * switch one. It calls the same operations as the Loadout Manager page; deleting
  * stays with the user.
  */
 
@@ -13,7 +13,7 @@ import type { Operations } from './operations.ts'
 import { cwdOf } from './shadow.ts'
 
 const DESCRIPTION = [
-  'List or switch the skills and rules the agent carries (the Loadout plugin).',
+  'List or switch the skills and rules the agent carries (the Loadout Manager plugin).',
   'Skill states: "on" (in the model catalog and /name), "manual" (hidden from the model, still /name), "off" (hidden everywhere).',
   'Rules are .md files from ~/.dsh/rules, ~/.agents/rules, and <project>/.agents/rules; enabled rules are added to context next to AGENTS.md.',
   'MCP servers: kind "mcp" with name and enabled hides or shows that server\'s tools in the current workspace (the project loadout.json); starting and stopping servers stays with the user.',
