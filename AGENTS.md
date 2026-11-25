@@ -28,5 +28,6 @@ A DSH plugin (profile bundle): switches skills between `on`/`manual`/`off`, conn
 
 - Pure modules are written test-first: a test at the seam (the module's public function), then the code. Adapters to `ctx` are verified on a live DSH after installation.
 - Commit after each finished step, in English, in the conventional commits format (`type(scope): description`).
+- Releases go through CD (`.github/workflows/cd.yml`): set the new `version` in `package.json`, commit, tag the commit `v<version>`, and push the tag. CD reruns CI on the tag, then publishes to npm, and fails when the tag and the version differ. Publishing, tagging, and pushing happen only after the user's explicit yes.
 - Install, enable, or remove the bundle in a DSH profile only after the user's explicit yes. Host changes take effect after the bundle is reloaded (turned off and on) or DSH restarts; DSH picks up `lib/client.js` on a page reload.
 - Before installation: `npm run check` is green and the `dsh-doc` → `references/host-plugin.md` checklist passes (`en`/`ru`/`zh` locales, `assets/icon.svg`, and each locale's `meta.detail` README).
