@@ -5,9 +5,9 @@ A DSH plugin (profile bundle): switches skills between `on`/`manual`/`off`, conn
 ## Layout
 
 - `src/index.ts` – the Host `apply(ctx, config)`: only wires DSH services to the modules in `src/host/`.
-- `src/host/` – Host logic. Pure modules with tests: `frontmatter`, `loadout`, `inventory`, `rules`. The rest are thin adapters to `ctx` (skill provider, `pre-step`, routes, tool).
+- `src/host/` – Host logic. Pure modules with tests: `frontmatter`, `loadout`, `inventory`, `rules`, `index-doc`, `index-sources`, `index-store`. The rest are thin adapters to `ctx` (skill provider, `pre-step`, routes, tool). `index-fetch` and `index-ops` add network, Git, `tar`/`unzip`, and filesystem installs.
 - `src/shared/api.ts` – the contract of the `/api/dsh-loadout-manager/<op>` routes: requests and responses shared by Host and Client. To change a response field, change it here and let the compiler show both sides.
-- `src/client/` – the Loadout Manager page in React (TSX), styles in `Loadout.module.css`, strings in `locale.ts` (`en` is the source of keys; `ru` and `zh` must match it).
+- `src/client/` – the Loadout Manager page in React (TSX), styles in `Loadout.module.css`, strings in `locale.ts` (`en` is the source of keys; `ru` and `zh` must match it). `catalog.tsx` is the Catalog tab.
 - `lib/` – the built `index.js` and `client.js` that `package.json` points to. They are committed: DSH reads them straight from the checkout when the bundle is installed from a local directory or a Git URL.
 - `test/*.test.ts` – `node:test`; `client.test.ts` loads the built `lib/client.js` the way DSH loads it.
 

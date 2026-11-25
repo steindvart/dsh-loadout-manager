@@ -10,6 +10,7 @@ The specification is split by topic; each file covers one part of the plugin:
 
 - [Skills](skills.md) – the `on`/`manual`/`off` states, deletion, the filter through a shadow provider in the agent layer.
 - [Rules](rules.md) – format, roots, injection into the context after the AGENTS.md pattern, budget.
+- [Skill and rule indexes](index.md) – the catalog: sources, `loadout-index.json`, cache, install and update, validation.
 - [On/off state](loadout.md) – `loadout.json`: levels, format, addressing, overriding of same-name skills.
 - [Panel](panel.md) – scope picker, tabs (Skills / Instructions / MCP), the list of the selected kind.
 - [Host operations](host-operations.md) – the `/api/dsh-loadout-manager/<op>` routes and the `loadout` tool.
