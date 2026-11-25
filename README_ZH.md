@@ -59,7 +59,7 @@ DeepSeek Harness（DSH）插件。原版 DSH 没有一个页面能同时查看�
 
 ## 设置保存位置
 
-全局状态写入 `~/.agents/loadout.json`，项目状态写入 `<项目>/.agents/loadout.json`。来源列表保存在 `~/.agents/loadout-indexes.json`，已安装副本的来源记录在 `~/.agents/.loadout-manager/installed.json` 和 `<项目>/.agents/.loadout-manager/installed.json`。这些是普通文件，可以提交到仓库并与团队共享。插件不会改写技能和规则文件。
+全局状态写入 `~/.agents/loadout.json`，项目状态写入 `<项目>/.agents/loadout.json`。来源列表保存在 `~/.agents/loadout-indexes.json`，已安装副本的来源记录在 `~/.agents/.loadout-manager/installed.json` 和 `<项目>/.agents/.loadout-manager/installed.json`。状态和来源是普通文件，可以提交到仓库并与团队共享；安装记录属于这台机器。插件不会就地编辑技能和规则文件：索引更新会替换受管理的副本，`loadout.json` 只保存开关。
 
 ```json
 {

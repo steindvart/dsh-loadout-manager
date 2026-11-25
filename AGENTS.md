@@ -1,6 +1,6 @@
 # dsh-loadout-manager
 
-A DSH plugin (profile bundle): switches skills between `on`/`manual`/`off`, connects rule files to the agent context next to AGENTS.md, and manages MCP servers per scope. Design decisions live in [docs/SPEC.md](docs/SPEC.md) and the topic files in `docs/`; they are final, so change them only with the user's agreement. Facts about the DSH 0.2.2-rc.2 API with links to the sources are in [docs/research/](docs/research/).
+A DSH plugin (profile bundle): switches skills between `on`/`manual`/`off`, connects rule files to the agent context next to AGENTS.md, manages MCP servers per scope, and installs skills and rules from configured indexes. Design decisions live in [docs/SPEC.md](docs/SPEC.md) and the topic files in `docs/`; they are final, so change them only with the user's agreement. Facts about the DSH 0.2.2-rc.2 API with links to the sources are in [docs/research/](docs/research/).
 
 ## Layout
 

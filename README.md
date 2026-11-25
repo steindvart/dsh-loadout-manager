@@ -57,7 +57,7 @@ The plugin gives the agent a `loadout` tool, so you can change settings right in
 
 ## Where settings are stored
 
-States are written to `~/.agents/loadout.json` for the global level and to `<project>/.agents/loadout.json` for a project. The source list is `~/.agents/loadout-indexes.json`. Provenance of installed copies is kept in `~/.agents/.loadout-manager/installed.json` and `<project>/.agents/.loadout-manager/installed.json`. These are ordinary files that you can commit and share with your team. The plugin never rewrites a skill or rule file.
+States are written to `~/.agents/loadout.json` for the global level and to `<project>/.agents/loadout.json` for a project. The source list is `~/.agents/loadout-indexes.json`. Provenance of installed copies is kept in `~/.agents/.loadout-manager/installed.json` and `<project>/.agents/.loadout-manager/installed.json`. States and sources are ordinary files that you can commit and share with your team; the provenance records what this machine installed. The plugin does not edit skill or rule files in place: an index update replaces a managed copy, and `loadout.json` only stores switches.
 
 ```json
 {
