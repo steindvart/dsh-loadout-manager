@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "title": "Loadout Manager test index",
+  "description": "Two skills and two rules used by the catalog tests and the Catalog smoke check.",
+  "skills": [
+    {
+      "name": "index-demo",
+      "description": "A small demo skill served by the test index.",
+      "version": "1.0.0",
+      "tags": ["test", "demo"],
+      "path": "skills/index-demo"
+    },
+    {
+      "name": "index-versioned",
+      "description": "A skill with a reference file and a newer version.",
+      "version": "2.3.1",
+      "tags": ["test", "version"],
+      "path": "skills/index-versioned"
+    }
+  ],
+  "rules": [
+    {
+      "name": "index-demo-rule",
+      "description": "A demo rule served by the test index.",
+      "version": "1.0.0",
+      "tags": ["test", "demo"],
+      "path": "rules/index-demo-rule.md"
+    },
+    {
+      "name": "index-versioned-rule",
+      "description": "A rule with a newer version.",
+      "version": "2.0.0",
+      "tags": ["test", "version"],
+      "path": "rules/index-versioned-rule.md"
+    }
+  ]
+}
