@@ -11,7 +11,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import { LoadoutIcon, type T } from './controls.tsx'
 import { LoadoutPage } from './LoadoutPage.tsx'
-import { en, NS, ru } from './locale.ts'
+import { en, NS, ru, zh } from './locale.ts'
 
 /** Sidebar entry id and `main` panel key. */
 const PANEL_ID = 'loadout'
@@ -19,9 +19,10 @@ const PANEL_ID = 'loadout'
 export const inject = ['slots', 'locale']
 
 export function apply(ctx: Context): void {
-  // One registration per language: the multi-language overload also demands `zh`, which this plugin does not ship.
+  // One registration per language, so each one has its own effect label.
   ctx.effect(() => ctx.locale.register(NS, 'en', en), 'dsh-loadout-manager: locale en')
   ctx.effect(() => ctx.locale.register(NS, 'ru', ru), 'dsh-loadout-manager: locale ru')
+  ctx.effect(() => ctx.locale.register(NS, 'zh', zh), 'dsh-loadout-manager: locale zh')
   const t = ctx.locale.bind(NS) as T
 
   ctx.slots.inject('main', () => ctx.slots.register({

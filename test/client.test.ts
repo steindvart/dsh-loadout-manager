@@ -91,7 +91,7 @@ test('apply registers the locale, the main panel, and the sidebar entry', () => 
       },
     },
   })
-  assert.deepEqual(locales, ['loadout:en', 'loadout:ru'])
+  assert.deepEqual(locales, ['loadout:en', 'loadout:ru', 'loadout:zh'])
   assert.deepEqual(slots, [
     { name: 'main', id: undefined, key: 'loadout', order: undefined, label: undefined },
     { name: 'sidebar.panellist', id: 'loadout', key: undefined, order: 20, label: 'nav' },

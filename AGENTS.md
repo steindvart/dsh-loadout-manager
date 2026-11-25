@@ -7,7 +7,7 @@ A DSH plugin (profile bundle): switches skills between `on`/`manual`/`off`, conn
 - `src/index.ts` – the Host `apply(ctx, config)`: only wires DSH services to the modules in `src/host/`.
 - `src/host/` – Host logic. Pure modules with tests: `frontmatter`, `loadout`, `inventory`, `rules`. The rest are thin adapters to `ctx` (skill provider, `pre-step`, routes, tool).
 - `src/shared/api.ts` – the contract of the `/api/dsh-loadout-manager/<op>` routes: requests and responses shared by Host and Client. To change a response field, change it here and let the compiler show both sides.
-- `src/client/` – the Loadout Manager page in React (TSX), styles in `Loadout.module.css`, strings in `locale.ts` (`en` is the source of keys; `ru` must match it).
+- `src/client/` – the Loadout Manager page in React (TSX), styles in `Loadout.module.css`, strings in `locale.ts` (`en` is the source of keys; `ru` and `zh` must match it).
 - `lib/` – the built `index.js` and `client.js` that `package.json` points to. They are committed: DSH reads them straight from the checkout when the bundle is installed from a local directory or a Git URL.
 - `test/*.test.ts` – `node:test`; `client.test.ts` loads the built `lib/client.js` the way DSH loads it.
 
@@ -29,4 +29,4 @@ A DSH plugin (profile bundle): switches skills between `on`/`manual`/`off`, conn
 - Pure modules are written test-first: a test at the seam (the module's public function), then the code. Adapters to `ctx` are verified on a live DSH after installation.
 - Commit after each finished step, in English, in the conventional commits format (`type(scope): description`).
 - Install, enable, or remove the bundle in a DSH profile only after the user's explicit yes. Host changes take effect after the bundle is reloaded (turned off and on) or DSH restarts; DSH picks up `lib/client.js` on a page reload.
-- Before installation: `npm run check` is green and the `dsh-doc` → `references/host-plugin.md` checklist passes (`en`/`ru` locales, `assets/icon.svg`, `assets/DETAIL*.md`).
+- Before installation: `npm run check` is green and the `dsh-doc` → `references/host-plugin.md` checklist passes (`en`/`ru`/`zh` locales, `assets/icon.svg`, `assets/DETAIL*.md`).

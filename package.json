@@ -21,6 +21,7 @@
     "locale/*.json",
     "assets/DETAIL.md",
     "assets/DETAIL.ru.md",
+    "assets/DETAIL.zh.md",
     "assets/preview.svg",
     "assets/icon.svg",
     "README.md"
