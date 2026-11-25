@@ -1,7 +1,7 @@
 {
   "name": "dsh-loadout-manager",
   "version": "0.1.0",
-  "description": "Manage skills, rules, and MCP servers globally or per project, with on, off, and manual states. Loadout Manager in the left sidebar.",
+  "description": "Shows skills and MCP servers globally and per project, lets you manage them, and adds rules to the agent context next to AGENTS.md.",
   "private": true,
   "type": "module",
   "license": "MIT",
