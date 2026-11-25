@@ -97,7 +97,7 @@ An install refuses to overwrite:
 - a copy installed from another index (`conflict`);
 - a copy whose content no longer matches its recorded digest, unless the user confirms a replacement (`modified`).
 
-A replacement is staged next to the target, the old copy is renamed aside, and only then does the new copy take its name. After a successful rename the old copy goes to the trash through `gio trash`. If the trash is unavailable, the new copy stays and the row names the leftover backup; nothing is deleted permanently.
+A replacement is staged under `.loadout-manager/work`, outside the roots DSH scans, the old copy is renamed into `.loadout-manager/backups`, and only then does the new copy take its name. After a successful rename the old copy goes to the trash through `gio trash`. If the trash is unavailable, the new copy stays and the row names the leftover backup; nothing is deleted permanently.
 
 Updates compare the source revision: a git tree or blob id, a local digest, or, for HTTP, the entry version. An HTTP entry without a version has no update detection.
 

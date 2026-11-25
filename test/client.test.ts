@@ -212,3 +212,43 @@ test('the catalog tab lists indexed skills and installs one into the current sco
   assert.deepEqual(calls.filter(([op]) => op === 'index-state').length, 1)
   await act(async () => { root.unmount() })
 })
+
+test('a locally changed update asks for confirmation before replacing the copy', async () => {
+  const { window, plugin } = loadBundle()
+  window.localStorage.clear()
+  const changed: IndexView = {
+    ...indexView,
+    entries: [{
+      ...indexView.entries[0]!,
+      installs: [{ level: 'global', version: '0.9.0', installedAt: 1, updateAvailable: true, modified: true, foreign: false, path: '/home/me/.agents/skills/tdd' }],
+    }],
+  }
+  const calls = fakeHost(window, () => ({ global: level('/home/me/.agents') }), changed)
+  let Page: ComponentType<Record<string, unknown>> | undefined
+  plugin.apply({
+    effect: (f: () => unknown) => f(),
+    locale: { register: () => () => {}, bind: () => (key: string) => key },
+    slots: { inject: (_n: string, f: () => unknown) => f(), register: (o: { name: string }, c: ComponentType<Record<string, unknown>>) => { if (o.name === 'main') Page = c } },
+  })
+  const React = require('react') as typeof import('react')
+  const { createRoot } = require('react-dom/client') as typeof import('react-dom/client')
+  const { act } = require('react-dom/test-utils') as { act(callback: () => Promise<void>): Promise<void> }
+  const t = (key: keyof typeof en, params?: Record<string, unknown>) => en[key].replace(/\{(\w+)\}/g, (_m, name: string) => String(params?.[name] ?? ''))
+  const root = createRoot(document.getElementById('root')!)
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
+  const text = () => document.body.textContent ?? ''
+  const button = (label: string) => [...document.querySelectorAll('button')].find(item => item.textContent === label)!
+  await act(async () => { root.render(React.createElement(Page!, { t, useWorkspaces: () => [] })) })
+  await settle()
+  await act(async () => { (document.getElementById('dshlo-tab-catalog') as HTMLButtonElement).click() })
+  await settle()
+  await act(async () => { button('Update').click() })
+  assert.ok(text().includes('This copy has local changes. Updating replaces them.'))
+  assert.equal(calls.filter(([op]) => op === 'index-install').length, 0)
+  await act(async () => { button('Replace and update').click() })
+  await settle()
+  assert.deepEqual(calls.filter(([op]) => op === 'index-install'), [
+    ['index-install', { source: 'owner/repo', kind: 'skill', name: 'tdd', force: true }],
+  ])
+  await act(async () => { root.unmount() })
+})

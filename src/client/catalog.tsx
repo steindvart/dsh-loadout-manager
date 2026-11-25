@@ -219,6 +219,7 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
           <h2 className={css.partTitle}>{t('catalogAvailable')}</h2>
           <span className={css.groupCount}>{entries.length}</span>
         </div>
+        <p className={css.note}>{t('catalogScopeNote')}</p>
         <div className={css.catalogTools}>
           <input
             className={css.input}

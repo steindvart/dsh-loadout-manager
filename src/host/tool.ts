@@ -62,6 +62,7 @@ export function loadoutTool(ctx: Context, operations: Operations): ToolDefinitio
       const cwd = exec.agent === undefined ? undefined : await cwdOf(ctx, exec.agent, exec.signal)
       if (args.action === 'list') return compactListing(await operations.state({ cwd }))
       if (args.action === 'search') {
+        if (args.kind === 'mcp') throw new Error('the catalog holds skills and rules, not MCP servers')
         const kind = args.kind === 'skill' || args.kind === 'rule' ? args.kind : undefined
         const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 50) : 20
         return compactSearch(await operations.indexSearch({ cwd, query: typeof args.query === 'string' ? args.query : undefined, kind, limit }))

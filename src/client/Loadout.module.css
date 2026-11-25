@@ -192,6 +192,7 @@ html[data-platform='darwin'] .head { padding-top: calc(28px + var(--dsh-frame-to
   .picker:not(:disabled):hover, .btn:not(:disabled):hover, .seg button:not(:disabled):not([aria-checked='true']):hover { background: var(--dsw-alias-interactive-bg-hover); }
   .btn[data-tone='danger']:not(:disabled):hover { background: var(--dsw-alias-interactive-bg-hover-danger); }
   .btn[data-tone='primary']:not(:disabled):hover { background: var(--dsw-alias-state-error-primary); opacity: .9; }
+  .btn[data-tone='dangerText']:not(:disabled):hover { background: var(--dsw-alias-interactive-bg-hover-danger); }
 }
 
 @media (prefers-reduced-motion: reduce) {
