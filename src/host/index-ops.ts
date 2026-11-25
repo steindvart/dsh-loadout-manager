@@ -1,8 +1,10 @@
 /**
  * Catalog operations: the cached view the page shows, refreshing sources,
  * editing the source list, installing or updating one entry, and the
- * read-only search the `loadout` tool uses. Fetching and installation are
- * serialized per source so two clicks cannot interleave a clone and a copy.
+ * read-only search the `loadout` tool uses. Every read of a source takes
+ * that source's lock, so a refresh cannot reset a clone while an install
+ * copies from it. Locks are taken in one order: `@sources` or `@install`
+ * first, then the source.
  */
 
 import { randomUUID } from 'node:crypto'
@@ -156,12 +158,6 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
     }
   }
 
-  async function cacheFor(source: IndexSource): Promise<CachedIndex> {
-    const cached = await readCache(cacheFile(homes.dshHome, source.id))
-    if (cached !== undefined) return cached
-    return serialized(source.id, async () => await refreshSource(source, { dshHome: homes.dshHome }))
-  }
-
   function serialized<T>(key: string, task: () => Promise<T>): Promise<T> {
     const previous = locks.get(key) ?? Promise.resolve()
     const next = previous.then(task, task)
@@ -220,109 +216,109 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
     },
 
     async install({ source: sourceId, kind, name, projectRoot, force }) {
-      return await serialized('@install', async () => {
-      const source = await findSource(sourceId)
-      const cache = await cacheFor(source)
-      const entry = kind === 'skill'
-        ? cache.skills.find(item => item.name === name)
-        : cache.rules.find(item => item.name === name)
-      if (entry === undefined) {
-        throw new OperationError(
-          'not-found',
-          cache.error === undefined
-            ? `"${sourceId}" lists no ${kind} named "${name}"`
-            : `"${sourceId}" lists no ${kind} named "${name}"; the last read failed: ${cache.error}`,
-        )
-      }
-      const level: Level = projectRoot === undefined ? 'global' : 'project'
-      const root = rootOf(level, kind, homes.agentsHome, projectRoot)
-      const target = targetOf(level, kind, name, homes.agentsHome, projectRoot)
-      const manifest = installedFile(homes.agentsHome, projectRoot)
-      if (kind === 'skill' && existsSync(join(root, `${name}.md`))) {
-        throw new OperationError('unmanaged', `${join(root, `${name}.md`)} already exists and was not installed from an index`)
-      }
-      const installed = await readInstalled(manifest)
-      if (installed.error !== undefined) throw new OperationError('install-failed', `${manifest} is malformed: ${installed.error}`)
-      const key = installKey(kind, name)
-      const existing = installed.items[key]
-      const targetExists = existsSync(target)
-      if (targetExists) {
-        if (existing === undefined) {
-          throw new OperationError('unmanaged', `${target} already exists and was not installed from an index`)
+      return await serialized('@install', async () => await serialized(sourceId, async () => {
+        const source = await findSource(sourceId)
+        const cache = await readCache(cacheFile(homes.dshHome, source.id)) ?? await refreshSource(source, { dshHome: homes.dshHome })
+        const entry = kind === 'skill'
+          ? cache.skills.find(item => item.name === name)
+          : cache.rules.find(item => item.name === name)
+        if (entry === undefined) {
+          throw new OperationError(
+            'not-found',
+            cache.error === undefined
+              ? `"${sourceId}" lists no ${kind} named "${name}"`
+              : `"${sourceId}" lists no ${kind} named "${name}"; the last read failed: ${cache.error}`,
+          )
         }
-        if (existing.source !== source.id) {
-          throw new OperationError('conflict', `${target} is installed from ${existing.source}; remove it first`)
+        const level: Level = projectRoot === undefined ? 'global' : 'project'
+        const root = rootOf(level, kind, homes.agentsHome, projectRoot)
+        const target = targetOf(level, kind, name, homes.agentsHome, projectRoot)
+        const manifest = installedFile(homes.agentsHome, projectRoot)
+        if (kind === 'skill' && existsSync(join(root, `${name}.md`))) {
+          throw new OperationError('unmanaged', `${join(root, `${name}.md`)} already exists and was not installed from an index`)
         }
-        if (!force && await isModified(kind, target, existing)) {
-          throw new OperationError('modified', `${target} has local changes; confirm the update to replace it`)
-        }
-      }
-
-      await mkdir(root, { recursive: true })
-      // Staging and backups live beside the manifest, outside the roots DSH scans.
-      const workRoot = join(dirname(manifest), 'work')
-      await mkdir(workRoot, { recursive: true })
-      const staging = kind === 'skill'
-        ? await mkdtemp(join(workRoot, 'skill-'))
-        : join(workRoot, `rule-${randomUUID()}.tmp`)
-      let renamed = false
-      try {
-        let version: string | undefined
-        if (kind === 'skill') {
-          await stageSkill(cache, entry as CachedSkill, { dshHome: homes.dshHome }, staging)
-          const fileVersion = await validateSkill(staging, entry.name)
-          version = entry.version ?? fileVersion
-        } else {
-          const bytes = await ruleContent(cache, entry as CachedRule, { dshHome: homes.dshHome })
-          if (bytes.byteLength === 0) throw new OperationError('install-failed', `${entry.path} is empty`)
-          await writeFile(staging, bytes)
-          version = entry.version
-        }
-        const digest = kind === 'skill' ? await digestTree(staging) : await digestFile(staging)
-        const item: InstalledItem = {
-          kind,
-          name,
-          source: source.id,
-          path: entry.path,
-          ...version !== undefined ? { version } : {},
-          ...entry.oid !== undefined ? { oid: entry.oid } : {},
-          digest,
-          ...cache.commit !== undefined ? { commit: cache.commit } : {},
-          installedAt: Date.now(),
-        }
-        const backup = targetExists ? join(dirname(manifest), 'backups', `${kind}-${name}-${randomUUID()}`) : undefined
-        if (backup !== undefined) {
-          await mkdir(dirname(backup), { recursive: true })
-          await rename(target, backup)
-        }
-        try {
-          await rename(staging, target)
-          renamed = true
-          await writeInstalled(manifest, { items: { ...installed.items, [key]: item } })
-        } catch (error) {
-          await rollback(target, backup)
-          throw error
-        }
-        let note: string | undefined
-        if (backup !== undefined) {
-          try {
-            await hooks.trash(backup)
-          } catch {
-            note = `the previous copy is at ${backup}`
+        const installed = await readInstalled(manifest)
+        if (installed.error !== undefined) throw new OperationError('install-failed', `${manifest} is malformed: ${installed.error}`)
+        const key = installKey(kind, name)
+        const existing = installed.items[key]
+        const targetExists = existsSync(target)
+        if (targetExists) {
+          if (existing === undefined) {
+            throw new OperationError('unmanaged', `${target} already exists and was not installed from an index`)
+          }
+          if (existing.source !== source.id) {
+            throw new OperationError('conflict', `${target} is installed from ${existing.source}; remove it first`)
+          }
+          if (!force && await isModified(kind, target, existing)) {
+            throw new OperationError('modified', `${target} has local changes; confirm the update to replace it`)
           }
         }
-        hooks.invalidate()
-        return {
-          source: source.id, kind, name, level, path: target,
-          action: targetExists ? 'updated' as const : 'installed' as const,
-          ...note !== undefined ? { note } : {},
+
+        await mkdir(root, { recursive: true })
+        // Staging and backups live beside the manifest, outside the roots DSH scans.
+        const workRoot = join(dirname(manifest), 'work')
+        await mkdir(workRoot, { recursive: true })
+        const staging = kind === 'skill'
+          ? await mkdtemp(join(workRoot, 'skill-'))
+          : join(workRoot, `rule-${randomUUID()}.tmp`)
+        let renamed = false
+        try {
+          let version: string | undefined
+          if (kind === 'skill') {
+            await stageSkill(cache, entry as CachedSkill, { dshHome: homes.dshHome }, staging)
+            const fileVersion = await validateSkill(staging, entry.name)
+            version = entry.version ?? fileVersion
+          } else {
+            const bytes = await ruleContent(cache, entry as CachedRule, { dshHome: homes.dshHome })
+            if (bytes.byteLength === 0) throw new OperationError('install-failed', `${entry.path} is empty`)
+            await writeFile(staging, bytes)
+            version = entry.version
+          }
+          const digest = kind === 'skill' ? await digestTree(staging) : await digestFile(staging)
+          const item: InstalledItem = {
+            kind,
+            name,
+            source: source.id,
+            path: entry.path,
+            ...version !== undefined ? { version } : {},
+            ...entry.oid !== undefined ? { oid: entry.oid } : {},
+            digest,
+            ...cache.commit !== undefined ? { commit: cache.commit } : {},
+            installedAt: Date.now(),
+          }
+          const backup = targetExists ? join(dirname(manifest), 'backups', `${kind}-${name}-${randomUUID()}`) : undefined
+          if (backup !== undefined) {
+            await mkdir(dirname(backup), { recursive: true })
+            await rename(target, backup)
+          }
+          try {
+            await rename(staging, target)
+            renamed = true
+            await writeInstalled(manifest, { items: { ...installed.items, [key]: item } })
+          } catch (error) {
+            await rollback(target, backup)
+            throw error
+          }
+          let note: string | undefined
+          if (backup !== undefined) {
+            try {
+              await hooks.trash(backup)
+            } catch {
+              note = `the previous copy is at ${backup}`
+            }
+          }
+          hooks.invalidate()
+          return {
+            source: source.id, kind, name, level, path: target,
+            action: targetExists ? 'updated' as const : 'installed' as const,
+            ...note !== undefined ? { note } : {},
+          }
+        } finally {
+          if (!renamed && existsSync(staging)) {
+            await rm(staging, { recursive: kind === 'skill', force: true })
+          }
         }
-      } finally {
-        if (!renamed && existsSync(staging)) {
-          await rm(staging, { recursive: kind === 'skill', force: true })
-        }
-      }
-      })
+      }))
     },
 
     async forget(kind, name, projectRoot) {

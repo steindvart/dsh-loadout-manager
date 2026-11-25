@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { readFile, rm } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createIndexService } from '../src/host/index-ops.ts'
@@ -292,4 +293,42 @@ test('a versioned skill entry still needs a SKILL.md that names it and describes
   await service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false })
   const state = await service.state(undefined)
   assert.equal(state.entries[0]?.installs[0]?.version, '2.0.0', 'the index version wins over the frontmatter one')
+})
+
+test('an install waits for a running refresh of the same source', async (t) => {
+  const base = mkdtempSync(join(tmpdir(), 'loadout-index-ops-'))
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const service = createIndexService({ dshHome: join(base, 'dsh'), agentsHome: join(base, 'agents') }, {
+    invalidate: () => undefined,
+    trash: async (path) => { await rm(path, { recursive: true, force: true }) },
+  })
+  const events: string[] = []
+  let hold: Promise<void> = Promise.resolve()
+  const server = createServer((request, response) => {
+    events.push(`start ${request.url ?? ''}`)
+    void (async () => {
+      if (request.url === '/index.json') {
+        await hold
+        events.push('end /index.json')
+        response.writeHead(200, { 'content-type': 'application/json' }).end(index([], [{ name: 'style', path: 'rules/style.md' }]))
+      } else {
+        response.writeHead(200).end('Rule.\n')
+      }
+    })()
+  })
+  await new Promise<void>((resolve) => { server.listen(0, '127.0.0.1', resolve) })
+  t.after(() => new Promise<void>((resolve) => { server.close(() => { resolve() }) }))
+  const address = server.address()
+  const source = `http://127.0.0.1:${String(typeof address === 'object' && address !== null ? address.port : 0)}/index.json`
+  await service.addSource(source, undefined)
+
+  events.length = 0
+  let release = (): void => undefined
+  hold = new Promise((resolve) => { release = resolve })
+  const refreshing = service.refresh(undefined, { source })
+  while (!events.includes('start /index.json')) await new Promise(resolve => setTimeout(resolve, 5))
+  const installing = service.install({ source, kind: 'rule', name: 'style', projectRoot: undefined, force: false })
+  setTimeout(release, 100)
+  await Promise.all([refreshing, installing])
+  assert.deepEqual(events, ['start /index.json', 'end /index.json', 'start /rules/style.md'])
 })
