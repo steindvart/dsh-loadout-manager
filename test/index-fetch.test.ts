@@ -187,6 +187,29 @@ test('refreshes an HTTP index and fetches a skill by its files list and a rule b
   assert.equal(failed.skills.length, 1)
 })
 
+test('HTTP entries stay on the origin of their index', async (t) => {
+  const base = tree({})
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const requested: string[] = []
+  const server = await listen((request, response) => {
+    requested.push(request.url ?? '')
+    response.writeHead(200, { 'content-type': 'application/json' }).end(index(
+      [{ name: 'away', path: 'skills/away', files: ['SKILL.md', 'https:evil.example/x.md'] }],
+      [{ name: 'other-host', path: 'https:evil.example/rule.md' }, { name: 'inline', path: 'data:text/plain,hi.md' }],
+    ))
+  })
+  t.after(() => close(server))
+  const dshHome = join(base, 'home')
+  const cache = await refreshSource(classifySource(`${urlOf(server)}/index.json`), { dshHome })
+  assert.equal(cache.error, undefined)
+  const origin = new URL(urlOf(server)).origin
+  for (const rule of cache.rules) {
+    await assert.rejects(ruleContent(cache, rule, { dshHome }), new RegExp(`leaves ${origin.replaceAll('.', '\\.')}`))
+  }
+  await assert.rejects(stageSkill(cache, cache.skills[0]!, { dshHome }, join(base, 'staging')), /leaves/)
+  assert.deepEqual(requested, ['/index.json'])
+})
+
 test('stages a skill from a .tar.gz served by an HTTP index', async (t) => {
   const base = tree({ 'pkg/SKILL.md': skillFile('archived'), 'pkg/refs/notes.md': 'Archived notes' })
   t.after(() => rm(base, { recursive: true, force: true }))

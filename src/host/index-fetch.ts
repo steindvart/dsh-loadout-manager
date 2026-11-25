@@ -201,9 +201,10 @@ async function stageHttpSkill(cache: CachedIndex, entry: IndexSkillEntry, option
   const directory = entry.path === '.' ? new URL('.', base).href : ensureDirectoryUrl(entryUrl)
   const files = entry.files ?? ['SKILL.md']
   if (files.length > 2000) throw new Error(`${entry.name}: more than 2000 files`)
+  // Resolve every URL first, so an entry that leaves the index origin fetches nothing.
+  const urls = files.map(file => [file, resolveUrl(directory, file)] as const)
   let bytesTotal = 0
-  for (const file of files) {
-    const url = resolveUrl(directory, file)
+  for (const [file, url] of urls) {
     const { bytes } = await fetchBytes(url, MAX_ARCHIVE_BYTES, DOWNLOAD_TIMEOUT_MS, fetchImpl, options.signal)
     bytesTotal += bytes.byteLength
     if (bytesTotal > MAX_ARCHIVE_BYTES) throw new Error(`${entry.name} is larger than ${String(MAX_ARCHIVE_BYTES)} bytes`)
@@ -279,8 +280,16 @@ function childPath(path: string, file: string): string {
   return path === '.' ? file : `${path}/${file}`
 }
 
+/**
+ * Resolve an entry path against the index URL. A path such as
+ * `https:host/file` or `data:…` is relative to the parser but names another
+ * origin, so the result must keep the origin of the index.
+ */
 function resolveUrl(base: string, path: string): string {
-  return new URL(path === '.' ? '' : path, base).href
+  const origin = new URL(base).origin
+  const url = new URL(path === '.' ? '' : path, base)
+  if (url.origin !== origin) throw new Error(`${path} leaves ${origin}, the origin of the index`)
+  return url.href
 }
 
 /** Ensure a file URL is treated as a directory base for relative files. */
