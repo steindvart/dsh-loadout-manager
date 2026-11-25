@@ -92,14 +92,14 @@ export function ChevronIcon(): ReactNode {
   )
 }
 
-/** The sidebar entry glyph: a backpack, matching the plugin icon. */
+/** The sidebar entry glyph: three sliders set to on, manual, and off, matching the plugin icon. */
 export function LoadoutIcon({ size = 16 }: { size?: number }): ReactNode {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" {...iconProps}>
-      <path d="M6.5 3.5V3a1.5 1.5 0 0 1 3 0v.5" />
-      <rect x={3} y={3.5} width={10} height={10.5} rx={3} />
-      <path d="M3 7.5c1.5.8 3.2 1.2 5 1.2s3.5-.4 5-1.2" />
-      <rect x={5.5} y={10} width={5} height={2.5} rx={0.8} />
+      <path d="M2.5 4h6.3M12.2 4h1.3M2.5 8h3.3M9.2 8h4.3M6.2 12h7.3" />
+      <circle cx={10.5} cy={4} r={1.7} />
+      <circle cx={7.5} cy={8} r={1.7} />
+      <circle cx={4.5} cy={12} r={1.7} />
     </svg>
   )
 }
