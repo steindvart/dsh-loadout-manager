@@ -1,6 +1,6 @@
 # Loadout Manager
 
-[English](README.md) | Русский | [中文](README_ZH.md)
+[English](https://github.com/steindvart/dsh-loadout-manager/blob/main/README.md) | Русский | [中文](https://github.com/steindvart/dsh-loadout-manager/blob/main/README_ZH.md)
 
 Плагин для DeepSeek Harness (DSH). В стандартном DSH нельзя на одной странице посмотреть, какие скиллы и MCP-серверы доступны глобально и в конкретном проекте, и нет механизма правил (rules). Loadout Manager добавляет и то и другое: показывает скиллы и MCP-серверы по уровням, позволяет ими управлять и подключает правила в контекст агента рядом с AGENTS.md.
 
@@ -65,11 +65,11 @@
 
 ```sh
 npm install
-npm run check   # типы, сборка lib/ и тесты
+npm run check   # линт, типы, сборка lib/ и тесты
 ```
 
-Устройство плагина описано в [docs/SPEC.md](docs/SPEC.md), заметки об API DSH лежат в [docs/research/](docs/research/). Документация написана на английском.
+Устройство плагина описано в [docs/SPEC.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/SPEC.md), заметки об API DSH лежат в [docs/research/](https://github.com/steindvart/dsh-loadout-manager/tree/main/docs/research). Документация написана на английском.
 
 ## Лицензия
 
-MIT, см. [LICENSE](LICENSE).
+MIT, см. [LICENSE](https://github.com/steindvart/dsh-loadout-manager/blob/main/LICENSE).

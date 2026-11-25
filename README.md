@@ -1,6 +1,6 @@
 # Loadout Manager
 
-English | [Русский](README_RU.md) | [中文](README_ZH.md)
+English | [Русский](https://github.com/steindvart/dsh-loadout-manager/blob/main/README_RU.md) | [中文](https://github.com/steindvart/dsh-loadout-manager/blob/main/README_ZH.md)
 
 A plugin for DeepSeek Harness (DSH). Stock DSH has no single page that shows which skills and MCP servers are available globally and in a given project, and it has no rules mechanism. Loadout Manager adds both: it shows skills and MCP servers by level, lets you manage them, and adds rules to the agent context next to AGENTS.md.
 
@@ -65,11 +65,11 @@ Requires Node 24 or newer.
 
 ```sh
 npm install
-npm run check   # types, lib/ build, and tests
+npm run check   # lint, types, lib/ build, and tests
 ```
 
-The plugin design is described in [docs/SPEC.md](docs/SPEC.md), and notes on the DSH API are in [docs/research/](docs/research/).
+The plugin design is described in [docs/SPEC.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/SPEC.md), and notes on the DSH API are in [docs/research/](https://github.com/steindvart/dsh-loadout-manager/tree/main/docs/research).
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](https://github.com/steindvart/dsh-loadout-manager/blob/main/LICENSE).

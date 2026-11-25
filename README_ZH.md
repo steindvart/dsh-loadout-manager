@@ -1,6 +1,6 @@
 # Loadout Manager
 
-[English](README.md) | [Русский](README_RU.md) | 中文
+[English](https://github.com/steindvart/dsh-loadout-manager/blob/main/README.md) | [Русский](https://github.com/steindvart/dsh-loadout-manager/blob/main/README_RU.md) | 中文
 
 DeepSeek Harness（DSH）插件。原版 DSH 没有一个页面能同时查看全局和某个项目中可用的技能（skill）与 MCP 服务器，也没有规则（rules）机制。Loadout Manager 补上了这两点：按层级展示技能和 MCP 服务器，提供管理功能，并把规则加入智能体上下文，与 AGENTS.md 并列。
 
@@ -67,11 +67,11 @@ DeepSeek Harness（DSH）插件。原版 DSH 没有一个页面能同时查看�
 
 ```sh
 npm install
-npm run check   # 类型检查、构建 lib/ 并运行测试
+npm run check   # 代码检查、类型检查、构建 lib/ 并运行测试
 ```
 
-插件设计见 [docs/SPEC.md](docs/SPEC.md)，DSH API 笔记见 [docs/research/](docs/research/)。文档为英文。
+插件设计见 [docs/SPEC.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/SPEC.md)，DSH API 笔记见 [docs/research/](https://github.com/steindvart/dsh-loadout-manager/tree/main/docs/research)。文档为英文。
 
 ## 许可证
 
-MIT，见 [LICENSE](LICENSE)。
+MIT，见 [LICENSE](https://github.com/steindvart/dsh-loadout-manager/blob/main/LICENSE)。

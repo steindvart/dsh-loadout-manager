@@ -6,6 +6,14 @@
   "type": "module",
   "license": "MIT",
   "author": "Ivan Kalashnikov",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/steindvart/dsh-loadout-manager.git"
+  },
+  "homepage": "https://github.com/steindvart/dsh-loadout-manager#readme",
+  "bugs": {
+    "url": "https://github.com/steindvart/dsh-loadout-manager/issues"
+  },
   "main": "./lib/index.js",
   "exports": {
     ".": "./lib/index.js",
