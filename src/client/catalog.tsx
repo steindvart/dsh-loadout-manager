@@ -149,6 +149,7 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
           </button>
         </div>
         <p className={css.note}>{t('catalogSourcesNote')}</p>
+        {view !== undefined ? <div className={css.mono}>{t('catalogSourcesFile', { path: view.sourcesPath })}</div> : null}
         <div className={css.list}>
           {sources.length === 0
             ? <div className={css.empty}>{t('catalogNoSources')}</div>
@@ -163,7 +164,9 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
                     {source.description !== undefined ? <div className={css.desc} title={source.description}>{source.description}</div> : null}
                     <div className={css.mono}>{source.source}</div>
                     <div className={css.catalogMeta}>
-                      <span>{source.fetchedAt === undefined ? t('catalogNeverRead') : t('catalogFetched', { time: formatTime(source.fetchedAt) })}</span>
+                      {source.fetchedAt === undefined
+                        ? source.error === undefined ? <span>{t('catalogNeverRead')}</span> : null
+                        : <span>{t('catalogFetched', { time: formatTime(source.fetchedAt) })}</span>}
                       <span>{t('catalogItems', { count: source.itemCount })}</span>
                     </div>
                     {source.error !== undefined ? <div className={css.error} role="alert">{source.error}</div> : null}
@@ -229,8 +232,8 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
         {loading && view === undefined
           ? <div className={css.empty} role="status">{t('catalogLoading')}</div>
           : null}
-        {entries.length === 0
-          ? <div className={css.empty}>{query.trim() !== '' ? t('catalogNoMatches') : sources.length === 0 ? t('catalogNoSources') : t('catalogEmpty')}</div>
+        {entries.length === 0 && sources.length > 0
+          ? <div className={css.empty}>{query.trim() !== '' ? t('catalogNoMatches') : t('catalogEmpty')}</div>
           : [...groups].map(([source, items]) => (
             <section key={source} className={css.group}>
               <div className={css.groupHead}>
