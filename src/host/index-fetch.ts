@@ -9,10 +9,12 @@ import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { promisify } from 'node:util'
+import { gunzip } from 'node:zlib'
 import { INDEX_FILE, parseIndexDocument, type IndexSkillEntry } from './index-doc.ts'
 import type { IndexSource } from './index-sources.ts'
 import {
-  MAX_ARCHIVE_BYTES, MAX_INDEX_BYTES, MAX_RULE_BYTES, cacheDir, cacheFile, copySkillTree, digestFile, digestTree,
+  MAX_ARCHIVE_BYTES, MAX_INDEX_BYTES, MAX_RULE_BYTES, MAX_SKILL_BYTES, MAX_SKILL_FILES, cacheDir, cacheFile, copySkillTree, digestFile, digestTree,
   readBytes, readCache, readTextFile, removeDirectory, repoDir, resolveEntry, within, writeCache,
   type CachedIndex, type CachedRule, type CachedSkill,
 } from './index-store.ts'
@@ -22,6 +24,9 @@ const DOWNLOAD_TIMEOUT_MS = 30_000
 const GIT_TIMEOUT_MS = 60_000
 const GIT_MAX_BUFFER = 16 * 1024 * 1024
 const ARCHIVE_EXTENSIONS = ['.tar.gz', '.tgz', '.zip']
+/** A tar stream adds headers and padding to the files it holds; this leaves room for them. */
+const MAX_TAR_BYTES = MAX_SKILL_BYTES + 4 * 1024 * 1024
+const gunzipAsync = promisify(gunzip)
 
 export interface FetchOptions {
   dshHome: string
@@ -195,7 +200,7 @@ async function stageHttpSkill(cache: CachedIndex, entry: IndexSkillEntry, option
   const base = cache.base ?? cache.source
   const entryUrl = resolveUrl(base, entry.path)
   if (ARCHIVE_EXTENSIONS.some(extension => new URL(entryUrl).pathname.toLowerCase().endsWith(extension))) {
-    await stageArchive(entryUrl, options, staging)
+    await stageArchive(cache, entryUrl, options, staging)
     return
   }
   const directory = entry.path === '.' ? new URL('.', base).href : ensureDirectoryUrl(entryUrl)
@@ -215,30 +220,61 @@ async function stageHttpSkill(cache: CachedIndex, entry: IndexSkillEntry, option
   if (!existsSync(join(staging, 'SKILL.md'))) throw new Error(`${entry.name}: the source did not provide SKILL.md`)
 }
 
-async function stageArchive(url: string, options: FetchOptions, staging: string): Promise<void> {
+/**
+ * Unpack an archived skill. Sizes and member counts are checked before
+ * extraction: a gzip stream is inflated in memory through a limit, and a zip
+ * is measured from its central directory, so an archive that expands far
+ * beyond the skill limits never reaches the disk.
+ */
+async function stageArchive(cache: CachedIndex, url: string, options: FetchOptions, staging: string): Promise<void> {
   const fetchImpl = options.fetchImpl ?? fetch
   const { bytes } = await fetchBytes(url, MAX_ARCHIVE_BYTES, DOWNLOAD_TIMEOUT_MS, fetchImpl, options.signal)
-  const parent = join(cacheDir(options.dshHome, url), 'tmp')
+  const parent = join(cacheDir(options.dshHome, cache.source), 'tmp')
   await mkdir(parent, { recursive: true })
   const temp = await mkdtemp(join(parent, 'archive-'))
   try {
-    const archive = join(temp, 'archive')
-    await writeFile(archive, bytes)
+    const zip = new URL(url).pathname.toLowerCase().endsWith('.zip')
+    const archive = join(temp, zip ? 'archive.zip' : 'archive.tar')
+    await writeFile(archive, zip ? bytes : await inflate(bytes))
     const extracted = join(temp, 'extracted')
     await mkdir(extracted)
-    const zip = new URL(url).pathname.toLowerCase().endsWith('.zip')
     const entries = await listArchive(archive, zip, options.signal)
     if (entries.some(entry => !safeArchivePath(entry))) throw new Error('the archive contains an unsafe path')
+    if (entries.filter(entry => !entry.endsWith('/')).length > MAX_SKILL_FILES) {
+      throw new Error(`the archive has more than ${String(MAX_SKILL_FILES)} files`)
+    }
     if (zip) {
+      const unpacked = await zipUnpackedBytes(archive, options.signal)
+      if (unpacked > MAX_SKILL_BYTES) throw new Error(`the archive unpacks to more than ${String(MAX_SKILL_BYTES)} bytes`)
       await runTool('unzip', ['-q', '-o', archive, '-d', extracted], options.signal)
     } else {
-      await runTool('tar', ['-xzf', archive, '-C', extracted, '--no-same-owner', '--no-same-permissions'], options.signal)
+      await runTool('tar', ['-xf', archive, '-C', extracted, '--no-same-owner', '--no-same-permissions'], options.signal)
     }
     const root = await skillRoot(extracted)
     await copySkillTree(root, staging)
   } finally {
     await removeDirectory(temp)
   }
+}
+
+/** Inflate a gzip stream, refusing one that grows past `MAX_TAR_BYTES`. */
+async function inflate(bytes: Uint8Array): Promise<Buffer> {
+  try {
+    return await gunzipAsync(bytes, { maxOutputLength: MAX_TAR_BYTES })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ERR_BUFFER_TOO_LARGE') {
+      throw new Error(`the archive unpacks to more than ${String(MAX_SKILL_BYTES)} bytes`, { cause: error })
+    }
+    throw new Error(`the archive is not a gzip stream: ${messageOf(error)}`, { cause: error })
+  }
+}
+
+/** Total uncompressed size from the zip central directory (`unzip -Zt`). */
+async function zipUnpackedBytes(archive: string, signal?: AbortSignal): Promise<number> {
+  const summary = await runTool('unzip', ['-Zt', archive], signal)
+  const match = /(\d+) bytes uncompressed/.exec(summary)
+  if (match === null) throw new Error(`could not read the size of the archive: ${summary.trim()}`)
+  return Number(match[1])
 }
 
 /** The archive root holding SKILL.md: itself, or its single top-level directory. */
@@ -389,7 +425,7 @@ function runTool(command: string, args: readonly string[], signal?: AbortSignal)
 
 /** Archive member names, read before extraction so a `../` entry never reaches the disk. */
 function listArchive(archive: string, zip: boolean, signal?: AbortSignal): Promise<string[]> {
-  return runTool(zip ? 'unzip' : 'tar', zip ? ['-Z1', archive] : ['-tzf', archive], signal)
+  return runTool(zip ? 'unzip' : 'tar', zip ? ['-Z1', archive] : ['-tf', archive], signal)
     .then(stdout => stdout.split('\n').map(line => line.trim()).filter(line => line !== ''))
 }
 

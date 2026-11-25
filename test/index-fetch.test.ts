@@ -1,14 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { mkdtempSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { rm, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { isStale, refreshSource, ruleContent, scanGitCheckout, stageSkill } from '../src/host/index-fetch.ts'
 import { classifySource } from '../src/host/index-sources.ts'
-import { cacheFile, digestTree, readCache, repoDir } from '../src/host/index-store.ts'
+import { MAX_SKILL_BYTES, MAX_SKILL_FILES, cacheDir, cacheFile, digestTree, readCache, repoDir } from '../src/host/index-store.ts'
 
 function tree(files: Record<string, string>): string {
   const base = mkdtempSync(join(tmpdir(), 'loadout-fetch-'))
@@ -232,6 +232,56 @@ test('stages a skill from a .tar.gz served by an HTTP index', async (t) => {
   await stageSkill(cache, cache.skills[0]!, { dshHome: join(base, 'home') }, staging)
   assert.match(await readFile(join(staging, 'SKILL.md'), 'utf8'), /name: archived/)
   assert.equal(await readFile(join(staging, 'refs/notes.md'), 'utf8'), 'Archived notes')
+})
+
+/** Serve `/index.json` with one archived skill and the archive bytes under `/archives/<name>`. */
+async function archiveServer(name: string, archive: Buffer): Promise<Server> {
+  return await listen((request, response) => {
+    if (request.url === '/index.json') {
+      response.writeHead(200, { 'content-type': 'application/json' }).end(index([{ name: 'archived', path: `archives/${name}` }]))
+    } else if (request.url === `/archives/${name}`) {
+      response.writeHead(200).end(archive)
+    } else {
+      response.writeHead(404).end()
+    }
+  })
+}
+
+test('archives are checked against the skill limits before they are unpacked', async (t) => {
+  const base = tree({ 'big/SKILL.md': skillFile('archived'), 'many/SKILL.md': skillFile('archived'), 'zipped/SKILL.md': skillFile('archived') })
+  t.after(() => rm(base, { recursive: true, force: true }))
+  writeFileSync(join(base, 'big/zeros.bin'), Buffer.alloc(MAX_SKILL_BYTES + 5 * 1024 * 1024))
+  for (let index = 0; index < MAX_SKILL_FILES; index += 1) writeFileSync(join(base, `many/f${String(index)}.md`), '')
+  execFileSync('tar', ['-czf', join(base, 'big.tgz'), '-C', base, 'big'])
+  execFileSync('tar', ['-czf', join(base, 'many.tgz'), '-C', base, 'many'])
+  execFileSync('zip', ['-qr', join(base, 'big.zip'), 'big'], { cwd: base })
+  execFileSync('zip', ['-qr', join(base, 'zipped.zip'), 'zipped'], { cwd: base })
+  const dshHome = join(base, 'home')
+
+  const cases: Array<[string, RegExp | undefined]> = [
+    ['big.tgz', /unpacks to more than/],
+    ['many.tgz', /more than 2000 files/],
+    ['big.zip', /unpacks to more than/],
+    ['zipped.zip', undefined],
+  ]
+  for (const [name, failure] of cases) {
+    const server = await archiveServer(name, readFileSync(join(base, name)))
+    try {
+      const source = classifySource(`${urlOf(server)}/index.json`)
+      const cache = await refreshSource(source, { dshHome })
+      const staging = join(base, `staging-${name}`)
+      if (failure === undefined) {
+        await stageSkill(cache, cache.skills[0]!, { dshHome }, staging)
+        assert.match(await readFile(join(staging, 'SKILL.md'), 'utf8'), /name: archived/)
+      } else {
+        await assert.rejects(stageSkill(cache, cache.skills[0]!, { dshHome }, staging), failure)
+      }
+      assert.deepEqual(readdirSync(join(cacheDir(dshHome, source.id), 'tmp')), [], 'unpacked files are removed')
+      assert.equal(existsSync(cacheDir(dshHome, `${urlOf(server)}/archives/${name}`)), false, 'no cache directory per archive URL')
+    } finally {
+      await close(server)
+    }
+  }
 })
 
 test('a failed HTTP read reports its status and keeps the source usable', async (t) => {
