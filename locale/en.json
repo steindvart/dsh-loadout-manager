@@ -2,6 +2,6 @@
   "meta": {
     "title": "Loadout Manager",
     "description": "Shows skills and MCP servers globally and per project, lets you manage them, and adds rules to the agent context next to AGENTS.md.",
-    "detail": "assets/DETAIL.md"
+    "detail": "README.md"
   }
 }

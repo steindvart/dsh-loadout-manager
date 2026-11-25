@@ -2,6 +2,6 @@
   "meta": {
     "title": "Loadout Manager",
     "description": "Показывает скиллы и MCP-серверы глобально и по проектам, позволяет ими управлять и подключает правила в контекст агента рядом с AGENTS.md.",
-    "detail": "assets/DETAIL.ru.md"
+    "detail": "README_RU.md"
   }
 }
