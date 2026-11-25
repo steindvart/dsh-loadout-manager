@@ -7,13 +7,13 @@
 
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { INDEX_FILE, parseIndexDocument, type IndexSkillEntry } from './index-doc.ts'
 import type { IndexSource } from './index-sources.ts'
 import {
   MAX_ARCHIVE_BYTES, MAX_INDEX_BYTES, MAX_RULE_BYTES, cacheDir, cacheFile, copySkillTree, digestFile, digestTree,
-  readCache, readTextFile, removeDirectory, repoDir, within, writeCache,
+  readBytes, readCache, readTextFile, removeDirectory, repoDir, resolveEntry, within, writeCache,
   type CachedIndex, type CachedRule, type CachedSkill,
 } from './index-store.ts'
 
@@ -80,19 +80,31 @@ async function refreshGit(source: IndexSource, { dshHome }: FetchOptions): Promi
     await git(['reset', '--hard', '--quiet', 'FETCH_HEAD'], dir)
     await git(['clean', '-fdq'], dir)
   }
+  return await scanGitCheckout(source, dir)
+}
+
+/**
+ * Read the index of a checked-out clone at its HEAD: entry ids come from the
+ * git tree, so a symbolic link is refused even before it reaches the disk.
+ */
+export async function scanGitCheckout(source: IndexSource, dir: string): Promise<CachedIndex> {
   const commit = (await git(['rev-parse', 'HEAD'], dir)).trim()
   const text = await readTextFile(join(dir, INDEX_FILE), MAX_INDEX_BYTES)
   const document = parseIndexDocument(text, `${source.id}/${INDEX_FILE}`)
   const skills: CachedSkill[] = []
   for (const entry of document.skills) {
-    const oid = await treeId(dir, entry.path)
-    if (!await existsAt(dir, entry.path, 'SKILL.md')) throw new Error(`${source.id}: ${entry.path}/SKILL.md is missing`)
-    skills.push({ ...entry, oid })
+    const item = await treeEntry(dir, entry.path)
+    if (item.type !== 'tree') throw new Error(`${source.id}: ${notTree(entry.path, item.mode)}`)
+    const skillFile = await treeEntry(dir, childPath(entry.path, 'SKILL.md'))
+    if (skillFile.type !== 'blob' || skillFile.mode === SYMLINK_MODE) throw new Error(`${source.id}: ${childPath(entry.path, 'SKILL.md')} is not a regular file`)
+    skills.push({ ...entry, oid: item.oid })
   }
   const rules: CachedRule[] = []
   for (const entry of document.rules) {
-    const oid = await blobId(dir, entry.path)
-    rules.push({ ...entry, oid })
+    const item = await treeEntry(dir, entry.path)
+    if (item.mode === SYMLINK_MODE) throw new Error(`${source.id}: ${entry.path} is a symbolic link; index entries may not be links`)
+    if (item.type !== 'blob') throw new Error(`${source.id}: ${entry.path} is not a file in the source`)
+    rules.push({ ...entry, oid: item.oid })
   }
   return {
     format: 1,
@@ -108,22 +120,18 @@ async function refreshGit(source: IndexSource, { dshHome }: FetchOptions): Promi
 }
 
 async function refreshLocal(source: IndexSource): Promise<CachedIndex> {
-  const info = await stat(source.id)
-  if (!info.isDirectory()) throw new Error(`${source.id} is not a directory`)
+  await resolveEntry(source.id, '.', 'directory')
   const text = await readTextFile(join(source.id, INDEX_FILE), MAX_INDEX_BYTES)
   const document = parseIndexDocument(text, `${source.id}/${INDEX_FILE}`)
   const skills: CachedSkill[] = []
   for (const entry of document.skills) {
-    const dir = within(source.id, entry.path)
-    if (!(await stat(dir)).isDirectory()) throw new Error(`${entry.path} is not a directory`)
-    if (!await existsAt(dir, '.', 'SKILL.md')) throw new Error(`${entry.path}/SKILL.md is missing`)
+    const dir = await resolveEntry(source.id, entry.path, 'directory')
+    await resolveEntry(source.id, childPath(entry.path, 'SKILL.md'), 'file')
     skills.push({ ...entry, digest: await digestTree(dir) })
   }
   const rules: CachedRule[] = []
   for (const entry of document.rules) {
-    const file = within(source.id, entry.path)
-    if (!(await stat(file)).isFile()) throw new Error(`${entry.path} is not a file`)
-    rules.push({ ...entry, digest: await digestFile(file) })
+    rules.push({ ...entry, digest: await digestFile(await resolveEntry(source.id, entry.path, 'file')) })
   }
   return {
     format: 1,
@@ -159,11 +167,11 @@ export async function stageSkill(cache: CachedIndex, entry: CachedSkill, options
   if (cache.kind === 'git') {
     const dir = repoDir(options.dshHome, cache.source)
     await assertHead(dir, cache)
-    await copySkillTree(within(dir, entry.path), staging)
+    await copySkillTree(await resolveEntry(dir, entry.path, 'directory'), staging)
     return
   }
   if (cache.kind === 'local') {
-    await copySkillTree(within(cache.source, entry.path), staging)
+    await copySkillTree(await resolveEntry(cache.source, entry.path, 'directory'), staging)
     return
   }
   await stageHttpSkill(cache, entry, options, staging)
@@ -174,16 +182,11 @@ export async function ruleContent(cache: CachedIndex, entry: CachedRule, options
   if (cache.kind === 'git') {
     const dir = repoDir(options.dshHome, cache.source)
     await assertHead(dir, cache)
-    return bounded(await readFile(within(dir, entry.path)), entry.path)
+    return await readBytes(await resolveEntry(dir, entry.path, 'file'), MAX_RULE_BYTES)
   }
-  if (cache.kind === 'local') return bounded(await readFile(within(cache.source, entry.path)), entry.path)
+  if (cache.kind === 'local') return await readBytes(await resolveEntry(cache.source, entry.path, 'file'), MAX_RULE_BYTES)
   const base = cache.base ?? cache.source
   const { bytes } = await fetchBytes(resolveUrl(base, entry.path), MAX_RULE_BYTES, DOWNLOAD_TIMEOUT_MS, options.fetchImpl ?? fetch, options.signal)
-  return bytes
-}
-
-function bounded(bytes: Uint8Array, path: string): Uint8Array {
-  if (bytes.byteLength > MAX_RULE_BYTES) throw new Error(`${path} is larger than ${String(MAX_RULE_BYTES)} bytes`)
   return bytes
 }
 
@@ -256,27 +259,24 @@ async function assertHead(repo: string, cache: CachedIndex): Promise<void> {
   if (head !== cache.commit) throw new Error('the cached clone changed; refresh the source and try again')
 }
 
-async function treeId(repo: string, path: string): Promise<string> {
-  const oid = (await git(path === '.' ? ['rev-parse', '--verify', '--quiet', 'HEAD^{tree}'] : ['rev-parse', '--verify', '--quiet', `HEAD:${path}`], repo)).trim()
-  const type = (await git(['cat-file', '-t', oid], repo)).trim()
-  if (type !== 'tree') throw new Error(`${path} is not a directory in the source`)
-  return oid
+const SYMLINK_MODE = '120000'
+
+/** Mode, object type, and id of one path at HEAD, as `git ls-tree` reports it. */
+async function treeEntry(repo: string, path: string): Promise<{ mode: string, type: string, oid: string }> {
+  // `HEAD:` alone is not a valid tree expression, so the root tree is asked for directly.
+  if (path === '.') return { mode: '040000', type: 'tree', oid: (await git(['rev-parse', '--verify', 'HEAD^{tree}'], repo)).trim() }
+  const line = (await git(['ls-tree', '-z', 'HEAD', '--', path], repo)).split('\0')[0] ?? ''
+  const match = /^(\d+) (\w+) ([0-9a-f]+)\t(.*)$/s.exec(line)
+  if (match?.[4] !== path) throw new Error(`${path} is missing in the source`)
+  return { mode: match[1] ?? '', type: match[2] ?? '', oid: match[3] ?? '' }
 }
 
-async function blobId(repo: string, path: string): Promise<string> {
-  const oid = (await git(['rev-parse', '--verify', '--quiet', `HEAD:${path}`], repo)).trim()
-  const type = (await git(['cat-file', '-t', oid], repo)).trim()
-  if (type !== 'blob') throw new Error(`${path} is not a file in the source`)
-  return oid
+function notTree(path: string, mode: string): string {
+  return mode === SYMLINK_MODE ? `${path} is a symbolic link; index entries may not be links` : `${path} is not a directory in the source`
 }
 
-/** `HEAD:` alone is not a valid tree expression; a directory path resolves to its tree. */
-async function existsAt(root: string, path: string, file: string): Promise<boolean> {
-  try {
-    return (await stat(join(within(root, path), file))).isFile()
-  } catch {
-    return false
-  }
+function childPath(path: string, file: string): string {
+  return path === '.' ? file : `${path}/${file}`
 }
 
 function resolveUrl(base: string, path: string): string {
@@ -360,6 +360,7 @@ function gitEnv(): NodeJS.ProcessEnv {
     SSH_ASKPASS: '',
     GIT_SSH_COMMAND: env.GIT_SSH_COMMAND ?? 'ssh -o BatchMode=yes',
     GIT_LFS_SKIP_SMUDGE: '1',
+    GIT_LITERAL_PATHSPECS: '1',
     LC_ALL: 'C',
   }
 }

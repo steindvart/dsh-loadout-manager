@@ -5,8 +5,8 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
-  cacheFile, compareVersions, copySkillTree, digestFile, digestTree, installKey, installedFile, readCache, readInstalled,
-  updateAvailable, within, writeCache, writeInstalled, type CachedSkill, type InstalledItem,
+  cacheFile, compareVersions, copySkillTree, digestFile, digestTree, installKey, installedFile, readBytes, readCache, readInstalled,
+  resolveEntry, updateAvailable, within, writeCache, writeInstalled, type CachedSkill, type InstalledItem,
 } from '../src/host/index-store.ts'
 
 function tree(files: Record<string, string>): string {
@@ -121,4 +121,33 @@ test('cache files round-trip and a malformed cache reads as absent', async (t) =
 test('within refuses a path that escapes its root', () => {
   assert.equal(within('/a/b', 'c/d'), '/a/b/c/d')
   assert.throws(() => within('/a/b', '../c'), /escapes/)
+})
+
+test('resolveEntry refuses links and paths whose real location leaves the root', async (t) => {
+  const base = tree({ 'root/rules/ok.md': 'ok', 'root/skills/a/SKILL.md': 's', 'secret.md': 'secret', 'outside/SKILL.md': 's' })
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const root = join(base, 'root')
+  symlinkSync(join(base, 'secret.md'), join(root, 'rules/leak.md'))
+  symlinkSync('ok.md', join(root, 'rules/alias.md'))
+  symlinkSync(join(base, 'outside'), join(root, 'skills/linked'))
+  symlinkSync(join(base, 'outside'), join(root, 'via'))
+  assert.equal(await resolveEntry(root, 'rules/ok.md', 'file'), join(root, 'rules/ok.md'))
+  assert.equal(await resolveEntry(root, 'skills/a', 'directory'), join(root, 'skills/a'))
+  assert.equal(await resolveEntry(root, '.', 'directory'), root)
+  await assert.rejects(resolveEntry(root, 'rules/leak.md', 'file'), /symbolic link/)
+  await assert.rejects(resolveEntry(root, 'rules/alias.md', 'file'), /symbolic link/)
+  await assert.rejects(resolveEntry(root, 'skills/linked', 'directory'), /symbolic link/)
+  await assert.rejects(resolveEntry(root, 'via/SKILL.md', 'file'), /outside the source/)
+  await assert.rejects(resolveEntry(root, 'rules', 'file'), /not a file/)
+  await assert.rejects(resolveEntry(root, 'rules/ok.md', 'directory'), /not a directory/)
+  await assert.rejects(resolveEntry(root, 'rules/missing.md', 'file'), /ENOENT/)
+})
+
+test('readBytes enforces its limit and refuses a link', async (t) => {
+  const base = tree({ 'small.md': 'abc', 'large.md': 'x'.repeat(10) })
+  t.after(() => rm(base, { recursive: true, force: true }))
+  symlinkSync(join(base, 'small.md'), join(base, 'link.md'))
+  assert.equal(Buffer.from(await readBytes(join(base, 'small.md'), 5)).toString('utf8'), 'abc')
+  await assert.rejects(readBytes(join(base, 'large.md'), 5), /larger than 5 bytes/)
+  await assert.rejects(readBytes(join(base, 'link.md'), 5), /symbolic link/)
 })

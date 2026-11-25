@@ -5,8 +5,8 @@
  */
 
 import { createHash } from 'node:crypto'
-import { chmod, copyFile, mkdir, readFile, readdir, readlink, rename, rm, stat, writeFile } from 'node:fs/promises'
-import { dirname, join, resolve, sep } from 'node:path'
+import { chmod, copyFile, lstat, mkdir, readFile, readdir, readlink, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { basename, dirname, join, resolve, sep } from 'node:path'
 import { INDEX_FILE, type IndexRuleEntry, type IndexSkillEntry } from './index-doc.ts'
 import type { IndexSourceKind } from './index-sources.ts'
 
@@ -103,10 +103,37 @@ export function installedFile(agentsHome: string, projectRoot?: string): string 
     : resolve(projectRoot, '.agents', INSTALLED_DIR, INSTALLED_FILE)
 }
 
-export async function readTextFile(path: string, maxBytes: number): Promise<string> {
-  const info = await stat(path)
+/** Read a regular file through a size limit; a symbolic link is refused, not followed. */
+export async function readBytes(path: string, maxBytes: number): Promise<Uint8Array> {
+  const info = await lstat(path)
+  if (info.isSymbolicLink()) throw new Error(`${basename(path)} is a symbolic link; index files may not be links`)
+  if (!info.isFile()) throw new Error(`${basename(path)} is not a regular file`)
   if (info.size > maxBytes) throw new Error(`${path} is larger than ${String(maxBytes)} bytes`)
-  return readFile(path, 'utf8')
+  const bytes = await readFile(path)
+  if (bytes.byteLength > maxBytes) throw new Error(`${path} is larger than ${String(maxBytes)} bytes`)
+  return bytes
+}
+
+export async function readTextFile(path: string, maxBytes: number): Promise<string> {
+  return Buffer.from(await readBytes(path, maxBytes)).toString('utf8')
+}
+
+/**
+ * Resolve an entry path inside a source checkout. The entry may not be a
+ * symbolic link, and its real location must stay under the root's real
+ * location, so a link in a parent directory cannot lead outside the source.
+ * @returns the entry path under `root`.
+ */
+export async function resolveEntry(root: string, path: string, expect: 'file' | 'directory'): Promise<string> {
+  const target = within(root, path)
+  if (target !== resolve(root) && (await lstat(target)).isSymbolicLink()) {
+    throw new Error(`${path} is a symbolic link; index entries may not be links`)
+  }
+  const [realRoot, realTarget] = await Promise.all([realpath(root), realpath(target)])
+  if (realTarget !== realRoot && !realTarget.startsWith(`${realRoot}${sep}`)) throw new Error(`${path} resolves outside the source`)
+  const info = await stat(realTarget)
+  if (expect === 'file' ? !info.isFile() : !info.isDirectory()) throw new Error(`${path} is not a ${expect}`)
+  return target
 }
 
 export async function readOptionalText(path: string): Promise<string | undefined> {

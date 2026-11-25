@@ -1,14 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { rm, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { isStale, refreshSource, ruleContent, stageSkill } from '../src/host/index-fetch.ts'
+import { isStale, refreshSource, ruleContent, scanGitCheckout, stageSkill } from '../src/host/index-fetch.ts'
 import { classifySource } from '../src/host/index-sources.ts'
-import { cacheFile, digestTree, readCache } from '../src/host/index-store.ts'
+import { cacheFile, digestTree, readCache, repoDir } from '../src/host/index-store.ts'
 
 function tree(files: Record<string, string>): string {
   const base = mkdtempSync(join(tmpdir(), 'loadout-fetch-'))
@@ -67,6 +67,81 @@ test('keeps the previous entries when a source breaks, and reports last-fetch ti
   assert.equal(second.skills.length, 1, 'the last good entries stay visible')
   assert.equal(second.fetchedAt, first.fetchedAt)
   assert.ok((second.checkedAt ?? 0) >= (first.checkedAt ?? 0))
+})
+
+test('a local source refuses entries that are links or lead outside it', async (t) => {
+  const base = tree({
+    'source/loadout-index.json': index([], [{ name: 'leak', path: 'rules/leak.md' }]),
+    'source/rules/ok.md': 'ok',
+    'secret.txt': 'private\n',
+    'outside/SKILL.md': skillFile('outside'),
+  })
+  t.after(() => rm(base, { recursive: true, force: true }))
+  symlinkSync(join(base, 'secret.txt'), join(base, 'source/rules/leak.md'))
+  const source = classifySource(join(base, 'source'))
+  const rule = await refreshSource(source, { dshHome: join(base, 'home') })
+  assert.match(rule.error ?? '', /rules\/leak\.md is a symbolic link/)
+  assert.deepEqual(rule.rules, [])
+
+  symlinkSync(join(base, 'outside'), join(base, 'source/skills'))
+  writeFileSync(join(base, 'source/loadout-index.json'), index([{ name: 'outside', path: 'skills' }]))
+  const skill = await refreshSource(source, { dshHome: join(base, 'home') })
+  assert.match(skill.error ?? '', /skills is a symbolic link/)
+
+  await rm(join(base, 'source/loadout-index.json'))
+  symlinkSync(join(base, 'secret.txt'), join(base, 'source/loadout-index.json'))
+  const linked = await refreshSource(source, { dshHome: join(base, 'home') })
+  assert.match(linked.error ?? '', /loadout-index\.json is a symbolic link/)
+  assert.doesNotMatch(linked.error ?? '', /private/)
+})
+
+test('reads a git checkout at a pinned commit, stages from it, and refuses links', async (t) => {
+  const base = tree({})
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const dshHome = join(base, 'home')
+  const source = classifySource('owner/repo')
+  const dir = repoDir(dshHome, source.id)
+  const files: Record<string, string> = {
+    'loadout-index.json': index(
+      [{ name: 'tdd', description: 'Test first.', path: 'skills/tdd' }],
+      [{ name: 'style', path: 'rules/style.md' }],
+    ),
+    'skills/tdd/SKILL.md': skillFile('tdd'),
+    'skills/tdd/refs/notes.md': 'Notes',
+    'rules/style.md': 'Short functions.\n',
+  }
+  for (const [path, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, path)), { recursive: true })
+    writeFileSync(join(dir, path), content)
+  }
+  const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: dir, encoding: 'utf8' })
+  git('init', '-q')
+  git('add', '.')
+  git('commit', '-qm', 'one')
+
+  const cache = await scanGitCheckout(source, dir)
+  assert.equal(cache.commit, git('rev-parse', 'HEAD').trim())
+  assert.equal(cache.skills[0]?.oid, git('rev-parse', 'HEAD:skills/tdd').trim())
+  assert.equal(cache.rules[0]?.oid, git('rev-parse', 'HEAD:rules/style.md').trim())
+  const staging = join(base, 'staging')
+  await stageSkill(cache, cache.skills[0]!, { dshHome }, staging)
+  assert.equal(await readFile(join(staging, 'refs/notes.md'), 'utf8'), 'Notes')
+  assert.equal(Buffer.from(await ruleContent(cache, cache.rules[0]!, { dshHome })).toString('utf8'), 'Short functions.\n')
+
+  writeFileSync(join(dir, 'rules/style.md'), 'Changed.\n')
+  git('commit', '-qam', 'two')
+  await assert.rejects(ruleContent(cache, cache.rules[0]!, { dshHome }), /cached clone changed/)
+  await assert.rejects(stageSkill(cache, cache.skills[0]!, { dshHome }, join(base, 'staging-2')), /cached clone changed/)
+
+  symlinkSync('../../../secret', join(dir, 'rules/leak.md'))
+  writeFileSync(join(dir, 'loadout-index.json'), index([], [{ name: 'leak', path: 'rules/leak.md' }]))
+  git('add', '.')
+  git('commit', '-qm', 'three')
+  await assert.rejects(scanGitCheckout(source, dir), /rules\/leak\.md is a symbolic link/)
+
+  writeFileSync(join(dir, 'loadout-index.json'), index([{ name: 'gone', path: 'skills/gone' }]))
+  git('commit', '-qam', 'four')
+  await assert.rejects(scanGitCheckout(source, dir), /skills\/gone is missing/)
 })
 
 test('refreshes an HTTP index and fetches a skill by its files list and a rule by its URL', async (t) => {
