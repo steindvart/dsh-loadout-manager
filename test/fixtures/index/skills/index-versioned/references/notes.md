@@ -3,4 +3,4 @@
 This file is part of the versioned fixture skill. Its presence checks that the
 catalog copies the whole skill directory, not only `SKILL.md`.
 
-Version: 2.3.1
+Version: 2.4.0

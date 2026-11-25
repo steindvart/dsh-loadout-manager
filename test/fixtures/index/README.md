@@ -1,8 +1,8 @@
 # Catalog fixture
 
 A local index used by `test/index-fixture.test.ts` and by a manual Catalog check.
-It lists two skills (`index-demo` 1.0.0, `index-versioned` 2.3.1) and two rules
-(`index-demo-rule` 1.0.0, `index-versioned-rule` 2.0.0).
+It lists two skills (`index-demo` 1.0.0, `index-versioned` 2.4.0) and two rules
+(`index-demo-rule` 1.0.0, `index-versioned-rule` 2.1.0).
 
 To try it in the running DSH, add this directory as a source on the Catalog tab.
 

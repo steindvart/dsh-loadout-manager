@@ -13,7 +13,7 @@
     {
       "name": "index-versioned",
       "description": "A skill with a reference file and a newer version.",
-      "version": "2.3.1",
+      "version": "2.4.0",
       "tags": ["test", "version"],
       "path": "skills/index-versioned"
     }
@@ -29,7 +29,7 @@
     {
       "name": "index-versioned-rule",
       "description": "A rule with a newer version.",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "tags": ["test", "version"],
       "path": "rules/index-versioned-rule.md"
     }
