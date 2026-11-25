@@ -130,7 +130,7 @@ export interface IndexInstallView {
   level: Level
   version?: string
   installedAt: number
-  /** The source lists newer content. */
+  /** The source lists newer content or a newer version. */
   updateAvailable: boolean
   /** The installed copy no longer matches the content that was installed. */
   modified: boolean

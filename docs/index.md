@@ -99,7 +99,7 @@ An install refuses to overwrite:
 
 A replacement is staged under `.loadout-manager/work`, outside the roots DSH scans, the old copy is renamed into `.loadout-manager/backups`, and only then does the new copy take its name. After a successful rename the old copy goes to the trash through `gio trash`. If the trash is unavailable, the new copy stays and the row names the leftover backup; nothing is deleted permanently.
 
-Updates compare the source revision: a git tree or blob id, a local digest, or, for HTTP, the entry version. An HTTP entry without a version has no update detection.
+An update is available when the source content changed (a git tree or blob id, a local digest) or when the index declares a newer `version` than the installed copy. Versions compare as SemVer when both parse, so `1.10.0` is newer than `1.9.0`; an unreadable pair falls back to plain inequality. A copy with no recorded version updates once the index gains one. HTTP entries have no digest, so their `version` is the only signal.
 
 Deleting an installed skill or rule from a Catalog row, or through the Skills or Instructions tab, also removes its provenance record, so the Catalog tab stops treating the path as managed. The Catalog button acts on the copy of the current scope; a copy installed in the other scope is removed from that scope's page.
 

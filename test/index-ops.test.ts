@@ -24,7 +24,7 @@ function setup(sourceFiles: Record<string, string>) {
   const base = tree({
     'source/loadout-index.json': index(
       [{ name: 'tdd', description: 'Test first.', path: 'skills/tdd' }],
-      [{ name: 'style', description: 'Short functions.', path: 'rules/style.md' }],
+      [{ name: 'style', description: 'Short functions.', version: '1.0.0', path: 'rules/style.md' }],
     ),
     'source/skills/tdd/SKILL.md': skillFile('tdd'),
     'source/skills/tdd/refs/notes.md': 'Notes',
@@ -86,6 +86,45 @@ test('installs a rule, detects a source update, and replaces the copy', async (t
   assert.equal(await readFile(join(homes.agentsHome, 'rules/style.md'), 'utf8'), '---\nname: Style\n---\nEven shorter.\n')
 })
 
+test('a newer index version marks a copy for update even when the files did not change', async (t) => {
+  const { base, homes, service } = setup({})
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const view = await service.addSource(join(base, 'source'), undefined)
+  const source = view.sources[0]!.source
+  await service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false })
+  await service.install({ source, kind: 'rule', name: 'style', projectRoot: undefined, force: false })
+
+  writeFileSync(join(base, 'source/loadout-index.json'), index(
+    [{ name: 'tdd', description: 'Test first.', version: '1.1.0', path: 'skills/tdd' }],
+    [{ name: 'style', description: 'Short functions.', version: '1.1.0', path: 'rules/style.md' }],
+  ))
+  await service.refresh(undefined, {})
+  const bumped = await service.state(undefined)
+  assert.deepEqual(bumped.entries.map(entry => [entry.name, entry.version, entry.installs[0]?.version, entry.installs[0]?.updateAvailable]), [
+    ['tdd', '1.1.0', '1.0.0', true],
+    ['style', '1.1.0', '1.0.0', true],
+  ])
+
+  const skill = await service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false })
+  assert.equal(skill.action, 'updated')
+  const rule = await service.install({ source, kind: 'rule', name: 'style', projectRoot: undefined, force: false })
+  assert.equal(rule.action, 'updated')
+  const updated = await service.state(undefined)
+  assert.deepEqual(updated.entries.map(entry => [entry.name, entry.installs[0]?.version, entry.installs[0]?.updateAvailable]), [
+    ['tdd', '1.1.0', false],
+    ['style', '1.1.0', false],
+  ])
+  assert.match(await readFile(join(homes.agentsHome, '.loadout-manager/installed.json'), 'utf8'), /"version": "1\.1\.0"/)
+
+  writeFileSync(join(base, 'source/loadout-index.json'), index(
+    [{ name: 'tdd', description: 'Test first.', version: '0.9.0', path: 'skills/tdd' }],
+    [{ name: 'style', description: 'Short functions.', version: '0.9.0', path: 'rules/style.md' }],
+  ))
+  await service.refresh(undefined, {})
+  const downgraded = await service.state(undefined)
+  assert.deepEqual(downgraded.entries.map(entry => [entry.name, entry.installs[0]?.updateAvailable]), [['tdd', false], ['style', false]])
+})
+
 test('refuses to overwrite local edits without force and replaces them with it', async (t) => {
   const { base, homes, service } = setup({})
   t.after(() => rm(base, { recursive: true, force: true }))
@@ -121,7 +160,7 @@ test('installs into a workspace, keeps the manifest there, and refuses an unmana
   writeFileSync(join(base, 'source/loadout-index.json'), index([
     { name: 'tdd', description: 'Test first.', path: 'skills/tdd' },
     { name: 'manual', description: 'Manual copy.', path: 'skills/manual' },
-  ], [{ name: 'style', description: 'Short functions.', path: 'rules/style.md' }]))
+  ], [{ name: 'style', description: 'Short functions.', version: '1.0.0', path: 'rules/style.md' }]))
   mkdirSync(join(base, 'source/skills/manual'), { recursive: true })
   writeFileSync(join(base, 'source/skills/manual/SKILL.md'), skillFile('manual'))
   await service.refresh(undefined, {})

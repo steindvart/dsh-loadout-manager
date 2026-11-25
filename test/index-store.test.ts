@@ -5,7 +5,7 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
-  cacheFile, copySkillTree, digestFile, digestTree, installKey, installedFile, readCache, readInstalled,
+  cacheFile, compareVersions, copySkillTree, digestFile, digestTree, installKey, installedFile, readCache, readInstalled,
   updateAvailable, within, writeCache, writeInstalled, type CachedSkill, type InstalledItem,
 } from '../src/host/index-store.ts'
 
@@ -53,19 +53,35 @@ test('copying a skill keeps modes and refuses symbolic links', async (t) => {
   await assert.rejects(copySkillTree(source, join(target, 'linked')), /symbolic link/)
 })
 
-test('updateAvailable compares the source revision, then the digest, then the version', () => {
+test('updateAvailable reacts to changed content and to a newer index version', () => {
   const item = (patch: Partial<InstalledItem>): InstalledItem => ({
     kind: 'skill', name: 'tdd', source: 'owner/repo', path: 'skills/tdd', digest: 'sha256:a', installedAt: 1, ...patch,
   })
   const entry = (patch: Partial<CachedSkill>): CachedSkill => ({
     name: 'tdd', description: undefined, version: undefined, tags: [], path: 'skills/tdd', files: undefined, ...patch,
   })
-  assert.equal(updateAvailable(item({ oid: 'tree-1' }), 'owner/repo', entry({ oid: 'tree-2' })), true)
-  assert.equal(updateAvailable(item({ oid: 'tree-1' }), 'owner/repo', entry({ oid: 'tree-1' })), false)
-  assert.equal(updateAvailable(item({ oid: undefined, digest: 'sha256:a' }), 'owner/repo', entry({ digest: 'sha256:b' })), true)
-  assert.equal(updateAvailable(item({ oid: undefined, digest: 'sha256:a' }), 'owner/repo', entry({ digest: 'sha256:a', version: '2' })), false)
-  assert.equal(updateAvailable(item({ oid: undefined, digest: undefined, version: '1' }), 'owner/repo', entry({ version: '2' })), true)
-  assert.equal(updateAvailable(item({ source: 'other/repo' }), 'owner/repo', entry({})), false)
+  assert.equal(updateAvailable(item({ oid: 'tree-1' }), 'owner/repo', entry({ oid: 'tree-2' })), true, 'a changed git tree')
+  assert.equal(updateAvailable(item({ oid: 'tree-1', version: '1.0.0' }), 'owner/repo', entry({ oid: 'tree-1', version: '2.0.0' })), true, 'a version bump with the same tree')
+  assert.equal(updateAvailable(item({ oid: 'tree-1', version: '2.0.0' }), 'owner/repo', entry({ oid: 'tree-1', version: '1.0.0' })), false, 'a downgrade with the same tree')
+  assert.equal(updateAvailable(item({ oid: undefined, digest: 'sha256:a' }), 'owner/repo', entry({ digest: 'sha256:b' })), true, 'changed local content')
+  assert.equal(updateAvailable(item({ oid: undefined, digest: 'sha256:a', version: '1.0.0' }), 'owner/repo', entry({ digest: 'sha256:a', version: '1.1.0' })), true, 'a version bump with the same local digest')
+  assert.equal(updateAvailable(item({ oid: undefined, digest: 'sha256:a', version: '2.0.0' }), 'owner/repo', entry({ digest: 'sha256:a', version: '1.9.0' })), false, 'a downgrade with the same local digest')
+  assert.equal(updateAvailable(item({ oid: undefined, digest: undefined, version: '1' }), 'owner/repo', entry({ version: '2' })), true, 'version-only HTTP entries')
+  assert.equal(updateAvailable(item({ oid: undefined, digest: undefined, version: '2' }), 'owner/repo', entry({ version: '2' })), false, 'the same version')
+  assert.equal(updateAvailable(item({ oid: undefined, digest: undefined, version: undefined }), 'owner/repo', entry({ version: '2' })), true, 'an installed copy without a recorded version')
+  assert.equal(updateAvailable(item({ source: 'other/repo' }), 'owner/repo', entry({ version: '9' })), false, 'a copy from another source')
+})
+
+test('compareVersions reads SemVer, numeric, and prerelease forms', () => {
+  assert.ok(compareVersions('1.10.0', '1.9.0')! > 0)
+  assert.ok(compareVersions('1.9.0', '1.10.0')! < 0)
+  assert.equal(compareVersions('1.2', '1.2.0'), 0)
+  assert.equal(compareVersions('v1.2.3', '=1.2.3'), 0)
+  assert.ok(compareVersions('2.0.0-rc.1', '2.0.0')! < 0)
+  assert.ok(compareVersions('2.0.0-rc.2', '2.0.0-rc.10')! < 0)
+  assert.ok(compareVersions('2.0.0', '2.0.0-rc.1')! > 0)
+  assert.equal(compareVersions('banana', '1.0.0'), undefined)
+  assert.equal(compareVersions('1.0.0', 'banana'), undefined)
 })
 
 test('installed manifests round-trip, tolerate missing files, and report malformed JSON', async (t) => {
