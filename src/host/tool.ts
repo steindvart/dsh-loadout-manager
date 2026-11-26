@@ -134,6 +134,8 @@ function compactSearch(result: IndexSearchView) {
         ...install.updateAvailable ? { updateAvailable: true } : {},
         ...install.modified ? { modified: true } : {},
         ...install.foreign ? { foreign: true } : {},
+        ...install.unmanaged ? { unmanaged: true } : {},
+        ...install.foreign && install.installedFrom !== undefined ? { installedFrom: install.installedFrom } : {},
       })),
     })),
     sources: result.sources,

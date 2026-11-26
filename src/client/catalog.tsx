@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import type { IndexEntryView, IndexSourceView, IndexView } from '../shared/api.ts'
+import type { IndexEntryView, IndexInstallView, IndexSourceView, IndexView } from '../shared/api.ts'
 import { CallError, call, messageOf } from './api.ts'
 import type { T } from './controls.tsx'
 import css from './Loadout.module.css'
@@ -106,7 +106,9 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
       setView(await call('index-state', target()))
       await onChanged()
     } catch (failure) {
-      if (failure instanceof CallError && failure.code.endsWith('/modified')) {
+      if (failure instanceof CallError && REPLACE_CODES.some(code => failure.code.endsWith(code))) {
+        // The page may be out of date about what holds the name; reread it so the prompt names the right copy.
+        setView(await call('index-state', target()))
         setConfirmKey(key)
       } else {
         setRowError(rest => ({ ...rest, [key]: messageOf(failure) }))
@@ -267,6 +269,7 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
                     t={t}
                     entry={entry}
                     level={currentLevel}
+                    sourceName={id => sourceTitles.get(id) ?? id}
                     busy={actionBusy === entryKey(entry)}
                     confirming={confirmKey === entryKey(entry)}
                     confirmingRemove={removeConfirmKey === entryKey(entry)}
@@ -296,6 +299,8 @@ interface EntryRowProps {
   t: T
   entry: IndexEntryView
   level: Scope['level']
+  /** The title of a configured index, or the source string itself. */
+  sourceName(source: string): string
   busy: boolean
   confirming: boolean
   confirmingRemove: boolean
@@ -310,10 +315,11 @@ interface EntryRowProps {
 }
 
 function EntryRow({
-  t, entry, level, busy, confirming, confirmingRemove, error, note, onInstall, onConfirm, onCancel, onRemove, onRemoveConfirm, onRemoveCancel,
+  t, entry, level, sourceName, busy, confirming, confirmingRemove, error, note, onInstall, onConfirm, onCancel, onRemove, onRemoveConfirm, onRemoveCancel,
 }: EntryRowProps): ReactNode {
   const here = entry.installs.find(install => install.level === level)
   const foreign = here?.foreign === true
+  const unmanaged = here?.unmanaged === true
   const update = here?.updateAvailable === true
   return (
     <div className={css.row}>
@@ -328,8 +334,8 @@ function EntryRow({
           {entry.tags.length > 0 ? <div className={css.tags}>{entry.tags.map(tag => <span key={tag} className={css.tag}>{tag}</span>)}</div> : null}
           <div className={css.catalogMeta}>
             {entry.installs.map(install => (
-              <span key={install.level} className={css.badge} data-tone={install.foreign || install.modified ? 'warn' : install.updateAvailable ? 'info' : undefined}>
-                {installLabel(t, install.level, install.foreign, install.modified, install.updateAvailable)}
+              <span key={install.level} className={css.badge} data-tone={install.foreign || install.unmanaged || install.modified ? 'warn' : install.updateAvailable ? 'info' : undefined}>
+                {installLabel(t, install, sourceName)}
                 {install.version !== undefined ? ` · ${versionTag(install.version)}` : ''}
               </span>
             ))}
@@ -338,14 +344,14 @@ function EntryRow({
           {note !== undefined ? <div className={css.mono}>{note}</div> : null}
         </div>
         <div className={css.controls}>
-          {foreign
-            ? <span className={css.fixed}>{t('catalogForeign')}</span>
+          {foreign || unmanaged
+            ? <button type="button" className={css.btn} data-tone="outline" disabled={busy} onClick={onConfirm}>{busy ? t('loading') : t('catalogReplaceCopy')}</button>
             : update
               ? <button type="button" className={css.btn} data-tone="outline" disabled={busy} onClick={() => { if (here?.modified === true) onConfirm(); else onInstall(false) }}>{busy ? t('loading') : t('catalogUpdate')}</button>
               : here === undefined
                 ? <button type="button" className={css.btn} data-tone="outline" disabled={busy} onClick={() => { onInstall(false) }}>{busy ? t('loading') : t('catalogInstall')}</button>
                 : <span className={css.fixed}>{t('catalogInstalled')}</span>}
-          {here === undefined
+          {here === undefined || unmanaged
             ? null
             : (
               <button
@@ -365,9 +371,11 @@ function EntryRow({
       {confirming
         ? (
           <div className={css.confirm}>
-            {t('catalogModifiedConfirm')}
+            {replaceMessage(t, here, sourceName)}
             <button type="button" className={css.btn} data-tone="outline" onClick={onCancel}>{t('cancel')}</button>
-            <button type="button" className={css.btn} data-tone="dangerText" disabled={busy} onClick={() => { onInstall(true) }}>{t('catalogReplace')}</button>
+            <button type="button" className={css.btn} data-tone="dangerText" disabled={busy} onClick={() => { onInstall(true) }}>
+              {foreign || unmanaged ? t('catalogReplaceCopy') : t('catalogReplace')}
+            </button>
           </div>
         )
         : null}
@@ -384,11 +392,21 @@ function EntryRow({
   )
 }
 
-function installLabel(t: T, level: Scope['level'], foreign: boolean, modified: boolean, update: boolean): string {
-  if (foreign) return t('catalogForeign')
-  if (modified) return t('catalogModified')
-  if (update) return t('catalogUpdateAvailable')
-  return level === 'global' ? t('catalogInstalledGlobal') : t('catalogInstalledProject')
+/** Host error codes that mean "confirm to replace the copy holding this name". */
+const REPLACE_CODES = ['/modified', '/unmanaged', '/conflict'] as const
+
+function installLabel(t: T, install: IndexInstallView, sourceName: (source: string) => string): string {
+  if (install.unmanaged) return t('catalogUnmanaged')
+  if (install.foreign) return t('catalogForeign', { source: sourceName(install.installedFrom ?? '') })
+  if (install.modified) return t('catalogModified')
+  if (install.updateAvailable) return t('catalogUpdateAvailable')
+  return install.level === 'global' ? t('catalogInstalledGlobal') : t('catalogInstalledProject')
+}
+
+function replaceMessage(t: T, here: IndexInstallView | undefined, sourceName: (source: string) => string): string {
+  if (here?.unmanaged === true) return t('catalogUnmanagedConfirm', { path: here.path })
+  if (here?.foreign === true) return t('catalogForeignConfirm', { source: sourceName(here.installedFrom ?? '') })
+  return t('catalogModifiedConfirm')
 }
 
 function filterEntries(entries: readonly IndexEntryView[], query: string): IndexEntryView[] {

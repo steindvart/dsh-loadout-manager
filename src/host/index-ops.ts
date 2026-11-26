@@ -140,9 +140,12 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
       if (level === 'project' && ctx.projectRoot === undefined) continue
       const state = level === 'global' ? ctx.installed.global : ctx.installed.project
       const item = state?.items[key]
-      if (item === undefined) continue
       const path = targetOf(level, kind, entry.name, homes.agentsHome, ctx.projectRoot)
-      if (!existsSync(path)) continue
+      if (item === undefined || !existsSync(path)) {
+        const own = occupants(level, kind, entry.name, ctx.projectRoot)[0]
+        if (own !== undefined) installs.push({ level, updateAvailable: false, modified: false, foreign: false, unmanaged: true, path: own })
+        continue
+      }
       const modified = await isModified(kind, path, item)
       installs.push({
         level,
@@ -151,6 +154,8 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
         updateAvailable: updateAvailable(item, cache.source, entry),
         modified,
         foreign: item.source !== cache.source,
+        unmanaged: false,
+        installedFrom: item.source,
         path,
       })
     }
@@ -163,6 +168,16 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
       tags: entry.tags,
       installs,
     }
+  }
+
+  /**
+   * Existing files that hold `name` in a scope: the install target and, for a
+   * skill, a flat `<name>.md` that DSH would read as the same skill.
+   */
+  function occupants(level: Level, kind: IndexKind, name: string, projectRoot: string | undefined): string[] {
+    const paths = [targetOf(level, kind, name, homes.agentsHome, projectRoot)]
+    if (kind === 'skill') paths.push(join(rootOf(level, kind, homes.agentsHome, projectRoot), `${name}.md`))
+    return paths.filter(path => existsSync(path))
   }
 
   async function isModified(kind: IndexKind, path: string, item: InstalledItem): Promise<boolean> {
@@ -250,22 +265,22 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
         const root = rootOf(level, kind, homes.agentsHome, projectRoot)
         const target = targetOf(level, kind, name, homes.agentsHome, projectRoot)
         const manifest = installedFile(homes.agentsHome, projectRoot)
-        if (kind === 'skill' && existsSync(join(root, `${name}.md`))) {
-          throw new OperationError('unmanaged', `${join(root, `${name}.md`)} already exists and was not installed from an index`)
-        }
         const installed = await readInstalled(manifest)
         if (installed.error !== undefined) throw new OperationError('install-failed', `${manifest} is malformed: ${installed.error}`)
         const key = installKey(kind, name)
         const existing = installed.items[key]
         const targetExists = existsSync(target)
-        if (targetExists) {
-          if (existing === undefined) {
-            throw new OperationError('unmanaged', `${target} already exists and was not installed from an index`)
+        // `force` is the user's confirmation to replace whatever holds the name.
+        const replaced = occupants(level, kind, name, projectRoot)
+        if (!force) {
+          const own = replaced.find(path => path !== target || existing === undefined)
+          if (own !== undefined) {
+            throw new OperationError('unmanaged', `${own} already exists and was not installed from an index; confirm to replace it`)
           }
-          if (existing.source !== source.id) {
-            throw new OperationError('conflict', `${target} is installed from ${existing.source}; remove it first`)
+          if (targetExists && existing !== undefined && existing.source !== source.id) {
+            throw new OperationError('conflict', `${target} is installed from ${existing.source}; confirm to replace it with the copy from ${source.id}`)
           }
-          if (!force && await isModified(kind, target, existing)) {
+          if (targetExists && existing !== undefined && await isModified(kind, target, existing)) {
             throw new OperationError('modified', `${target} has local changes; confirm the update to replace it`)
           }
         }
@@ -303,31 +318,34 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
             ...cache.commit !== undefined ? { commit: cache.commit } : {},
             installedAt: Date.now(),
           }
-          const backup = targetExists ? join(dirname(manifest), 'backups', `${kind}-${name}-${randomUUID()}`) : undefined
-          if (backup !== undefined) {
-            await mkdir(dirname(backup), { recursive: true })
-            await rename(target, backup)
-          }
+          const backups: Backup[] = []
           try {
+            for (const path of replaced) {
+              const backup = join(dirname(manifest), 'backups', `${kind}-${name}-${randomUUID()}`)
+              await mkdir(dirname(backup), { recursive: true })
+              await rename(path, backup)
+              backups.push({ path, backup })
+            }
             await rename(staging, target)
             renamed = true
             await writeInstalled(manifest, { items: { ...installed.items, [key]: item } })
           } catch (error) {
-            await rollback(target, backup)
+            await rollback(target, renamed, backups)
             throw error
           }
-          let note: string | undefined
-          if (backup !== undefined) {
+          const left: string[] = []
+          for (const { backup } of backups) {
             try {
               await hooks.trash(backup)
             } catch {
-              note = `the previous copy is at ${backup}`
+              left.push(backup)
             }
           }
+          const note = left.length === 0 ? undefined : `the previous copy is at ${left.join(', ')}`
           hooks.invalidate()
           return {
             source: source.id, kind, name, level, path: target,
-            action: targetExists ? 'updated' as const : 'installed' as const,
+            action: replaced.length > 0 ? 'updated' as const : 'installed' as const,
             ...note !== undefined ? { note } : {},
           }
         } finally {
@@ -466,13 +484,16 @@ async function ignoreScratch(dir: string): Promise<void> {
   if (!existsSync(path)) await writeFile(path, 'work/\nbackups/\n')
 }
 
-async function rollback(target: string, backup: string | undefined): Promise<void> {
-  if (backup === undefined) {
-    await rm(target, { recursive: true, force: true })
-    return
-  }
-  await rm(target, { recursive: true, force: true })
-  await rename(backup, target)
+/** A copy moved aside before the install takes its name. */
+interface Backup {
+  path: string
+  backup: string
+}
+
+/** Undo a failed swap: drop the new copy if it landed, then put every moved copy back. */
+async function rollback(target: string, renamed: boolean, backups: readonly Backup[]): Promise<void> {
+  if (renamed) await rm(target, { recursive: true, force: true })
+  for (const { path, backup } of backups) await rename(backup, path)
 }
 
 function messageOf(error: unknown): string {

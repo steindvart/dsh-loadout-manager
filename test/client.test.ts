@@ -265,7 +265,7 @@ test('the catalog subpage removes an installed copy after confirmation', async (
     ...indexView,
     entries: [{
       ...indexView.entries[0]!,
-      installs: [{ level: 'global', version: '1.0.0', installedAt: 1, updateAvailable: false, modified: false, foreign: false, path: '/home/me/.agents/skills/tdd' }],
+      installs: [{ level: 'global', version: '1.0.0', installedAt: 1, updateAvailable: false, modified: false, foreign: false, unmanaged: false, installedFrom: 'owner/repo', path: '/home/me/.agents/skills/tdd' }],
     }],
   }
   const calls = fakeHost(window, () => ({ global: level('/home/me/.agents') }), installed)
@@ -308,7 +308,7 @@ test('a locally changed update asks for confirmation before replacing the copy',
     ...indexView,
     entries: [{
       ...indexView.entries[0]!,
-      installs: [{ level: 'global', version: '0.9.0', installedAt: 1, updateAvailable: true, modified: true, foreign: false, path: '/home/me/.agents/skills/tdd' }],
+      installs: [{ level: 'global', version: '0.9.0', installedAt: 1, updateAvailable: true, modified: true, foreign: false, unmanaged: false, installedFrom: 'owner/repo', path: '/home/me/.agents/skills/tdd' }],
     }],
   }
   const calls = fakeHost(window, () => ({ global: level('/home/me/.agents') }), changed)
@@ -339,4 +339,82 @@ test('a locally changed update asks for confirmation before replacing the copy',
     ['index-install', { source: 'owner/repo', kind: 'skill', name: 'tdd', force: true }],
   ])
   await act(async () => { root.unmount() })
+})
+
+/** Render the page with `index`, open the Catalog subpage, and return helpers to drive it. */
+async function openCatalog(index: IndexView) {
+  const { window, plugin } = loadBundle()
+  window.localStorage.clear()
+  const calls = fakeHost(window, () => ({ global: level('/home/me/.agents') }), index)
+  let Page: ComponentType<Record<string, unknown>> | undefined
+  plugin.apply({
+    effect: (f: () => unknown) => f(),
+    locale: { register: () => () => {}, bind: () => (key: string) => key },
+    slots: { inject: (_n: string, f: () => unknown) => f(), register: (o: { name: string }, c: ComponentType<Record<string, unknown>>) => { if (o.name === 'main') Page = c } },
+  })
+  const React = require('react') as typeof import('react')
+  const { createRoot } = require('react-dom/client') as typeof import('react-dom/client')
+  const { act } = require('react-dom/test-utils') as { act(callback: () => Promise<void>): Promise<void> }
+  const t = (key: keyof typeof en, params?: Record<string, unknown>) => en[key].replace(/\{(\w+)\}/g, (_m, name: string) => String(params?.[name] ?? ''))
+  const root = createRoot(document.getElementById('root')!)
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
+  await act(async () => { root.render(React.createElement(Page!, { t, useWorkspaces: () => [] })) })
+  await settle()
+  await act(async () => { (document.getElementById('dshlo-open-catalog') as HTMLButtonElement).click() })
+  await settle()
+  return {
+    calls,
+    act,
+    settle,
+    text: () => document.body.textContent ?? '',
+    button: (label: string) => [...document.querySelectorAll('button')].find(item => item.textContent === label)!,
+    confirmButton: () => document.querySelector('button[data-tone="dangerText"]') as HTMLButtonElement,
+    unmount: () => act(async () => { root.unmount() }),
+  }
+}
+
+test('a same-named skill that no index installed is replaced only after confirmation', async () => {
+  const page = await openCatalog({
+    ...indexView,
+    entries: [{
+      ...indexView.entries[0]!,
+      installs: [{ level: 'global', updateAvailable: false, modified: false, foreign: false, unmanaged: true, path: '/home/me/.agents/skills/tdd' }],
+    }],
+  })
+  assert.ok(page.text().includes('Same name, not from an index'))
+  assert.equal(document.querySelector('button[aria-label="Delete"]'), null, 'the page does not offer to delete a copy it did not install')
+  await page.act(async () => { page.button('Replace').click() })
+  assert.ok(page.text().includes('/home/me/.agents/skills/tdd already exists and was not installed from an index.'))
+  assert.equal(page.calls.filter(([op]) => op === 'index-install').length, 0, 'nothing is replaced before the confirmation')
+  await page.act(async () => { page.confirmButton().click() })
+  await page.settle()
+  assert.deepEqual(page.calls.filter(([op]) => op === 'index-install'), [
+    ['index-install', { source: 'owner/repo', kind: 'skill', name: 'tdd', force: true }],
+  ])
+  await page.unmount()
+})
+
+test('a copy from another index names that index and is replaced only after confirmation', async () => {
+  const page = await openCatalog({
+    ...indexView,
+    sources: [...indexView.sources, { source: 'other/repo', kind: 'git', title: 'Other skills', fetchedAt: 1, itemCount: 1 }],
+    entries: [{
+      ...indexView.entries[0]!,
+      installs: [{
+        level: 'global', version: '2.0.0', installedAt: 1, updateAvailable: false, modified: false, foreign: true, unmanaged: false,
+        installedFrom: 'other/repo', path: '/home/me/.agents/skills/tdd',
+      }],
+    }],
+  })
+  assert.ok(page.text().includes('Installed from Other skills'))
+  assert.ok(!page.text().includes('Installed globally'), 'the copy is not shown as installed from this index')
+  await page.act(async () => { page.button('Replace').click() })
+  assert.ok(page.text().includes('This copy was installed from Other skills.'))
+  assert.equal(page.calls.filter(([op]) => op === 'index-install').length, 0)
+  await page.act(async () => { page.confirmButton().click() })
+  await page.settle()
+  assert.deepEqual(page.calls.filter(([op]) => op === 'index-install'), [
+    ['index-install', { source: 'owner/repo', kind: 'skill', name: 'tdd', force: true }],
+  ])
+  await page.unmount()
 })

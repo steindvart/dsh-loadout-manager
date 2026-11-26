@@ -128,18 +128,27 @@ export interface IndexSourceView {
   itemCount: number
 }
 
-/** An installed copy of one catalog entry in one scope. */
+/**
+ * The copy that holds one catalog entry's name in one scope: installed from
+ * this index, from another one, or by hand (`unmanaged`). Installing over a
+ * copy this index did not install needs the user's confirmation.
+ */
 export interface IndexInstallView {
   level: Level
   version?: string
-  installedAt: number
+  /** Absent for an unmanaged copy. */
+  installedAt?: number
   /** The source lists newer content or a newer version. */
   updateAvailable: boolean
   /** The installed copy no longer matches the content that was installed. */
   modified: boolean
   /** The installed copy came from another index. */
   foreign: boolean
-  /** The installed skill directory or rule file. */
+  /** A same-named skill or rule that no index installed. */
+  unmanaged: boolean
+  /** The index the copy was installed from; absent for an unmanaged copy. */
+  installedFrom?: string
+  /** The installed skill directory or rule file, or the unmanaged copy. */
   path: string
 }
 

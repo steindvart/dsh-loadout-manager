@@ -202,7 +202,11 @@ test('forget drops the provenance record of the deleted path but leaves the inst
 
   await service.forget(join(homes.agentsHome, 'skills/tdd'), undefined)
   await service.forget(join(homes.agentsHome, 'rules/style.md'), undefined)
-  assert.deepEqual((await service.state(undefined)).entries.map(entry => entry.installs), [[], []], 'a rule named Style in its frontmatter is matched by its file')
+  assert.deepEqual(
+    (await service.state(undefined)).entries.map(entry => entry.installs.map(install => install.unmanaged)),
+    [[true], [true]],
+    'a rule named Style in its frontmatter is matched by its file; the files stay as copies no index installed',
+  )
   assert.match(await readFile(join(homes.agentsHome, 'skills/tdd/SKILL.md'), 'utf8'), /name: tdd/)
   assert.doesNotMatch(await readFile(join(homes.agentsHome, '.loadout-manager/installed.json'), 'utf8'), /skill\/tdd/)
 })
@@ -402,4 +406,108 @@ test('updateAll with no sources or no updates reports zero work', async (t) => {
   const source = view.sources[0]!.source
   await service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false })
   assert.deepEqual(await service.updateAll(), { refreshed: 1, updated: 0, skipped: 0 })
+})
+
+test('a same-named skill that no index installed is listed and replaced only after confirmation', async (t) => {
+  const { base, homes, service, trashed } = setup({})
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const view = await service.addSource(join(base, 'source'), undefined)
+  const source = view.sources[0]!.source
+  const own = join(homes.agentsHome, 'skills/tdd')
+  mkdirSync(own, { recursive: true })
+  writeFileSync(join(own, 'SKILL.md'), skillFile('tdd', '0.1.0'))
+
+  const before = await service.state(undefined)
+  assert.deepEqual(before.entries[0]?.installs.map(install => [install.level, install.unmanaged, install.foreign, install.installedFrom, install.path]), [
+    ['global', true, false, undefined, own],
+  ])
+  await assert.rejects(
+    service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false }),
+    (error: Error & { code?: string }) => error.code === 'unmanaged' && /already exists and was not installed from an index/.test(error.message),
+  )
+  assert.match(await readFile(join(own, 'SKILL.md'), 'utf8'), /0\.1\.0/, 'the own copy stays until the user confirms')
+
+  const replaced = await service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: true })
+  assert.equal(replaced.action, 'updated')
+  assert.match(await readFile(join(own, 'SKILL.md'), 'utf8'), /1\.0\.0/)
+  assert.equal(trashed.length, 1, 'the own copy goes to the trash')
+  const after = await service.state(undefined)
+  assert.deepEqual(after.entries[0]?.installs.map(install => [install.unmanaged, install.foreign, install.installedFrom]), [[false, false, source]])
+})
+
+test('a flat skill file of the same name is replaced by the installed directory after confirmation', async (t) => {
+  const { base, homes, service, trashed } = setup({})
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const view = await service.addSource(join(base, 'source'), undefined)
+  const source = view.sources[0]!.source
+  const flat = join(homes.agentsHome, 'skills/tdd.md')
+  mkdirSync(dirname(flat), { recursive: true })
+  writeFileSync(flat, skillFile('tdd', '0.1.0'))
+
+  const before = await service.state(undefined)
+  assert.deepEqual(before.entries[0]?.installs.map(install => [install.unmanaged, install.path]), [[true, flat]])
+  await assert.rejects(
+    service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false }),
+    (error: Error & { code?: string }) => error.code === 'unmanaged',
+  )
+  await service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: true })
+  assert.equal(existsSync(flat), false, 'the flat file no longer shadows the directory')
+  assert.match(await readFile(join(homes.agentsHome, 'skills/tdd/SKILL.md'), 'utf8'), /1\.0\.0/)
+  assert.equal(trashed.length, 1)
+})
+
+test('a same-named rule that no index installed is replaced only after confirmation', async (t) => {
+  const { base, homes, service } = setup({})
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const view = await service.addSource(join(base, 'source'), undefined)
+  const source = view.sources[0]!.source
+  const own = join(homes.agentsHome, 'rules/style.md')
+  mkdirSync(dirname(own), { recursive: true })
+  writeFileSync(own, 'My own style.\n')
+
+  const before = await service.state(undefined)
+  assert.deepEqual(before.entries[1]?.installs.map(install => [install.unmanaged, install.path]), [[true, own]])
+  await assert.rejects(
+    service.install({ source, kind: 'rule', name: 'style', projectRoot: undefined, force: false }),
+    (error: Error & { code?: string }) => error.code === 'unmanaged',
+  )
+  await service.install({ source, kind: 'rule', name: 'style', projectRoot: undefined, force: true })
+  assert.equal(await readFile(own, 'utf8'), '---\nname: Style\n---\nShort functions.\n')
+})
+
+test('a copy from another index names its source and moves to the new index after confirmation', async (t) => {
+  const { base, homes, service } = setup({
+    'other/loadout-index.json': index([{ name: 'tdd', description: 'Other test first.', version: '2.0.0', path: 'tdd' }]),
+    'other/tdd/SKILL.md': skillFile('tdd', '2.0.0'),
+  })
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const first = join(base, 'source')
+  const second = join(base, 'other')
+  await service.addSource(first, undefined)
+  await service.addSource(second, undefined)
+  await service.install({ source: first, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false })
+
+  const installs = (view: Awaited<ReturnType<typeof service.state>>, source: string) =>
+    view.entries.find(entry => entry.source === source && entry.name === 'tdd')?.installs.map(install => [install.foreign, install.installedFrom])
+  const before = await service.state(undefined)
+  assert.deepEqual(installs(before, first), [[false, first]])
+  assert.deepEqual(installs(before, second), [[true, first]], 'the other index does not show the copy as its own')
+
+  await assert.rejects(
+    service.install({ source: second, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false }),
+    (error: Error & { code?: string }) => error.code === 'conflict' && error.message.includes(first),
+  )
+  const moved = await service.install({ source: second, kind: 'skill', name: 'tdd', projectRoot: undefined, force: true })
+  assert.equal(moved.action, 'updated')
+  assert.match(await readFile(join(homes.agentsHome, 'skills/tdd/SKILL.md'), 'utf8'), /2\.0\.0/)
+  const after = await service.state(undefined)
+  assert.deepEqual(installs(after, first), [[true, second]], 'the first index now sees a foreign copy')
+  assert.deepEqual(installs(after, second), [[false, second]])
+  assert.equal(after.entries.find(entry => entry.source === second)?.installs[0]?.updateAvailable, false)
+  const record = JSON.parse(await readFile(join(homes.agentsHome, '.loadout-manager/installed.json'), 'utf8')) as { items: Record<string, { source: string }> }
+  assert.equal(record.items['skill/tdd']?.source, second)
+
+  const result = await service.updateAll()
+  assert.equal(result.updated, 0, 'auto-update never moves a copy back to the first index')
+  assert.match(await readFile(join(homes.agentsHome, 'skills/tdd/SKILL.md'), 'utf8'), /2\.0\.0/)
 })

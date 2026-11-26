@@ -13,13 +13,15 @@ The provenance file records the source, entry path (`<package>@<version>` for an
 
 ## Installing and updating
 
-An install refuses to overwrite:
+One copy holds a name in a scope. An install replaces another copy of that name only after the user confirms it in the row, which sends `force` with the install. Without the confirmation the install stops with one of these codes:
 
-- a file or directory that exists without provenance (`unmanaged`);
-- a copy installed from another index (`conflict`);
-- a copy whose content no longer matches its recorded digest, unless the user confirms a replacement (`modified`).
+- `unmanaged`: a file or directory that exists without provenance, including a flat `<name>.md` skill next to where the directory would go. The row shows a same-named copy that no index installed;
+- `conflict`: a copy installed from another index. The row names that index, so an entry never looks installed when another index's copy holds its name;
+- `modified`: a copy whose content no longer matches its recorded digest.
 
-A replacement is staged under `.loadout-manager/work`, outside the roots DSH scans, the old copy is renamed into `.loadout-manager/backups`, and only then does the new copy take its name. The first install writes `.loadout-manager/.gitignore` with `work/` and `backups/`, unless the file exists, so these never land in a project commit. After a successful rename the old copy goes to the trash through `gio trash`. If the trash is unavailable, the new copy stays and the row names the leftover backup; nothing is deleted permanently.
+Skills cannot be kept apart by index in subdirectories: DSH reads only `<root>/<name>/SKILL.md` and `<root>/<name>.md` at the top level of a root, and the agent calls a skill by name, so two same-named skills in one scope would shadow each other anyway. After a replacement the provenance records the new index, and the other index's row shows the copy as installed from it.
+
+A replacement is staged under `.loadout-manager/work`, outside the roots DSH scans, every replaced copy is renamed into `.loadout-manager/backups`, and only then does the new copy take its name. The first install writes `.loadout-manager/.gitignore` with `work/` and `backups/`, unless the file exists, so these never land in a project commit. After a successful rename the old copies go to the trash through `gio trash`. If the trash is unavailable, the new copy stays and the row names the leftover backup; nothing is deleted permanently.
 
 An update is available when the source content changed (a git tree or blob id, a local digest) or when the index declares a newer `version` than the installed copy. Versions compare as SemVer when both parse, so `1.10.0` is newer than `1.9.0`; an unreadable pair falls back to plain inequality. A copy with no recorded version updates once the index gains one. HTTP and npm entries have no digest, so their `version` is the only signal; for an npm entry it is the version the index pins. The version stored for a copy is the index `version`, else the one in the skill's frontmatter.
 
