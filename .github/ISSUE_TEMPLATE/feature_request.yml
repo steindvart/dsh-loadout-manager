@@ -1,0 +1,55 @@
+name: 💡 Feature request
+description: Suggest a change or a new capability for Loadout Manager.
+title: '💡 '
+type: Feature
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search the open issues first: the request may already be there.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Skills
+        - Instructions and rules
+        - MCP servers
+        - Catalog and indexes
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you are trying to do and what gets in the way.
+      placeholder: "e.g. I keep the same set of rules in several projects and have to switch each of them on by hand."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: How Loadout Manager could solve it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Related issues, screenshots, mockups, or links to the DSH API.
+    validations:
+      required: false

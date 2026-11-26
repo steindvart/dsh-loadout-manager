@@ -1,0 +1,34 @@
+name: 🧭 Epic
+description: A larger piece of work that groups several issues.
+title: '🧭 '
+type: Epic
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The issues of an epic are linked to it as sub-issues. Keep task lists and counts out of the description, so it stays true as sub-issues are added or closed.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What changes for the user once the epic is done.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What the epic covers and what it leaves out.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: The current state, constraints, and the decisions in `docs/` that the work depends on.
+    validations:
+      required: false
