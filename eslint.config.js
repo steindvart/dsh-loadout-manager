@@ -5,7 +5,7 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['lib/', 'dev/lib/', 'node_modules/', 'docs_ru/', '.agents/worktrees/', '.claude/worktrees/'] },
+  { ignores: ['lib/', 'test/dev/lib/', 'node_modules/', 'docs_ru/', '.agents/worktrees/', '.claude/worktrees/'] },
   js.configs.recommended,
   tseslint.configs.recommended,
   {

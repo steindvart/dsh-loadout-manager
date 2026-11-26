@@ -27,7 +27,7 @@ import packageJson from './package.json' with { type: 'json' }
  */
 const PLUGIN_ID = process.env.DSH_PLUGIN_NAME ?? packageJson.name
 const PLUGIN_SLUG = process.env.DSH_PLUGIN_SLUG ?? 'loadout'
-/** Where both bundles land; `npm run build:dev` redirects this to `dev/lib`. */
+/** Where both bundles land; `npm run build:dev` redirects this to `test/dev/lib`. */
 const OUT_DIR = process.env.DSH_PLUGIN_OUT_DIR ?? 'lib'
 
 /** Node builtins never belong in the browser factory. */
