@@ -49,6 +49,8 @@ DeepSeek Harness（DSH）插件。原版 DSH 没有一个页面能同时查看�
 
 来源列表保存在 `~/.agents/loadout-indexes.json`。来源可以是 Git 仓库（`https://github.com/owner/repo` 或 `owner/repo`）、绝对本地目录，或索引文件的 HTTP 链接。来源、索引格式和 HTTP 归档见 [docs/indexes.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/indexes.md)，安装和更新规则见 [docs/catalog.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/catalog.md)。
 
+`"format": 2` 的索引列出 npm 包而不是路径：每个技能或规则给出版本、包名和注册表，插件从该注册表安装带有 `latest` 标签的版本。包在 `package.json` 的 `loadout` 字段中声明要安装的内容；格式见 [docs/indexes.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/indexes.md#format-2-npm-packages)。
+
 ### MCP 管理
 
 在“全局”中，开关会在 DSH 配置中启用或停用服务器。在工作区中，开关会对该项目的智能体隐藏服务器的工具，服务器本身继续运行。“检查”按钮会试连服务器并列出其工具，即使服务器已停用也可以。
@@ -90,6 +92,7 @@ dsh plugin --profile <配置名> add dsh-loadout-manager
 - 删除通过 `gio trash` 完成。在没有 `gio` 的系统上（包括 Windows 和 macOS），文件会保留原处，面板显示错误。
 - 来自 `app.asar` 的内置技能可以停用，但不能删除。
 - HTTP 索引只按 `version` 判断更新：版本号不变而文件变化时不会显示更新。不支持 HTTP 认证，解压归档需要 `tar` 或 `unzip`。
+- npm 条目只安装带有 `latest` 标签的版本，且只能从允许匿名读取的注册表安装。
 - 索引条目是第三方内容。插件会校验路径和大小，并在替换本地修改过的副本前请求确认，但不会审查技能或规则教给智能体的内容。
 
 ## 开发

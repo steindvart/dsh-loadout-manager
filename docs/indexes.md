@@ -65,7 +65,7 @@ A git or local source keeps the document at its root. An HTTP source is the docu
 }
 ```
 
-`format` is optional and must be `1` when present. `title` and `description` are optional strings. `skills` and `rules` are optional arrays. Each entry needs a unique `name` within its kind:
+`format` is optional and defaults to `1`; [format 2](#format-2-npm-packages) lists npm packages instead of paths. `title` and `description` are optional strings. `skills` and `rules` are optional arrays. Each entry needs a unique `name` within its kind:
 
 - skill names are kebab-case, as DSH requires;
 - rule names use lowercase letters, digits, `-`, and `_`; the installed file is `<name>.md`.
@@ -75,6 +75,46 @@ A git or local source keeps the document at its root. An HTTP source is the docu
 A skill entry may carry `files`, used only by HTTP sources: the files fetched under `path`. Without it, an HTTP source fetches `SKILL.md` alone. Instead of a directory, an HTTP skill path may name an archive with `.tar.gz`, `.tgz`, or `.zip`; the archive must hold `SKILL.md` at its root or inside one top-level directory.
 
 Rules are single files. They may have frontmatter, but it is optional, as it is for rule files the user writes by hand.
+
+## Format 2: npm packages
+
+A format 2 index lists, for every skill and rule, the npm package versions it can be installed from, as a DSH plugin market index lists plugin versions. Any source kind can serve it: the document says where the content lives, the source only where the document lives.
+
+```json
+{
+  "format": 2,
+  "title": "ai-agent-loadout",
+  "skills": [
+    {
+      "name": "tdd",
+      "description": "Test first.",
+      "tags": ["testing"],
+      "repository": { "url": "https://git.example/team/loadout", "directory": "skills/tdd" },
+      "dist-tags": { "latest": "1.1.0" },
+      "versions": [
+        {
+          "version": "1.1.0",
+          "publishTimestamp": 1795699930,
+          "source": { "type": "npm", "package": "@team-skills/tdd", "registry": "https://nexus.example/repository/npm-group/" }
+        }
+      ]
+    }
+  ],
+  "rules": []
+}
+```
+
+`name`, `description`, and `tags` follow format 1. `versions` is a non-empty array; each `version` is an exact SemVer string, unique in the entry, with an integer `publishTimestamp` in Unix seconds. `source.type` must be `npm`; any other type is refused. `source.package` is a valid npm package name, and `source.registry` an http(s) URL without credentials, query, or fragment. Each version carries its own source, so a package that moved to another name or registry keeps its older versions listed. `dist-tags` is optional and maps a tag to a listed version. Other members, such as `repository`, are ignored.
+
+The Host pins one version per entry: the `latest` dist-tag, else the highest release, else the highest prerelease. It installs that exact version, never `<package>@latest`, so the copy matches what the index showed. The entry reports the pinned version, and the provenance stores `<package>@<version>` as the entry path.
+
+The package is an ordinary npm tarball whose `package.json` has a `loadout` field:
+
+```json
+{ "name": "@team-skills/tdd", "version": "1.1.0", "loadout": { "kind": "skill", "name": "tdd", "path": "skill" } }
+```
+
+`kind` and `name` match the index entry. `path` names the payload inside the package: the skill directory or the rule `.md` file, with the same safety rules as an entry `path`. Only the payload is installed; `package.json`, the README, and other package files stay out of the copy.
 
 ## Requirements for entries
 
@@ -86,6 +126,7 @@ The Host refuses an entry that breaks one of these rules. The document shape and
 - A rule is a regular, non-empty `.md` file of at most 1 MiB.
 - An entry is not a symbolic link and does not lead outside its source through a linked parent directory.
 - An HTTP entry and its `files` stay on the origin of the index.
+- An npm package tarball stays on the origin of its registry and matches the sha512 `integrity` the registry publishes, or its sha1 `shasum` when that is all the registry has. Its `package.json` names the pinned package and version and declares a `loadout` field that matches the entry.
 
 ## Cache and refresh
 
@@ -98,6 +139,7 @@ Each entry gets an update marker when its source is read:
 - git sources are cloned with depth 1 and read at a pinned commit. A refresh fetches `origin HEAD`, resets the clone, and takes each entry's git tree or blob id;
 - local sources are hashed with SHA-256 over relative file names, sorted by code unit so the locale does not matter, and file contents;
 - HTTP sources have no cheap content marker, so their marker is the entry's `version`.
+- npm entries are marked by their pinned version: a published npm version never changes its content.
 
 How the markers decide an update is in [catalog.md](catalog.md#installing-and-updating).
 
@@ -111,6 +153,8 @@ Index content is third-party content. While reading a source, the Host:
 
 A git source runs with prompts disabled, repository hooks off, and only the https, http, and ssh transports allowed. The user's git configuration and credentials still apply. An HTTP source uses the Host `fetch`, follows redirects, and sends no credentials. Entry and file URLs must keep the origin of the index after its redirects, so a path such as `https:other.example/x` or `data:…` is refused before anything is fetched.
 
+An npm entry is read at install time, not at refresh. The Host asks the pinned registry for the package document (`<registry><package>`, the scope's `/` written as `%2f`), takes the version's `dist.tarball` and `dist.integrity`, and fetches the tarball without credentials. The tarball is checked against the integrity, then unpacked through the archive limits. npm, pnpm, and `.npmrc` take no part. The registry is the index's claim: an index can point a package name at any registry, so the Catalog subpage shows which source listed the entry.
+
 ## Limits of this version
 
 - HTTP indexes detect updates by `version` only; a source that changes content without changing the version looks current.
@@ -118,3 +162,4 @@ A git source runs with prompts disabled, repository hooks off, and only the http
 - Git sources read the default branch; there is no branch, tag, or commit pin in the source string.
 - No index authentication, signatures, or checksums beyond the transport and the local digest. An index behind HTTP authentication cannot be read.
 - A source can list a skill and a rule with the same name; they are separate entries.
+- npm entries install the pinned version only; there is no version picker. Registries that require authentication cannot be read, and a format 2 index serves only `npm` sources.

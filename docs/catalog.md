@@ -9,7 +9,7 @@ The Catalog subpage installs skills and rules from the [indexes](indexes.md) the
 | Global | `~/.agents/skills/<name>/` | `~/.agents/rules/<name>.md` | `~/.agents/.loadout-manager/installed.json` |
 | Workspace | `<project>/.agents/skills/<name>/` | `<project>/.agents/rules/<name>.md` | `<project>/.agents/.loadout-manager/installed.json` |
 
-The provenance file records the source, entry path, version, git revision or digest, and the digest of the installed content. The Catalog subpage uses it to show where a copy came from and whether the source has newer content.
+The provenance file records the source, entry path (`<package>@<version>` for an npm entry), version, git revision or digest, and the digest of the installed content. The Catalog subpage uses it to show where a copy came from and whether the source has newer content.
 
 ## Installing and updating
 
@@ -21,7 +21,7 @@ An install refuses to overwrite:
 
 A replacement is staged under `.loadout-manager/work`, outside the roots DSH scans, the old copy is renamed into `.loadout-manager/backups`, and only then does the new copy take its name. The first install writes `.loadout-manager/.gitignore` with `work/` and `backups/`, unless the file exists, so these never land in a project commit. After a successful rename the old copy goes to the trash through `gio trash`. If the trash is unavailable, the new copy stays and the row names the leftover backup; nothing is deleted permanently.
 
-An update is available when the source content changed (a git tree or blob id, a local digest) or when the index declares a newer `version` than the installed copy. Versions compare as SemVer when both parse, so `1.10.0` is newer than `1.9.0`; an unreadable pair falls back to plain inequality. A copy with no recorded version updates once the index gains one. HTTP entries have no digest, so their `version` is the only signal. The version stored for a copy is the index `version`, else the one in the skill's frontmatter.
+An update is available when the source content changed (a git tree or blob id, a local digest) or when the index declares a newer `version` than the installed copy. Versions compare as SemVer when both parse, so `1.10.0` is newer than `1.9.0`; an unreadable pair falls back to plain inequality. A copy with no recorded version updates once the index gains one. HTTP and npm entries have no digest, so their `version` is the only signal; for an npm entry it is the version the index pins. The version stored for a copy is the index `version`, else the one in the skill's frontmatter.
 
 Installs and refreshes of one source run one at a time, so a refresh never resets a git clone while an install copies from it.
 

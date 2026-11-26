@@ -47,6 +47,8 @@ A minimal index:
 
 Sources are listed in `~/.agents/loadout-indexes.json`. A source can be a git repository (`https://github.com/owner/repo` or `owner/repo`), an absolute local directory, or an HTTP URL to the index file. [docs/indexes.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/indexes.md) covers sources, the index format, and HTTP archives; [docs/catalog.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/catalog.md) covers installs and updates.
 
+An index with `"format": 2` lists npm packages instead of paths: each skill or rule names its versions, the package, and the registry, and the plugin installs the version tagged `latest` from that registry. The package declares what to install in a `loadout` field of its `package.json`; [docs/indexes.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/indexes.md#format-2-npm-packages) has the format.
+
 ### MCP management
 
 In Global the switch turns a server on or off in the DSH profile. In a workspace it hides the server's tools from that project's agents while the server keeps running. The Check button makes a trial connection to the server and lists its tools, even when the server is off.
@@ -88,6 +90,7 @@ The `autoUpdate` switch (off by default) sits on the plugin's page in **Plugins*
 - Deletion uses `gio trash`. Where `gio` is missing, including Windows and macOS, the file stays in place and the panel shows an error.
 - Built-in skills from `app.asar` can be turned off but not deleted.
 - HTTP indexes report updates by `version`; a changed file with the same version looks current. HTTP authentication is not supported, and archives need `tar` or `unzip`.
+- npm entries install the version tagged `latest` only, from registries that allow anonymous reads.
 - Index entries are third-party content. The plugin validates paths and sizes and asks before replacing a locally changed copy; it does not review what a skill or rule tells the agent.
 
 ## Development
