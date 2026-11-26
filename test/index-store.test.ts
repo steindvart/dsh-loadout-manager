@@ -6,9 +6,10 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
-  cacheFile, compareVersions, copySkillTree, digestFile, digestTree, installKey, installedFile, readBytes, readCache, readInstalled,
+  cacheFile, copySkillTree, digestFile, digestTree, installKey, installedFile, readBytes, readCache, readInstalled,
   resolveEntry, updateAvailable, within, writeCache, writeInstalled, type CachedSkill, type InstalledItem,
 } from '../src/host/index-store.ts'
+import { compareVersions } from '../src/host/version.ts'
 
 function tree(files: Record<string, string>): string {
   const base = mkdtempSync(join(tmpdir(), 'loadout-index-store-'))
