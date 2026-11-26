@@ -106,7 +106,47 @@ test('apply registers the locale, the main panel, and the sidebar entry', () => 
   assert.deepEqual(slots, [
     { name: 'main', id: undefined, key: 'loadout', order: undefined, label: undefined },
     { name: 'sidebar.panellist', id: 'loadout', key: undefined, order: 20, label: 'nav' },
+    { name: 'plugins.row.config', id: undefined, key: 'dsh-loadout-manager#loadout', order: undefined, label: undefined },
   ])
+})
+
+test('the plugin configuration page switches autoUpdate through the Host form', async () => {
+  const { plugin } = loadBundle()
+  let Config: ComponentType<Record<string, unknown>> | undefined
+  plugin.apply({
+    effect: (f: () => unknown) => f(),
+    locale: { register: () => () => {}, bind: () => (key: string) => key },
+    slots: {
+      inject: (_n: string, f: () => unknown) => f(),
+      register: (o: { name: string }, c: ComponentType<Record<string, unknown>>) => { if (o.name === 'plugins.row.config') Config = c },
+    },
+  })
+  assert.ok(Config)
+
+  const React = require('react') as typeof import('react')
+  const { createRoot } = require('react-dom/client') as typeof import('react-dom/client')
+  const { act } = require('react-dom/test-utils') as { act(callback: () => Promise<void>): Promise<void> }
+  const t = (key: keyof typeof en) => en[key]
+  const writes: Array<[unknown, unknown]> = []
+  const form = {
+    state: { status: 'ready' as const, value: { autoUpdate: false }, revision: 7, writable: true },
+    mutate: async (ops: unknown, revision?: number) => { writes.push([ops, revision]); return true },
+  }
+  const root = createRoot(document.getElementById('root')!)
+  const settle = (): Promise<void> => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
+
+  // The summary view is a one-liner for a row without its own description.
+  await act(async () => { root.render(React.createElement(Config!, { view: 'summary', form, t })) })
+  assert.equal(document.querySelector('[role=switch]'), null)
+  assert.ok(document.body.textContent?.includes(en['config.autoUpdate.title']))
+
+  await act(async () => { root.render(React.createElement(Config!, { view: 'page', form, t })) })
+  const toggle = document.querySelector('[role=switch]') as HTMLButtonElement
+  assert.equal(toggle.getAttribute('aria-checked'), 'false')
+  await act(async () => { toggle.click() })
+  await settle()
+  assert.deepEqual(writes, [[[{ op: 'set', path: ['autoUpdate'], value: true }], 7]])
+  await act(async () => { root.unmount() })
 })
 
 test('the page switches tabs and scope and asks the Host for the chosen workspace', async () => {

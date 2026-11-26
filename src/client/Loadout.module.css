@@ -223,3 +223,9 @@ html[data-platform='darwin'] .head { padding-top: calc(28px + var(--dsh-frame-to
 .error:has(button) { display: flex; align-items: center; gap: 10px; }
 .empty { font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-tertiary); }
 .preview { margin: 0; max-height: 260px; overflow: auto; padding: 10px 12px; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-3); font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Plugin configuration page (Plugins → this plugin's row): one live switch. */
+.configRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 12px 0; }
+.configText { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.configTitle { font-size: 13px; line-height: 20px; font-weight: 500; color: var(--dsw-alias-label-primary); }
+.configHint { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }

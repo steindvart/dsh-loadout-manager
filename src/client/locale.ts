@@ -127,6 +127,9 @@ export const en = {
   mcpHiddenHere: 'Tools are hidden in this workspace',
   mcpPluginOwned: 'Registered by a plugin; it runs while that plugin is enabled.',
   mcpOffGlobally: 'Stopped globally: switch it on in Global first.',
+  'config.autoUpdate.title': 'Auto-update installed skills and rules',
+  'config.autoUpdate.hint': 'Every 30 minutes, refresh the indexes and update the skills and rules installed from them. Local edits and project installs are left alone.',
+  'config.saveFailed': 'The change was not saved. Try again.',
 } as const
 
 export type LoadoutKey = keyof typeof en
@@ -250,6 +253,9 @@ export const ru: Record<LoadoutKey, string> = {
   mcpHiddenHere: 'Инструменты скрыты в этом workspace',
   mcpPluginOwned: 'Зарегистрирован плагином и работает, пока этот плагин включён.',
   mcpOffGlobally: 'Сервер остановлен глобально: сначала включите его в «Глобальных».',
+  'config.autoUpdate.title': 'Автообновление установленных скиллов и правил',
+  'config.autoUpdate.hint': 'Каждые 30 минут перечитывать индексы и обновлять установленные из них скиллы и правила. Локальные правки и проектные установки не трогаются.',
+  'config.saveFailed': 'Изменение не сохранено. Попробуйте ещё раз.',
 }
 
 export const zh: Record<LoadoutKey, string> = {
@@ -371,6 +377,9 @@ export const zh: Record<LoadoutKey, string> = {
   mcpHiddenHere: '工具在此工作区已隐藏',
   mcpPluginOwned: '由插件注册，在该插件启用期间运行。',
   mcpOffGlobally: '服务器已在全局停止：请先在“全局”中启用它。',
+  'config.autoUpdate.title': '自动更新已安装的技能和规则',
+  'config.autoUpdate.hint': '每 30 分钟重新读取索引，并更新从中安装的技能和规则。本地修改和项目级安装不会被改动。',
+  'config.saveFailed': '更改未保存。请重试。',
 }
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {

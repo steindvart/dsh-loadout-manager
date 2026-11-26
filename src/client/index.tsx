@@ -10,8 +10,10 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import { LoadoutIcon, type T } from './controls.tsx'
+import { LoadoutConfigPage } from './config-page.tsx'
 import { LoadoutPage } from './LoadoutPage.tsx'
 import { en, NS, ru, zh } from './locale.ts'
+import { PLUGIN_NAME, PLUGIN_SLUG } from '../shared/identity.ts'
 
 /** Sidebar entry id and `main` panel key. */
 const PANEL_ID = NS
@@ -39,4 +41,12 @@ export function apply(ctx: Context): void {
     label: () => t('nav'),
     locale: NS,
   }, LoadoutIcon))
+
+  // The plugin's configuration page on the Plugins page, keyed by the bundle
+  // and the row its patch inserts, so it opens for this build's own row.
+  ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
+    name: 'plugins.row.config',
+    key: `${PLUGIN_NAME}#${PLUGIN_SLUG}`,
+    locale: NS,
+  }, LoadoutConfigPage))
 }
