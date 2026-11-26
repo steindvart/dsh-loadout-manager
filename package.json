@@ -1,6 +1,6 @@
 {
   "name": "dsh-loadout-manager",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Shows skills and MCP servers globally and per project, manages them, installs skills and rules from indexes, and adds rules to the agent context next to AGENTS.md.",
   "keywords": [
     "deepseek-harness",
