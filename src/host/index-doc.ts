@@ -1,9 +1,24 @@
 /**
  * `loadout-index.json`: the catalog of skills and rules an index publishes.
  * The parser validates everything the installer will later act on – names,
- * relative paths, duplicates – so a malformed index is refused before any
- * file leaves its source.
+ * relative paths, npm package pins, duplicates – so a malformed index is
+ * refused before any file leaves its source.
+ *
+ * Format 1 entries name a path inside the source. Format 2 entries list npm
+ * package versions, as a DSH plugin market index does; the parser pins the
+ * one the installer fetches.
  */
+
+import { compareVersions } from './version.ts'
+
+/** The npm package version a format 2 entry installs. */
+export interface NpmPin {
+  package: string
+  /** Exact SemVer version. */
+  version: string
+  /** Registry URL with a trailing slash. */
+  registry: string
+}
 
 /** One skill an index offers: a directory (or archive, for HTTP sources) with `SKILL.md`. */
 export interface IndexSkillEntry {
@@ -11,10 +26,12 @@ export interface IndexSkillEntry {
   description: string | undefined
   version: string | undefined
   tags: string[]
-  /** Path relative to the source root; `"."` is the root itself. */
+  /** Path relative to the source root; `"."` is the root itself. A format 2 entry holds `<package>@<version>`. */
   path: string
   /** HTTP sources only: files fetched under `path`; omitted means `SKILL.md` alone. */
   files: string[] | undefined
+  /** Format 2: the package the skill is installed from instead of `path`. */
+  npm?: NpmPin
 }
 
 /** One rule an index offers: a single Markdown file. */
@@ -23,8 +40,10 @@ export interface IndexRuleEntry {
   description: string | undefined
   version: string | undefined
   tags: string[]
-  /** Path relative to the source root. */
+  /** Path relative to the source root. A format 2 entry holds `<package>@<version>`. */
   path: string
+  /** Format 2: the package the rule is installed from instead of `path`. */
+  npm?: NpmPin
 }
 
 export interface IndexDocument {
@@ -35,10 +54,15 @@ export interface IndexDocument {
 }
 
 export const INDEX_FILE = 'loadout-index.json'
-export const INDEX_FORMAT = 1
+export const INDEX_FORMATS = [1, 2] as const
 
 const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const RULE_NAME = /^[a-z0-9][a-z0-9_-]*$/
+/** npm's rule for new package names: lowercase, URL-safe, an optional scope. */
+const NPM_NAME = /^(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/
+const NPM_NAME_MAX = 214
+const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
+const MAX_TIMESTAMP = 1e11
 
 /**
  * Parse and validate an index document.
@@ -54,8 +78,9 @@ export function parseIndexDocument(text: string, label: string): IndexDocument {
     throw new Error(`${label} is not valid JSON: ${(error as Error).message}`, { cause: error })
   }
   if (!isRecord(value)) throw invalid(label, '', 'the document must be a JSON object')
-  if (value.format !== undefined && value.format !== INDEX_FORMAT) {
-    throw invalid(label, 'format', `unsupported format ${JSON.stringify(value.format)}; this version reads ${INDEX_FORMAT}`)
+  const format = value.format ?? 1
+  if (format !== 1 && format !== 2) {
+    throw invalid(label, 'format', `unsupported format ${JSON.stringify(value.format)}; this version reads ${INDEX_FORMATS.join(' and ')}`)
   }
   const document: IndexDocument = {
     title: optionalText(value.title, label, 'title'),
@@ -66,14 +91,14 @@ export function parseIndexDocument(text: string, label: string): IndexDocument {
   const seen = new Set<string>()
   for (const [index, raw] of list(value.skills, label, 'skills').entries()) {
     const at = `skills[${index}]`
-    const entry = parseSkill(raw, label, at)
+    const entry = format === 2 ? { ...parseNpmEntry(raw, label, at, 'skill'), files: undefined } : parseSkill(raw, label, at)
     if (seen.has(`skill/${entry.name}`)) throw invalid(label, `${at}.name`, `duplicate skill "${entry.name}"`)
     seen.add(`skill/${entry.name}`)
     document.skills.push(entry)
   }
   for (const [index, raw] of list(value.rules, label, 'rules').entries()) {
     const at = `rules[${index}]`
-    const entry = parseRule(raw, label, at)
+    const entry = format === 2 ? parseNpmEntry(raw, label, at, 'rule') : parseRule(raw, label, at)
     if (seen.has(`rule/${entry.name}`)) throw invalid(label, `${at}.name`, `duplicate rule "${entry.name}"`)
     seen.add(`rule/${entry.name}`)
     document.rules.push(entry)
@@ -107,6 +132,91 @@ function parseRule(raw: unknown, label: string, at: string): IndexRuleEntry {
     tags: optionalTags(entry.tags, label, `${at}.tags`),
     path,
   }
+}
+
+/**
+ * A format 2 entry: every listed version with its npm source, and the pin
+ * the installer uses – the `latest` dist-tag, else the highest release, else
+ * the highest prerelease.
+ */
+function parseNpmEntry(raw: unknown, label: string, at: string, kind: 'skill' | 'rule'): IndexRuleEntry & { npm: NpmPin } {
+  const entry = record(raw, label, at)
+  const name = indexName(entry.name, label, `${at}.name`, kind === 'skill' ? SKILL_NAME : RULE_NAME, kind)
+  const versions = new Map<string, NpmPin>()
+  const listed = entry.versions
+  if (!Array.isArray(listed) || listed.length === 0) throw invalid(label, `${at}.versions`, 'must be a non-empty array')
+  for (const [index, item] of listed.entries()) {
+    const itemAt = `${at}.versions[${index}]`
+    const version = record(item, label, itemAt)
+    const exact = exactVersion(version.version, label, `${itemAt}.version`)
+    if (versions.has(exact)) throw invalid(label, `${itemAt}.version`, `duplicate version "${exact}"`)
+    const timestamp = version.publishTimestamp
+    if (typeof timestamp !== 'number' || !Number.isInteger(timestamp) || timestamp < 0 || timestamp >= MAX_TIMESTAMP) {
+      throw invalid(label, `${itemAt}.publishTimestamp`, 'must be a Unix time in seconds')
+    }
+    versions.set(exact, { ...npmSource(version.source, label, `${itemAt}.source`), version: exact })
+  }
+  const latest = distTags(entry['dist-tags'], label, `${at}.dist-tags`, versions).latest
+  const pin = versions.get(latest ?? highestVersion([...versions.keys()])) as NpmPin
+  return {
+    name,
+    description: optionalText(entry.description, label, `${at}.description`),
+    version: pin.version,
+    tags: optionalTags(entry.tags, label, `${at}.tags`),
+    path: `${pin.package}@${pin.version}`,
+    npm: pin,
+  }
+}
+
+function exactVersion(value: unknown, label: string, at: string): string {
+  if (typeof value !== 'string' || !SEMVER.test(value)) throw invalid(label, at, 'must be an exact SemVer version such as 1.2.0')
+  return value
+}
+
+function npmSource(value: unknown, label: string, at: string): Omit<NpmPin, 'version'> {
+  const source = record(value, label, at)
+  if (source.type !== 'npm') throw invalid(label, `${at}.type`, `unsupported source type ${JSON.stringify(source.type)}; this version installs "npm"`)
+  const pkg = source.package
+  if (typeof pkg !== 'string' || pkg.length > NPM_NAME_MAX || !NPM_NAME.test(pkg)) {
+    throw invalid(label, `${at}.package`, `${JSON.stringify(pkg)} is not a valid npm package name`)
+  }
+  return { package: pkg, registry: registryUrl(source.registry, label, `${at}.registry`) }
+}
+
+/** An http(s) registry URL without credentials, query, or fragment, with a trailing slash. */
+function registryUrl(value: unknown, label: string, at: string): string {
+  let url: URL
+  try {
+    if (typeof value !== 'string') throw new TypeError('not a string')
+    url = new URL(value)
+  } catch {
+    throw invalid(label, at, 'the registry must be an http(s) URL')
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw invalid(label, at, 'the registry must be an http(s) URL')
+  if (url.username !== '' || url.password !== '') throw invalid(label, at, 'the registry URL carries no credentials')
+  if (url.search !== '' || url.hash !== '' || (value as string).includes('#') || (value as string).includes('?')) {
+    throw invalid(label, at, 'the registry URL has no query or fragment')
+  }
+  return url.href.endsWith('/') ? url.href : `${url.href}/`
+}
+
+/** npm dist-tags: tag name → a listed version. */
+function distTags(value: unknown, label: string, at: string, versions: ReadonlyMap<string, unknown>): Record<string, string> {
+  if (value === undefined) return {}
+  if (!isRecord(value)) throw invalid(label, at, 'must be an object')
+  const tags: Record<string, string> = {}
+  for (const [tag, target] of Object.entries(value)) {
+    if (typeof target !== 'string' || !versions.has(target)) throw invalid(label, `${at}.${tag}`, `${JSON.stringify(target)} is not a listed version`)
+    tags[tag] = target
+  }
+  return tags
+}
+
+/** The highest release, or the highest prerelease when every version is one. */
+function highestVersion(versions: readonly string[]): string {
+  const releases = versions.filter(version => !(version.split('+', 1)[0] ?? '').includes('-'))
+  const pool = releases.length > 0 ? releases : versions
+  return pool.reduce((best, version) => (compareVersions(version, best) ?? 0) > 0 ? version : best)
 }
 
 function indexName(value: unknown, label: string, at: string, pattern: RegExp, kind: string): string {
