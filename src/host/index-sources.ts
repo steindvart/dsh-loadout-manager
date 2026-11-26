@@ -45,6 +45,7 @@ export function classifySource(text: string): IndexSource {
       throw new Error(`not a valid URL: ${source}`)
     }
     if (url.username !== '' || url.password !== '') throw new Error(`index URLs carry no credentials: ${source}`)
+    if (source.includes('#')) throw new Error(fragmentError(source, url))
     return url.pathname.toLowerCase().endsWith('.json') ? { id: source, kind: 'http' } : { id: source, kind: 'git' }
   }
   if (/^ssh:\/\//i.test(source)) return { id: source, kind: 'git' }
@@ -56,6 +57,22 @@ export function classifySource(text: string): IndexSource {
     `unrecognized index source "${source}": use an absolute directory path, an http(s) URL to index.json, `
     + 'a git URL such as https://github.com/owner/repo, or owner/repo',
   )
+}
+
+/**
+ * Explain a refused `#` fragment. A fragment never reaches `fetch` or git, so
+ * the source would be read by its path alone; links copied from the Nexus web
+ * UI (`#preview/browse/<repo>/<path>`, `#browse/browse:<repo>:<path>`) get the
+ * file URL they stand for.
+ */
+function fragmentError(source: string, url: URL): string {
+  const fragment = url.hash.slice(1)
+  const link = /^preview\/browse\/([^/]+)(?:\/(.+))?$/.exec(fragment) ?? /^browse\/browse:([^:]+)(?::(.+))?$/.exec(fragment)
+  if (link === null) return `index URLs cannot have a "#" fragment: ${source}`
+  const repository = decodeURIComponent(link[1] ?? '')
+  const path = link[2] === undefined ? '<path to the index file>' : decodeURIComponent(link[2])
+  const prefix = url.pathname.replace(/\/+$/, '')
+  return `${source} is a page of the Nexus web UI, not a file; use ${url.origin}${prefix}/repository/${repository}/${path}`
 }
 
 /**

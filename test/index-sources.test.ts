@@ -45,3 +45,20 @@ test('serializes a stable, human-editable file', () => {
   assert.equal(text, '{\n  "format": 1,\n  "indexes": [\n    "/srv/a",\n    "owner/repo"\n  ]\n}\n')
   assert.deepEqual(parseIndexesFile(text), ['/srv/a', 'owner/repo'])
 })
+
+test('a URL with a fragment is refused, and a Nexus UI link points to the file URL', () => {
+  assert.throws(
+    () => classifySource('http://127.0.0.1:8081/#preview/browse/skills/loadout-index.json'),
+    /Nexus web UI.*http:\/\/127\.0\.0\.1:8081\/repository\/skills\/loadout-index\.json/,
+  )
+  assert.throws(
+    () => classifySource('https://nexus.example/nexus/#browse/browse:skills:team%2Floadout-index.json'),
+    /Nexus web UI.*https:\/\/nexus\.example\/nexus\/repository\/skills\/team\/loadout-index\.json/,
+  )
+  assert.throws(
+    () => classifySource('https://nexus.example/#browse/browse:skills'),
+    /Nexus web UI.*https:\/\/nexus\.example\/repository\/skills\/<path to the index file>/,
+  )
+  assert.throws(() => classifySource('https://example.com/index.json#top'), /cannot have a "#" fragment/)
+  assert.throws(() => classifySource('https://github.com/owner/repo#readme'), /cannot have a "#" fragment/)
+})

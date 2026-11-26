@@ -28,6 +28,8 @@ A bare array is also accepted. A source is classified by its string:
 
 Relative local paths are not accepted: the Host process working directory is the DSH profile, not the project, so `./skills` would point somewhere unexpected. A string such as `skills/mine` is read as GitHub shorthand, so a local source needs an absolute path. A local source has no git history; updates use a content digest.
 
+An http(s) source cannot have a `#` fragment: neither `fetch` nor git sends it, so the source would be read by its path alone. A link copied from the Nexus web UI, such as `https://nexus.example/#preview/browse/skills/loadout-index.json`, is refused with the file URL it stands for, `https://nexus.example/repository/skills/loadout-index.json`.
+
 The list is global, while installs target the scope chosen on the page.
 
 ## `loadout-index.json`
