@@ -1,5 +1,7 @@
 # Loadout Manager
 
+[![npm](https://img.shields.io/npm/v/dsh-loadout-manager)](https://www.npmjs.com/package/dsh-loadout-manager)
+
 English | [Русский](https://github.com/steindvart/dsh-loadout-manager/blob/main/README_RU.md) | [中文](https://github.com/steindvart/dsh-loadout-manager/blob/main/README_ZH.md)
 
 A plugin for DeepSeek Harness (DSH). Stock DSH has no single page that shows which skills and MCP servers are available globally and in a given project, and it has no rules mechanism. Loadout Manager adds both: it shows skills and MCP servers by level, lets you manage them, adds rules to the agent context next to AGENTS.md, and installs skills and rules from indexes you configure.

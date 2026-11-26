@@ -1,5 +1,7 @@
 # Loadout Manager
 
+[![npm](https://img.shields.io/npm/v/dsh-loadout-manager)](https://www.npmjs.com/package/dsh-loadout-manager)
+
 [English](https://github.com/steindvart/dsh-loadout-manager/blob/main/README.md) | Русский | [中文](https://github.com/steindvart/dsh-loadout-manager/blob/main/README_ZH.md)
 
 Плагин для DeepSeek Harness (DSH). В стандартном DSH нельзя на одной странице посмотреть, какие скиллы и MCP-серверы доступны глобально и в конкретном проекте, и нет механизма правил (rules). Loadout Manager добавляет и то и другое: показывает скиллы и MCP-серверы по уровням, позволяет ими управлять, подключает правила в контекст агента рядом с AGENTS.md и устанавливает скиллы и правила из настроенных индексов.

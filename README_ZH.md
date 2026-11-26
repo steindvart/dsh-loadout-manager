@@ -1,5 +1,7 @@
 # Loadout Manager
 
+[![npm](https://img.shields.io/npm/v/dsh-loadout-manager)](https://www.npmjs.com/package/dsh-loadout-manager)
+
 [English](https://github.com/steindvart/dsh-loadout-manager/blob/main/README.md) | [Русский](https://github.com/steindvart/dsh-loadout-manager/blob/main/README_RU.md) | 中文
 
 DeepSeek Harness（DSH）插件。原版 DSH 没有一个页面能同时查看全局和某个项目中可用的技能（skill）与 MCP 服务器，也没有规则（rules）机制。Loadout Manager 补上了这两点：按层级展示技能和 MCP 服务器，提供管理功能，把规则加入智能体上下文，与 AGENTS.md 并列，还可以从配置好的索引安装技能和规则。
