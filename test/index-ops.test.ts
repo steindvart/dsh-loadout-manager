@@ -348,3 +348,58 @@ test('an install waits for a running refresh of the same source', async (t) => {
   await Promise.all([refreshing, installing])
   assert.deepEqual(events, ['start /index.json', 'end /index.json', 'start /rules/style.md'])
 })
+
+test('updateAll refreshes and updates global installs that have newer content', async (t) => {
+  const { base, homes, service } = setup({})
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const view = await service.addSource(join(base, 'source'), undefined)
+  const source = view.sources[0]!.source
+  await service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false })
+  await service.install({ source, kind: 'rule', name: 'style', projectRoot: undefined, force: false })
+
+  writeFileSync(join(base, 'source/loadout-index.json'), index(
+    [{ name: 'tdd', description: 'Test first.', version: '1.1.0', path: 'skills/tdd' }],
+    [{ name: 'style', description: 'Short functions.', version: '1.1.0', path: 'rules/style.md' }],
+  ))
+  writeFileSync(join(base, 'source/skills/tdd/SKILL.md'), skillFile('tdd', '1.1.0'))
+  writeFileSync(join(base, 'source/rules/style.md'), '---\nname: Style\n---\nEven shorter.\n')
+
+  const result = await service.updateAll()
+  assert.equal(result.refreshed, 1)
+  assert.equal(result.updated, 2)
+  assert.equal(result.skipped, 0)
+  assert.match(await readFile(join(homes.agentsHome, 'skills/tdd/SKILL.md'), 'utf8'), /1\.1\.0/)
+  assert.equal(await readFile(join(homes.agentsHome, 'rules/style.md'), 'utf8'), '---\nname: Style\n---\nEven shorter.\n')
+
+  const state = await service.state(undefined)
+  assert.deepEqual(state.entries.map(entry => entry.installs[0]?.updateAvailable), [false, false], 'no updates remain after updateAll')
+})
+
+test('updateAll skips locally modified copies and leaves foreign copies alone', async (t) => {
+  const { base, homes, service } = setup({})
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const view = await service.addSource(join(base, 'source'), undefined)
+  const source = view.sources[0]!.source
+  await service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false })
+
+  // A local edit, then a source update: the copy is `modified`, so it must be skipped.
+  writeFileSync(join(homes.agentsHome, 'skills/tdd/SKILL.md'), skillFile('tdd', '9.0.0'))
+  writeFileSync(join(base, 'source/loadout-index.json'), index([{ name: 'tdd', description: 'Test first.', version: '1.1.0', path: 'skills/tdd' }]))
+  writeFileSync(join(base, 'source/skills/tdd/SKILL.md'), skillFile('tdd', '1.1.0'))
+
+  const result = await service.updateAll()
+  assert.equal(result.updated, 0)
+  assert.equal(result.skipped, 1)
+  assert.match(await readFile(join(homes.agentsHome, 'skills/tdd/SKILL.md'), 'utf8'), /9\.0\.0/, 'the local edit stays')
+})
+
+test('updateAll with no sources or no updates reports zero work', async (t) => {
+  const { base, service } = setup({})
+  t.after(() => rm(base, { recursive: true, force: true }))
+  assert.deepEqual(await service.updateAll(), { refreshed: 0, updated: 0, skipped: 0 })
+
+  const view = await service.addSource(join(base, 'source'), undefined)
+  const source = view.sources[0]!.source
+  await service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false })
+  assert.deepEqual(await service.updateAll(), { refreshed: 1, updated: 0, skipped: 0 })
+})

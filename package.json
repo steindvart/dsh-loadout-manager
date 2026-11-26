@@ -46,6 +46,7 @@
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\" && tsdown",
+    "build:dev": "node scripts/build-dev.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "pretest": "npm run build --silent",
@@ -67,6 +68,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/cosmokit": "1.9.0",
     "@deepseek-ai/dsh-agent": "0.2.2-rc.2",
     "@deepseek-ai/dsh-agent-instructions": "0.2.2-rc.2",
     "@deepseek-ai/dsh-agent-preset-registry": "0.2.2-rc.2",
@@ -90,6 +92,8 @@
     "@deepseek-ai/dsh-util-values": "0.2.2-rc.2",
     "@deepseek-ai/dsh-working-directory": "0.2.2-rc.2",
     "@deepseek-ai/dsh-workspace": "0.2.2-rc.2",
+    "@deepseek-ai/schemastery": "3.19.0",
+    "@standard-schema/spec": "1.1.0",
     "@eslint/js": "10.0.1",
     "@types/jsdom": "21.1.7",
     "@types/node": "24.19.2",

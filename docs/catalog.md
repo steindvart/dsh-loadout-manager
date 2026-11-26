@@ -25,6 +25,12 @@ An update is available when the source content changed (a git tree or blob id, a
 
 Installs and refreshes of one source run one at a time, so a refresh never resets a git clone while an install copies from it.
 
+## Auto-update
+
+The plugin config has an `autoUpdate` switch, off by default. When it is on, the Host refreshes every index source and updates the installed copies whose source published newer content, once when the plugin loads and then every 30 minutes. A pass updates only the global level: the Host does not enumerate projects, so project installs stay manual. Copies with local changes (`modified`) and copies installed from another index (`foreign`) are left alone; a copy whose update fails mid-pass is also skipped, and nothing is deleted on failure.
+
+The pass reuses the ordinary install path, so its guarantees hold: an update refuses to overwrite a modified copy, stages the new content outside the roots DSH scans, and moves the old copy to the trash after a successful rename.
+
 ## Deleting
 
 Deleting an installed skill or rule from a Catalog row, or through the Skills or Instructions tab, also removes the provenance record of that path, so the Catalog subpage stops treating it as managed. A same-named skill or rule in another root, such as `~/.dsh/skills`, keeps the record of the managed copy. The Catalog button acts on the copy of the current scope; a copy installed in the other scope is removed from that scope's page.

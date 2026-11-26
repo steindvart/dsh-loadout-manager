@@ -5,11 +5,17 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['lib/', 'node_modules/', 'docs_ru/'] },
+  { ignores: ['lib/', 'dev/lib/', 'node_modules/', 'docs_ru/', '.agents/worktrees/', '.claude/worktrees/'] },
   js.configs.recommended,
   tseslint.configs.recommended,
   {
-    languageOptions: { globals: { ...globals.node } },
+    languageOptions: {
+      globals: { ...globals.node },
+      // A worktree under `.agents/worktrees/` adds sibling `tsconfig.json`
+      // candidates; anchor the parser to the repository root so `lint` runs
+      // from a worktree without guessing.
+      parserOptions: { tsconfigRootDir: import.meta.dirname },
+    },
   },
   {
     files: ['src/client/**/*.{ts,tsx}'],

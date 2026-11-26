@@ -14,7 +14,7 @@ import { LoadoutPage } from './LoadoutPage.tsx'
 import { en, NS, ru, zh } from './locale.ts'
 
 /** Sidebar entry id and `main` panel key. */
-const PANEL_ID = 'loadout'
+const PANEL_ID = NS
 
 export const inject = ['slots', 'locale']
 

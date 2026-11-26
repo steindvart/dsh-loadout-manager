@@ -16,7 +16,7 @@ import type {
 } from '../shared/api.ts'
 import { isSkillState, parseLoadout, serializeLoadout, withMcpEnabled, withRuleEnabled, withSkillState, SKILL_STATES, type Loadout } from './loadout.ts'
 import { McpUnavailableError, probeMcp, readMcpServers, restartMcp, setMcpEnabled } from './mcp-host.ts'
-import { createIndexService, type IndexService } from './index-ops.ts'
+import { createIndexService, type AutoUpdateResult, type IndexService } from './index-ops.ts'
 import { loadoutPath, scanInventory, type Homes, type InstructionItem, type Inventory, type RuleItem, type SkillItem } from './inventory.ts'
 import { findProjectRoot } from './paths.ts'
 import { OperationError } from './errors.ts'
@@ -51,6 +51,8 @@ export interface Operations {
   indexInstall(request: Target & { source: string, kind: IndexKind, name: string, force?: boolean | undefined }): Promise<Responses['index-install']>
   /** Read-only search over cached entries, for the agent tool. */
   indexSearch(request: Target & { query?: string | undefined, kind?: IndexKind | undefined, limit?: number | undefined }): Promise<IndexSearchView>
+  /** Refresh every source and update the global installs with newer content. */
+  autoUpdate(): Promise<AutoUpdateResult>
 }
 
 export interface OperationHooks {
@@ -215,6 +217,10 @@ export function createOperations(ctx: Context, homes: Homes, { invalidate, trash
 
     async indexSearch({ workspacePath, cwd, query, kind, limit }) {
       return await index.search({ projectRoot: await projectFor({ workspacePath, cwd }), query, kind, limit })
+    },
+
+    async autoUpdate() {
+      return await index.updateAll()
     },
   }
 }

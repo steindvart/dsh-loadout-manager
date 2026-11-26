@@ -79,6 +79,8 @@ The same form also accepts the repository's Git URL or a local checkout. The bui
 
 The `maxBytes` option in the plugin config limits the size of one rules message: 65536 bytes by default, and `0` turns rules off.
 
+The `autoUpdate` option (off by default) makes the plugin refresh its index sources and update the installed skills and rules whose source published newer content, once at startup and then every 30 minutes. Locally edited copies and copies installed from another index are never touched, and only the global level is updated automatically.
+
 ## Limitations
 
 - In a session whose agent has not started yet, the `/` menu also lists skills that are off.

@@ -4,7 +4,9 @@
  * Placeholders use `{name}`, as `ctx.locale` expects.
  */
 
-export const NS = 'loadout'
+import { PLUGIN_SLUG } from '../shared/identity.ts'
+
+export const NS = PLUGIN_SLUG
 
 export const en = {
   nav: 'Loadout Manager',
@@ -374,5 +376,6 @@ export const zh: Record<LoadoutKey, string> = {
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     loadout: LoadoutKey
+    'loadout-dev': LoadoutKey
   }
 }

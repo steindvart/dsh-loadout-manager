@@ -34,6 +34,16 @@ export interface IndexHooks {
   trash(path: string): Promise<void>
 }
 
+/** One pass of the periodic auto-update. */
+export interface AutoUpdateResult {
+  /** Sources refreshed during the pass. */
+  refreshed: number
+  /** Installed copies updated to newer source content. */
+  updated: number
+  /** Copies left alone: locally modified, foreign, or a failed update. */
+  skipped: number
+}
+
 export interface IndexService {
   state(projectRoot: string | undefined): Promise<IndexView>
   refresh(projectRoot: string | undefined, request: { source?: string | undefined, ifStale?: boolean }): Promise<IndexView>
@@ -41,6 +51,8 @@ export interface IndexService {
   removeSource(source: string, projectRoot: string | undefined): Promise<IndexView>
   install(request: { source: string, kind: IndexKind, name: string, projectRoot: string | undefined, force: boolean }): Promise<Responses['index-install']>
   search(request: { projectRoot: string | undefined, query?: string | undefined, kind?: IndexKind | undefined, limit?: number | undefined }): Promise<IndexSearchView>
+  /** Refresh every source and update the global installs that have newer source content. */
+  updateAll(): Promise<AutoUpdateResult>
   /**
    * Drop the provenance of the copy at `path`, deleted through the regular
    * Remove action. A same-named item in another root keeps the record.
@@ -324,6 +336,32 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
           }
         }
       }))
+    },
+
+    async updateAll() {
+      // A full refresh reads every source, then the global installs are
+      // updated one at a time. Project installs are out of scope here: the
+      // Host does not enumerate projects, so only the global level is known.
+      const view = await this.refresh(undefined, {})
+      let updated = 0
+      let skipped = 0
+      for (const entry of view.entries) {
+        const install = entry.installs.find(item => item.level === 'global')
+        if (install === undefined || !install.updateAvailable) continue
+        if (install.modified || install.foreign) {
+          skipped += 1
+          continue
+        }
+        try {
+          await this.install({ source: entry.source, kind: entry.kind, name: entry.name, projectRoot: undefined, force: false })
+          updated += 1
+        } catch {
+          // Local edits made between the view and the install, a source that
+          // broke mid-pass: leave the copy alone and count it.
+          skipped += 1
+        }
+      }
+      return { refreshed: view.sources.length, updated, skipped }
     },
 
     async forget(path, projectRoot) {

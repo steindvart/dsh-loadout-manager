@@ -19,8 +19,16 @@ import type { UserConfig } from 'tsdown'
 import { transform } from 'lightningcss'
 import packageJson from './package.json' with { type: 'json' }
 
-/** The module loader id must equal the package name. */
-const PLUGIN_ID = packageJson.name
+/**
+ * Plugin identity injected into both bundles. The dev clone (`npm run
+ * build:dev`) overrides both through environment variables, so the same
+ * source registers distinct providers, routes, tools, slots, and namespaces.
+ * `PLUGIN_ID` doubles as the module loader id and the full plugin name.
+ */
+const PLUGIN_ID = process.env.DSH_PLUGIN_NAME ?? packageJson.name
+const PLUGIN_SLUG = process.env.DSH_PLUGIN_SLUG ?? 'loadout'
+/** Where both bundles land; `npm run build:dev` redirects this to `dev/lib`. */
+const OUT_DIR = process.env.DSH_PLUGIN_OUT_DIR ?? 'lib'
 
 /** Node builtins never belong in the browser factory. */
 const NODE_BUILTINS = new Set([...builtinModules, ...builtinModules.map(id => `node:${id}`)])
@@ -46,12 +54,15 @@ function clientPurityGate(): BuildPlugin {
   }
 }
 
+/** Pure libraries bundled into the Host half; they are not DSH services and carry no runtime peer. */
+const HOST_INLINE_LIBS = new Set(['@deepseek-ai/schemastery', '@deepseek-ai/cosmokit'])
+
 /** The Host bundle keeps only `node:` imports external; it must not depend on packages next to the checkout. */
 function hostSelfContained(): BuildPlugin {
   return {
     name: 'dsh-loadout-manager-host-self-contained',
     resolveId(source: string) {
-      if (source.startsWith('@deepseek-ai/')) {
+      if (source.startsWith('@deepseek-ai/') && !HOST_INLINE_LIBS.has(source)) {
         throw new Error(`host bundle: value import of "${source}"; DSH services come from ctx, import their types with "import type"`)
       }
       return null
@@ -109,10 +120,16 @@ function cssModules(): BuildPlugin {
 
 const production = JSON.stringify(process.env.NODE_ENV ?? 'production')
 
+/** Runtime identity injected into both bundles. */
+const identityDefines = {
+  __PLUGIN_NAME__: JSON.stringify(PLUGIN_ID),
+  __PLUGIN_SLUG__: JSON.stringify(PLUGIN_SLUG),
+}
+
 export default [
   {
     entry: { index: 'src/index.ts' },
-    outDir: 'lib',
+    outDir: OUT_DIR,
     format: ['esm'],
     platform: 'node',
     target: 'node24',
@@ -120,11 +137,12 @@ export default [
     dts: false,
     clean: false,
     sourcemap: false,
+    define: identityDefines,
     plugins: [hostSelfContained()],
   },
   {
     entry: { client: 'src/client/index.tsx' },
-    outDir: 'lib',
+    outDir: OUT_DIR,
     format: 'cjs',
     platform: 'browser',
     target: 'es2023',
@@ -135,7 +153,7 @@ export default [
       neverBundle: [...CLIENT_EXTERNALS],
       alwaysBundle: (id: string) => (CLIENT_EXTERNALS.includes(id) ? undefined : true),
     },
-    define: { 'process.env.NODE_ENV': production },
+    define: { 'process.env.NODE_ENV': production, ...identityDefines },
     plugins: [clientPurityGate(), cssModules()],
     outputOptions: {
       entryFileNames: 'client.js',

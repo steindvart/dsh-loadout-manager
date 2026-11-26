@@ -2,9 +2,12 @@
  * Wire contract between the Host and the Loadout Manager page: the Fetch routes
  * `POST /api/dsh-loadout-manager/<op>`, their request bodies, and the views they
  * return. Both halves import these types, so a change to one side that the
- * other does not follow fails `npm run typecheck`. Types only: no values,
- * so the client bundle stays free of Host code.
+ * other does not follow fails `npm run typecheck`. The only value here is
+ * `routePath`, derived from the shared plugin identity; everything else is a
+ * type, so the client bundle stays free of Host code.
  */
+
+import { ROUTE_PREFIX } from './identity.ts'
 
 export type SkillState = 'on' | 'manual' | 'off'
 export type Level = 'global' | 'project'
@@ -211,4 +214,4 @@ export type Operation = keyof Requests
 export type Envelope<T> = { ok: true, value: T } | { ok: false, error: { code: string, message: string } }
 
 /** Absolute route path of an operation. */
-export const routePath = (op: Operation): string => `/api/dsh-loadout-manager/${op}`
+export const routePath = (op: Operation): string => `${ROUTE_PREFIX}${op}`

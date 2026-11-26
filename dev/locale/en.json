@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Loadout Manager (dev)",
+    "description": "Development clone of Loadout Manager. Runs the current source next to the installed plugin for testing; do not enable both clones in production.",
+    "detail": "README.md"
+  }
+}

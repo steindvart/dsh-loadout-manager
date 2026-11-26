@@ -11,6 +11,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { IndexSearchView, Level, LevelView, StateView } from '../shared/api.ts'
 import type { Operations } from './operations.ts'
 import { cwdOf } from './shadow.ts'
+import { PLUGIN_SLUG } from '../shared/identity.ts'
 
 const DESCRIPTION = [
   'List or switch the skills and rules the agent carries (the Loadout Manager plugin).',
@@ -34,7 +35,7 @@ interface Args {
 
 export function loadoutTool(ctx: Context, operations: Operations): ToolDefinition {
   return {
-    name: 'loadout',
+    name: PLUGIN_SLUG,
     description: DESCRIPTION,
     parameters: {
       type: 'object',

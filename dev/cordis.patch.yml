@@ -1,0 +1,8 @@
+# Dev clone patch: one Host row under the dev identity, so it loads beside
+# the shipped `loadout` row instead of overriding it.
+- insert:
+    - id: loadout-dev
+      name: dsh-loadout-manager-dev
+      config:
+        maxBytes: 65536
+        autoUpdate: false

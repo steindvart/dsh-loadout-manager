@@ -2,10 +2,13 @@
 # the Web app load ./client.js as the browser half.
 #
 # Config:
-#   maxBytes – UTF-8 byte budget of one rules message (default 65536; 0 turns
-#              rule injection off).
+#   maxBytes   – UTF-8 byte budget of one rules message (default 65536; 0 turns
+#                rule injection off).
+#   autoUpdate – refresh indexes and update installed skills and rules on a
+#                30-minute timer (default false).
 - insert:
     - id: loadout
       name: dsh-loadout-manager
       config:
         maxBytes: 65536
+        autoUpdate: false

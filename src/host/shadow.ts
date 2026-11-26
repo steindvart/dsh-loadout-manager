@@ -19,8 +19,9 @@ import type { ScopeKey } from '@deepseek-ai/dsh-scope'
 import type {} from '@deepseek-ai/dsh-working-directory'
 import { readLevels, shadowsFor, type Homes } from './inventory.ts'
 import { findProjectRoot } from './paths.ts'
+import { PLUGIN_NAME } from '../shared/identity.ts'
 
-export const PROVIDER_NAME = 'dsh-loadout-manager'
+export const PROVIDER_NAME = PLUGIN_NAME
 
 export interface Shadows {
   /** Re-read `loadout.json` in every live agent before its next step. */

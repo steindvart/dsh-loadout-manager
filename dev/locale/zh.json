@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Loadout Manager (dev)",
+    "description": "Loadout Manager 的开发克隆。与已安装插件并排运行当前源码以便测试；请勿在生产环境中同时启用两个克隆。",
+    "detail": "README.md"
+  }
+}
