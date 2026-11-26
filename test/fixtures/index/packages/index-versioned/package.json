@@ -1,0 +1,14 @@
+{
+  "name": "@dsh-loadout-fixtures/index-versioned",
+  "version": "2.4.0",
+  "description": "A skill with a reference file and a newer version.",
+  "license": "MIT",
+  "files": [
+    "skill/"
+  ],
+  "loadout": {
+    "kind": "skill",
+    "name": "index-versioned",
+    "path": "skill"
+  }
+}

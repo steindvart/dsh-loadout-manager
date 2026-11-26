@@ -1,0 +1,14 @@
+{
+  "name": "@dsh-loadout-fixtures/index-versioned-rule",
+  "version": "2.1.0",
+  "description": "A rule with a newer version.",
+  "license": "MIT",
+  "files": [
+    "index-versioned-rule.md"
+  ],
+  "loadout": {
+    "kind": "rule",
+    "name": "index-versioned-rule",
+    "path": "index-versioned-rule.md"
+  }
+}

@@ -1,37 +1,97 @@
 {
-  "format": 1,
+  "format": 2,
   "title": "Loadout Manager test index",
-  "description": "Two skills and two rules used by the catalog tests and the Catalog smoke check.",
+  "description": "Two skills and two rules, each an npm package, used by the catalog tests and the Catalog smoke check.",
   "skills": [
     {
       "name": "index-demo",
       "description": "A small demo skill served by the test index.",
-      "version": "1.0.0",
-      "tags": ["test", "demo"],
-      "path": "skills/index-demo"
+      "tags": [
+        "test",
+        "demo"
+      ],
+      "dist-tags": {
+        "latest": "1.0.0"
+      },
+      "versions": [
+        {
+          "version": "1.0.0",
+          "publishTimestamp": 1795737600,
+          "source": {
+            "type": "npm",
+            "package": "@dsh-loadout-fixtures/index-demo",
+            "registry": "http://127.0.0.1:8081/repository/npm-group/"
+          }
+        }
+      ]
     },
     {
       "name": "index-versioned",
       "description": "A skill with a reference file and a newer version.",
-      "version": "2.4.0",
-      "tags": ["test", "version"],
-      "path": "skills/index-versioned"
+      "tags": [
+        "test",
+        "version"
+      ],
+      "dist-tags": {
+        "latest": "2.4.0"
+      },
+      "versions": [
+        {
+          "version": "2.4.0",
+          "publishTimestamp": 1795737600,
+          "source": {
+            "type": "npm",
+            "package": "@dsh-loadout-fixtures/index-versioned",
+            "registry": "http://127.0.0.1:8081/repository/npm-group/"
+          }
+        }
+      ]
     }
   ],
   "rules": [
     {
       "name": "index-demo-rule",
       "description": "A demo rule served by the test index.",
-      "version": "1.0.0",
-      "tags": ["test", "demo"],
-      "path": "rules/index-demo-rule.md"
+      "tags": [
+        "test",
+        "demo"
+      ],
+      "dist-tags": {
+        "latest": "1.0.0"
+      },
+      "versions": [
+        {
+          "version": "1.0.0",
+          "publishTimestamp": 1795737600,
+          "source": {
+            "type": "npm",
+            "package": "@dsh-loadout-fixtures/index-demo-rule",
+            "registry": "http://127.0.0.1:8081/repository/npm-group/"
+          }
+        }
+      ]
     },
     {
       "name": "index-versioned-rule",
       "description": "A rule with a newer version.",
-      "version": "2.1.0",
-      "tags": ["test", "version"],
-      "path": "rules/index-versioned-rule.md"
+      "tags": [
+        "test",
+        "version"
+      ],
+      "dist-tags": {
+        "latest": "2.1.0"
+      },
+      "versions": [
+        {
+          "version": "2.1.0",
+          "publishTimestamp": 1795737600,
+          "source": {
+            "type": "npm",
+            "package": "@dsh-loadout-fixtures/index-versioned-rule",
+            "registry": "http://127.0.0.1:8081/repository/npm-group/"
+          }
+        }
+      ]
     }
   ]
 }

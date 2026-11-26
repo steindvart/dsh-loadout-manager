@@ -1,0 +1,14 @@
+{
+  "name": "@dsh-loadout-fixtures/index-demo-rule",
+  "version": "1.0.0",
+  "description": "A demo rule served by the test index.",
+  "license": "MIT",
+  "files": [
+    "index-demo-rule.md"
+  ],
+  "loadout": {
+    "kind": "rule",
+    "name": "index-demo-rule",
+    "path": "index-demo-rule.md"
+  }
+}
