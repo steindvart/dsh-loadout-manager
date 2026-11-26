@@ -1,3 +1,5 @@
 # Code and build
 
 TypeScript built with tsdown, modeled on `dsh-better-sidebar`. `lib/index.js` is the Host (ESM, Node 24, no external imports except `node:*`). `lib/client.js` is the Client, wrapped in `window.__ModuleLoader__.load({ id: 'dsh-loadout-manager', factory })`; React comes from the shell's module table, and CSS Modules are bundled into a single `<style data-plugin>` tag. The `@deepseek-ai/*` 0.2.2-rc.2 packages sit in `devDependencies` for their types, and only types may be imported from them. The route contract shared by Host and Client is `src/shared/api.ts`. `lib/` is committed because the bundle is installed as a link to the repository.
+
+The catalog lives in `src/host/index-doc.ts` (document parsing), `src/host/index-sources.ts` (source classification and the source list), `src/host/index-store.ts` (cache, provenance, digests, safe copying), `src/host/index-fetch.ts` (git, local, and HTTP reads; staging), and `src/host/index-ops.ts` (operations). The last two call external `git`, `tar`, and `unzip`; the Host bundle keeps only `node:` imports. `src/client/catalog.tsx` is the tab.

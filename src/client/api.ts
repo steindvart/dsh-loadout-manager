@@ -3,6 +3,16 @@
 import type { Envelope, Operation, Requests, Responses } from '../shared/api.ts'
 import { routePath } from '../shared/api.ts'
 
+/** A failed operation: the Host's message plus its stable code. */
+export class CallError extends Error {
+  readonly code: string
+
+  constructor(code: string, message: string) {
+    super(message)
+    this.code = code
+  }
+}
+
 /**
  * POST one operation. The URL is relative to the document base without a
  * leading slash, so it also works behind a reverse-proxy prefix and in the
@@ -21,7 +31,7 @@ export async function call<Op extends Operation>(op: Op, body: Requests[Op]): Pr
   } catch {
     throw new Error(`HTTP ${response.status}`)
   }
-  if (!data.ok) throw new Error(data.error.message)
+  if (!data.ok) throw new CallError(data.error.code, data.error.message)
   return data.value
 }
 

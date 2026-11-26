@@ -11,23 +11,18 @@ import { homedir } from 'node:os'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-skill'
 import type {} from '@deepseek-ai/dsh-workspace'
-import type { InstructionView, Level, LevelView, Requests, Responses, RuleView, SkillState, SkillView, StateView } from '../shared/api.ts'
+import type {
+  IndexKind, IndexSearchView, IndexView, InstructionView, Level, LevelView, Requests, Responses, RuleView, SkillState, SkillView, StateView,
+} from '../shared/api.ts'
 import { isSkillState, parseLoadout, serializeLoadout, withMcpEnabled, withRuleEnabled, withSkillState, SKILL_STATES, type Loadout } from './loadout.ts'
 import { McpUnavailableError, probeMcp, readMcpServers, restartMcp, setMcpEnabled } from './mcp-host.ts'
+import { createIndexService, type IndexService } from './index-ops.ts'
 import { loadoutPath, scanInventory, type Homes, type InstructionItem, type Inventory, type RuleItem, type SkillItem } from './inventory.ts'
 import { findProjectRoot } from './paths.ts'
+import { OperationError } from './errors.ts'
 import { messageOf, withPresetScope } from './shadow.ts'
 
 const READ_LIMIT = 256 * 1024
-
-export class OperationError extends Error {
-  readonly code: string
-
-  constructor(code: string, message: string) {
-    super(message)
-    this.code = code
-  }
-}
 
 /** Where to look: the page passes a registered workspace, the tool passes the calling agent's cwd. */
 export interface Target {
@@ -48,6 +43,14 @@ export interface Operations {
   setMcp(request: Target & { name: string, enabled: unknown }): Promise<Responses['mcp-set']>
   restartMcp(request: Requests['mcp-restart']): Promise<Responses['mcp-restart']>
   probeMcp(request: Requests['mcp-probe']): Promise<Responses['mcp-probe']>
+  /** Cached catalog for the current scope; never fetches. */
+  indexState(target?: Target): Promise<IndexView>
+  indexRefresh(request: Target & { source?: string | undefined, ifStale?: boolean }): Promise<IndexView>
+  indexAddSource(request: Target & { source: string }): Promise<IndexView>
+  indexRemoveSource(request: Target & { source: string }): Promise<IndexView>
+  indexInstall(request: Target & { source: string, kind: IndexKind, name: string, force?: boolean | undefined }): Promise<Responses['index-install']>
+  /** Read-only search over cached entries, for the agent tool. */
+  indexSearch(request: Target & { query?: string | undefined, kind?: IndexKind | undefined, limit?: number | undefined }): Promise<IndexSearchView>
 }
 
 export interface OperationHooks {
@@ -57,6 +60,8 @@ export interface OperationHooks {
 }
 
 export function createOperations(ctx: Context, homes: Homes, { invalidate, trash = gioTrash }: OperationHooks): Operations {
+  const index: IndexService = createIndexService(homes, { invalidate, trash })
+
   async function inventoryFor({ workspacePath, cwd }: Target): Promise<{ projectRoot: string | undefined, inventory: Inventory }> {
     const projectRoot = cwd !== undefined
       ? await findProjectRoot(cwd)
@@ -64,6 +69,12 @@ export function createOperations(ctx: Context, homes: Homes, { invalidate, trash
     const customSkillDirs = await customRoots(ctx, projectRoot ?? homedir())
     const inventory = await scanInventory({ ...homes, customSkillDirs, projectRoot, workspacePath: cwd ?? workspacePath })
     return { projectRoot, inventory }
+  }
+
+  async function projectFor({ workspacePath, cwd }: Target): Promise<string | undefined> {
+    if (cwd !== undefined) return await findProjectRoot(cwd)
+    if (workspacePath === undefined) return undefined
+    return await workspaceRoot(workspacePath)
   }
 
   async function workspaceRoot(workspacePath: string): Promise<string> {
@@ -161,14 +172,14 @@ export function createOperations(ctx: Context, homes: Homes, { invalidate, trash
     },
 
     async remove({ workspacePath, path }) {
-      const { inventory } = await inventoryFor({ workspacePath })
-      const target = [
-        ...inventory.skills.map(skill => ({ path: skill.entry, readOnly: skill.readOnly })),
-        ...inventory.rules.map(rule => ({ path: rule.file, readOnly: false })),
-      ].find(item => item.path === path)
-      if (target === undefined) throw new OperationError('not-found', `not a listed skill or rule: ${path}`)
-      if (target.readOnly) throw new OperationError('read-only', `${path} is inside the application archive and cannot be deleted`)
+      const { projectRoot, inventory } = await inventoryFor({ workspacePath })
+      const skill = inventory.skills.find(item => item.entry === path)
+      const rule = inventory.rules.find(item => item.file === path)
+      if (skill === undefined && rule === undefined) throw new OperationError('not-found', `not a listed skill or rule: ${path}`)
+      if (skill?.readOnly === true) throw new OperationError('read-only', `${path} is inside the application archive and cannot be deleted`)
       await trash(path)
+      const level = skill?.level ?? rule?.level
+      await index.forget(path, level === 'project' ? projectRoot : undefined)
       invalidate()
       return { path, trashed: true }
     },
@@ -179,6 +190,31 @@ export function createOperations(ctx: Context, homes: Homes, { invalidate, trash
       if (!listed.includes(path)) throw new OperationError('not-found', `not a listed skill, rule, or instruction file: ${path}`)
       const text = await readFile(path, 'utf8')
       return text.length > READ_LIMIT ? { path, text: text.slice(0, READ_LIMIT), truncated: true } : { path, text, truncated: false }
+    },
+
+    async indexState(target = {}) {
+      return await index.state(await projectFor(target))
+    },
+
+    async indexRefresh({ workspacePath, cwd, source, ifStale }) {
+      return await index.refresh(await projectFor({ workspacePath, cwd }), { source, ifStale })
+    },
+
+    async indexAddSource({ workspacePath, cwd, source }) {
+      return await index.addSource(source, await projectFor({ workspacePath, cwd }))
+    },
+
+    async indexRemoveSource({ workspacePath, cwd, source }) {
+      return await index.removeSource(source, await projectFor({ workspacePath, cwd }))
+    },
+
+    async indexInstall({ workspacePath, cwd, source, kind, name, force }) {
+      if (kind !== 'skill' && kind !== 'rule') throw new OperationError('bad-request', 'kind must be "skill" or "rule"')
+      return await index.install({ source, kind, name, projectRoot: await projectFor({ workspacePath, cwd }), force: force === true })
+    },
+
+    async indexSearch({ workspacePath, cwd, query, kind, limit }) {
+      return await index.search({ projectRoot: await projectFor({ workspacePath, cwd }), query, kind, limit })
     },
   }
 }

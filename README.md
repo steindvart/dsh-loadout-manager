@@ -2,7 +2,7 @@
 
 English | [Русский](https://github.com/steindvart/dsh-loadout-manager/blob/main/README_RU.md) | [中文](https://github.com/steindvart/dsh-loadout-manager/blob/main/README_ZH.md)
 
-A plugin for DeepSeek Harness (DSH). Stock DSH has no single page that shows which skills and MCP servers are available globally and in a given project, and it has no rules mechanism. Loadout Manager adds both: it shows skills and MCP servers by level, lets you manage them, and adds rules to the agent context next to AGENTS.md.
+A plugin for DeepSeek Harness (DSH). Stock DSH has no single page that shows which skills and MCP servers are available globally and in a given project, and it has no rules mechanism. Loadout Manager adds both: it shows skills and MCP servers by level, lets you manage them, adds rules to the agent context next to AGENTS.md, and installs skills and rules from indexes you configure.
 
 ![The Loadout Manager page: the Skills tab in the Global scope, with an On, Manual, or Off switch for each skill](assets/main-window.png)
 
@@ -10,7 +10,7 @@ A plugin for DeepSeek Harness (DSH). Stock DSH has no single page that shows whi
 
 ### Overview by level
 
-Loadout Manager appears in the left sidebar. At the top of the page you pick a scope: Global or one of your workspaces. The Skills, Instructions, and MCP tabs show everything the agent gets in that scope, including the AGENTS.md and CLAUDE.md files DSH loads on its own. Any file opens right in its row.
+Loadout Manager appears in the left sidebar. At the top of the page you pick a scope: Global or one of your workspaces. The Skills, Instructions, and MCP tabs show everything the agent gets in that scope, including the AGENTS.md and CLAUDE.md files DSH loads on its own. The Catalog page opens from the header and is covered below. Any file opens right in its row.
 
 ### Skill management
 
@@ -26,17 +26,38 @@ In `manual` mode the skill's description stays out of the context, but you can s
 
 A rule is a Markdown file in `~/.dsh/rules/`, `~/.agents/rules/`, or `<project>/.agents/rules/`. Enabled rules reach the agent and its subagents right after AGENTS.md, and file edits reach the agent on the next step. Each rule is switched on and off on its own.
 
+### Catalog
+
+An index is a JSON file that lists skills and rules. Point the plugin at a git repository, a local directory, or an HTTP URL to `loadout-index.json`, then open the Catalog page from the Loadout Manager header. Search across sources, install an entry into the chosen scope, update it when the source publishes newer content or a newer version, and delete an installed copy from the same row. The page shows where each installed copy came from and marks local edits; an update asks before replacing them.
+
+A minimal index:
+
+```json
+{
+  "format": 1,
+  "title": "Team skills",
+  "skills": [
+    { "name": "tdd", "description": "Test-first workflow", "path": "skills/tdd" }
+  ],
+  "rules": [
+    { "name": "russian-docs", "description": "Russian prose", "path": "rules/russian-docs.md" }
+  ]
+}
+```
+
+Sources are listed in `~/.agents/loadout-indexes.json`. A source can be a git repository (`https://github.com/owner/repo` or `owner/repo`), an absolute local directory, or an HTTP URL to the index file. [docs/indexes.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/indexes.md) covers sources, the index format, and HTTP archives; [docs/catalog.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/catalog.md) covers installs and updates.
+
 ### MCP management
 
 In Global the switch turns a server on or off in the DSH profile. In a workspace it hides the server's tools from that project's agents while the server keeps running. The Check button makes a trial connection to the server and lists its tools, even when the server is off.
 
 ### Managing from the chat
 
-The plugin gives the agent a `loadout` tool, so you can change settings right in the conversation: for example, ask it to "turn off the omarchy skill in this project" or "which rules are on right now?". The agent can show the states of skills, rules, and MCP servers and switch them one at a time. Files cannot be deleted from the chat, only on the page.
+The plugin gives the agent a `loadout` tool, so you can change settings right in the conversation: for example, ask it to "turn off the omarchy skill in this project" or "which rules are on right now?". The agent can show the states of skills, rules, and MCP servers and switch them one at a time. It can also search the catalog with `action: "search"`, but installation stays on the page. Files cannot be deleted from the chat, only on the page.
 
 ## Where settings are stored
 
-States are written to `~/.agents/loadout.json` for the global level and to `<project>/.agents/loadout.json` for a project. These are ordinary files that you can commit and share with your team. The plugin never changes the skill and rule files themselves.
+States are written to `~/.agents/loadout.json` for the global level and to `<project>/.agents/loadout.json` for a project. The source list is `~/.agents/loadout-indexes.json`. Provenance of installed copies is kept in `~/.agents/.loadout-manager/installed.json` and `<project>/.agents/.loadout-manager/installed.json`. States and sources are ordinary files that you can commit and share with your team; the provenance records what this machine installed. The plugin does not edit skill or rule files in place: an index update replaces a managed copy, and `loadout.json` only stores switches.
 
 ```json
 {
@@ -64,6 +85,8 @@ The `maxBytes` option in the plugin config limits the size of one rules message:
 - Rules reach only agents whose preset includes `dsh-agent-instructions`. The Minimal preset does not.
 - Deletion uses `gio trash`. Where `gio` is missing, including Windows and macOS, the file stays in place and the panel shows an error.
 - Built-in skills from `app.asar` can be turned off but not deleted.
+- HTTP indexes report updates by `version`; a changed file with the same version looks current. HTTP authentication is not supported, and archives need `tar` or `unzip`.
+- Index entries are third-party content. The plugin validates paths and sizes and asks before replacing a locally changed copy; it does not review what a skill or rule tells the agent.
 
 ## Development
 

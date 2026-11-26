@@ -7,8 +7,9 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-connection'
-import { routePath, type Envelope, type Operation, type Responses } from '../shared/api.ts'
-import { OperationError, type Operations } from './operations.ts'
+import { routePath, type Envelope, type IndexKind, type Operation, type Responses } from '../shared/api.ts'
+import { OperationError } from './errors.ts'
+import type { Operations } from './operations.ts'
 import { messageOf } from './shadow.ts'
 
 type Body = Record<string, unknown>
@@ -29,6 +30,21 @@ export function registerRoutes(ctx: Context, operations: Operations): void {
     'mcp-set': body => operations.setMcp({ workspacePath: optionalString(body.workspacePath), name: requiredString(body.name, 'name'), enabled: body.enabled }),
     'mcp-restart': body => operations.restartMcp({ name: requiredString(body.name, 'name') }),
     'mcp-probe': body => operations.probeMcp({ name: requiredString(body.name, 'name') }),
+    'index-state': body => operations.indexState({ workspacePath: optionalString(body.workspacePath) }),
+    'index-refresh': body => operations.indexRefresh({
+      workspacePath: optionalString(body.workspacePath),
+      source: optionalString(body.source),
+      ifStale: body.ifStale === true,
+    }),
+    'index-add-source': body => operations.indexAddSource({ workspacePath: optionalString(body.workspacePath), source: requiredString(body.source, 'source') }),
+    'index-remove-source': body => operations.indexRemoveSource({ workspacePath: optionalString(body.workspacePath), source: requiredString(body.source, 'source') }),
+    'index-install': body => operations.indexInstall({
+      workspacePath: optionalString(body.workspacePath),
+      source: requiredString(body.source, 'source'),
+      kind: requiredKind(body.kind),
+      name: requiredString(body.name, 'name'),
+      force: body.force === true,
+    }),
   }
   ctx.inject(['connection'], (scoped) => {
     for (const op of Object.keys(handlers) as Operation[]) {
@@ -76,5 +92,10 @@ function optionalString(value: unknown): string | undefined {
 
 function requiredString(value: unknown, name: string): string {
   if (typeof value !== 'string' || value === '') throw new OperationError('bad-request', `${name} is required`)
+  return value
+}
+
+function requiredKind(value: unknown): IndexKind {
+  if (value !== 'skill' && value !== 'rule') throw new OperationError('bad-request', 'kind must be "skill" or "rule"')
   return value
 }

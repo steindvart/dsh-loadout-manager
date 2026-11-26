@@ -1,13 +1,13 @@
 # dsh-loadout-manager
 
-A DSH plugin (profile bundle): switches skills between `on`/`manual`/`off`, connects rule files to the agent context next to AGENTS.md, and manages MCP servers per scope. Design decisions live in [docs/SPEC.md](docs/SPEC.md) and the topic files in `docs/`; they are final, so change them only with the user's agreement. Facts about the DSH 0.2.2-rc.2 API with links to the sources are in [docs/research/](docs/research/).
+A DSH plugin (profile bundle): switches skills between `on`/`manual`/`off`, connects rule files to the agent context next to AGENTS.md, manages MCP servers per scope, and installs skills and rules from configured indexes. Design decisions live in [docs/SPEC.md](docs/SPEC.md) and the topic files in `docs/`; they are final, so change them only with the user's agreement. Facts about the DSH 0.2.2-rc.2 API with links to the sources are in [docs/research/](docs/research/).
 
 ## Layout
 
 - `src/index.ts` – the Host `apply(ctx, config)`: only wires DSH services to the modules in `src/host/`.
-- `src/host/` – Host logic. Pure modules with tests: `frontmatter`, `loadout`, `inventory`, `rules`. The rest are thin adapters to `ctx` (skill provider, `pre-step`, routes, tool).
+- `src/host/` – Host logic. Pure modules with tests: `frontmatter`, `loadout`, `inventory`, `rules`, `index-doc`, `index-sources`, `index-store`. The rest are thin adapters to `ctx` (skill provider, `pre-step`, routes, tool). `index-fetch` and `index-ops` add network, Git, `tar`/`unzip`, and filesystem installs.
 - `src/shared/api.ts` – the contract of the `/api/dsh-loadout-manager/<op>` routes: requests and responses shared by Host and Client. To change a response field, change it here and let the compiler show both sides.
-- `src/client/` – the Loadout Manager page in React (TSX), styles in `Loadout.module.css`, strings in `locale.ts` (`en` is the source of keys; `ru` and `zh` must match it).
+- `src/client/` – the Loadout Manager page in React (TSX), styles in `Loadout.module.css`, strings in `locale.ts` (`en` is the source of keys; `ru` and `zh` must match it). `catalog.tsx` is the Catalog subpage opened from the Loadout Manager header.
 - `lib/` – the built `index.js` and `client.js` that `package.json` points to. They are committed: DSH reads them straight from the checkout when the bundle is installed from a local directory or a Git URL.
 - `test/*.test.ts` – `node:test`; `client.test.ts` loads the built `lib/client.js` the way DSH loads it.
 

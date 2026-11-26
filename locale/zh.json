@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Loadout Manager",
-    "description": "按全局和项目展示技能与 MCP 服务器，提供管理功能，并把规则加入智能体上下文，与 AGENTS.md 并列。",
+    "description": "按全局和项目展示技能与 MCP 服务器，提供管理功能，可从索引安装技能和规则，并把规则加入智能体上下文，与 AGENTS.md 并列。",
     "detail": "README_ZH.md"
   }
 }

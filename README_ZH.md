@@ -2,7 +2,7 @@
 
 [English](https://github.com/steindvart/dsh-loadout-manager/blob/main/README.md) | [Русский](https://github.com/steindvart/dsh-loadout-manager/blob/main/README_RU.md) | 中文
 
-DeepSeek Harness（DSH）插件。原版 DSH 没有一个页面能同时查看全局和某个项目中可用的技能（skill）与 MCP 服务器，也没有规则（rules）机制。Loadout Manager 补上了这两点：按层级展示技能和 MCP 服务器，提供管理功能，并把规则加入智能体上下文，与 AGENTS.md 并列。
+DeepSeek Harness（DSH）插件。原版 DSH 没有一个页面能同时查看全局和某个项目中可用的技能（skill）与 MCP 服务器，也没有规则（rules）机制。Loadout Manager 补上了这两点：按层级展示技能和 MCP 服务器，提供管理功能，把规则加入智能体上下文，与 AGENTS.md 并列，还可以从配置好的索引安装技能和规则。
 
 ![Loadout Manager 页面（英文界面）：Global 范围下的 Skills 标签页，每个技能都有 On、Manual、Off 开关](assets/main-window.png)
 
@@ -12,7 +12,7 @@ DeepSeek Harness（DSH）插件。原版 DSH 没有一个页面能同时查看�
 
 ### 按层级查看
 
-左侧边栏会出现 Loadout Manager 入口。在页面顶部选择范围：“全局”或某个工作区。“技能”“指令”和“MCP”三个标签页列出智能体在该范围内获得的全部内容，包括 DSH 自动加载的 AGENTS.md 和 CLAUDE.md。任何文件都可以直接在所在行中展开查看。
+左侧边栏会出现 Loadout Manager 入口。在页面顶部选择范围：“全局”或某个工作区。“技能”“指令”和“MCP”三个标签页列出智能体在该范围内获得的全部内容，包括 DSH 自动加载的 AGENTS.md 和 CLAUDE.md。目录页面从页头打开。任何文件都可以直接在所在行中展开查看。
 
 ### 技能管理
 
@@ -28,17 +28,38 @@ DeepSeek Harness（DSH）插件。原版 DSH 没有一个页面能同时查看�
 
 规则是位于 `~/.dsh/rules/`、`~/.agents/rules/` 或 `<项目>/.agents/rules/` 中的 Markdown 文件。启用的规则会紧跟在 AGENTS.md 之后进入智能体及其子智能体的上下文，文件修改会在下一步生效。每条规则可以单独启用或停用。
 
+### 目录
+
+索引是一个列出技能和规则的 JSON 文件。把插件指向 Git 仓库、本地目录或 `loadout-index.json` 的 HTTP 链接，然后从 Loadout Manager 页头打开“目录”页面。可以跨来源搜索，把条目安装到选定范围，在来源发布新内容或新版本时更新，也可以在同一行删除已安装副本。面板会显示每个已安装副本的来源，并标记本地修改；更新前会请求确认。
+
+最小索引示例：
+
+```json
+{
+  "format": 1,
+  "title": "Team skills",
+  "skills": [
+    { "name": "tdd", "description": "Test-first workflow", "path": "skills/tdd" }
+  ],
+  "rules": [
+    { "name": "russian-docs", "description": "Russian prose", "path": "rules/russian-docs.md" }
+  ]
+}
+```
+
+来源列表保存在 `~/.agents/loadout-indexes.json`。来源可以是 Git 仓库（`https://github.com/owner/repo` 或 `owner/repo`）、绝对本地目录，或索引文件的 HTTP 链接。来源、索引格式和 HTTP 归档见 [docs/indexes.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/indexes.md)，安装和更新规则见 [docs/catalog.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/catalog.md)。
+
 ### MCP 管理
 
 在“全局”中，开关会在 DSH 配置中启用或停用服务器。在工作区中，开关会对该项目的智能体隐藏服务器的工具，服务器本身继续运行。“检查”按钮会试连服务器并列出其工具，即使服务器已停用也可以。
 
 ### 在对话中管理
 
-插件为智能体提供 `loadout` 工具，因此可以直接在对话中修改设置，例如“在这个项目里停用 omarchy 技能”或“现在启用了哪些规则？”。智能体可以查看技能、规则和 MCP 服务器的状态，并逐个切换。对话中不能删除文件，删除只能在页面上进行。
+插件为智能体提供 `loadout` 工具，因此可以直接在对话中修改设置，例如“在这个项目里停用 omarchy 技能”或“现在启用了哪些规则？”。智能体可以查看技能、规则和 MCP 服务器的状态，并逐个切换，也可以用 `action: "search"` 搜索目录。安装仍在页面上进行，对话中不能删除文件。
 
 ## 设置保存位置
 
-全局状态写入 `~/.agents/loadout.json`，项目状态写入 `<项目>/.agents/loadout.json`。它们是普通文件，可以提交到仓库并与团队共享。插件不会修改技能和规则文件本身。
+全局状态写入 `~/.agents/loadout.json`，项目状态写入 `<项目>/.agents/loadout.json`。来源列表保存在 `~/.agents/loadout-indexes.json`，已安装副本的来源记录在 `~/.agents/.loadout-manager/installed.json` 和 `<项目>/.agents/.loadout-manager/installed.json`。状态和来源是普通文件，可以提交到仓库并与团队共享；安装记录属于这台机器。插件不会就地编辑技能和规则文件：索引更新会替换受管理的副本，`loadout.json` 只保存开关。
 
 ```json
 {
@@ -66,6 +87,8 @@ dsh plugin --profile <配置名> add dsh-loadout-manager
 - 只有预设中包含 `dsh-agent-instructions` 的智能体才会收到规则，Minimal 预设不包含它。
 - 删除通过 `gio trash` 完成。在没有 `gio` 的系统上（包括 Windows 和 macOS），文件会保留原处，面板显示错误。
 - 来自 `app.asar` 的内置技能可以停用，但不能删除。
+- HTTP 索引只按 `version` 判断更新：版本号不变而文件变化时不会显示更新。不支持 HTTP 认证，解压归档需要 `tar` 或 `unzip`。
+- 索引条目是第三方内容。插件会校验路径和大小，并在替换本地修改过的副本前请求确认，但不会审查技能或规则教给智能体的内容。
 
 ## 开发
 
