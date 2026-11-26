@@ -8,6 +8,7 @@ import { readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { refreshSource, ruleContent, stageSkill } from '../src/host/index-fetch.ts'
+import { createIndexService } from '../src/host/index-ops.ts'
 import { classifySource } from '../src/host/index-sources.ts'
 
 const skillFile = (name: string) => `---\nname: ${name}\ndescription: ${name} skill\n---\n# ${name}\n`
@@ -37,12 +38,15 @@ function pack(pkg: Package): Buffer {
 
 const integrity = (bytes: Buffer) => `sha512-${createHash('sha512').update(bytes).digest('base64')}`
 
+type Published = Package & { kind: 'skill' | 'rule', entry: string, dist?: Record<string, string> }
+
 /**
  * A registry under `/npm/` plus a format 2 index at `/index.json`. Each
  * package is served with its packument and tarball; `dist` overrides what
- * the packument claims about the tarball.
+ * the packument claims about the tarball. `publish` adds a version and moves
+ * the index's `latest` to it.
  */
-async function registry(packages: Array<Package & { kind: 'skill' | 'rule', entry: string, dist?: Record<string, string> }>) {
+async function registry(packages: Published[]) {
   const requested: string[] = []
   const served = new Map<string, { type: string, body: Buffer | string }>()
   const server = await listen((request, response) => {
@@ -56,26 +60,36 @@ async function registry(packages: Array<Package & { kind: 'skill' | 'rule', entr
     response.writeHead(200, { 'content-type': item.type }).end(item.body)
   })
   const base = `http://127.0.0.1:${String((server.address() as { port: number }).port)}`
-  const index: { format: 2, skills: unknown[], rules: unknown[] } = { format: 2, skills: [], rules: [] }
-  for (const pkg of packages) {
+  const published: Published[] = []
+  const state = { server, base, requested, index: '', publish }
+  function publish(pkg: Published): void {
+    published.push(pkg)
     const tarball = pack(pkg)
     const file = `${pkg.name.split('/').pop() ?? pkg.name}-${pkg.version}.tgz`
     served.set(`/npm/${pkg.name}/-/${file}`, { type: 'application/octet-stream', body: tarball })
-    served.set(`/npm/${pkg.name}`, {
-      type: 'application/json',
-      body: JSON.stringify({
-        name: pkg.name,
-        versions: { [pkg.version]: { name: pkg.name, version: pkg.version, dist: { tarball: `${base}/npm/${pkg.name}/-/${file}`, integrity: integrity(tarball), ...pkg.dist } } },
-      }),
-    })
-    const item = {
-      name: pkg.entry,
-      versions: [{ version: pkg.version, publishTimestamp: 1_790_000_000, source: { type: 'npm', package: pkg.name, registry: `${base}/npm/` } }],
+    const previous = served.get(`/npm/${pkg.name}`)
+    const packument: { versions: Record<string, unknown> } = previous === undefined
+      ? { versions: {} }
+      : JSON.parse(String(previous.body)) as { versions: Record<string, unknown> }
+    packument.versions[pkg.version] = {
+      name: pkg.name, version: pkg.version, dist: { tarball: `${base}/npm/${pkg.name}/-/${file}`, integrity: integrity(tarball), ...pkg.dist },
     }
-    ;(pkg.kind === 'skill' ? index.skills : index.rules).push(item)
+    served.set(`/npm/${pkg.name}`, { type: 'application/json', body: JSON.stringify(packument) })
+    const index: { format: 2, skills: unknown[], rules: unknown[] } = { format: 2, skills: [], rules: [] }
+    for (const entry of new Set(published.map(item => item.entry))) {
+      const versions = published.filter(item => item.entry === entry)
+      const last = versions.at(-1) as Published
+      ;(last.kind === 'skill' ? index.skills : index.rules).push({
+        name: entry,
+        'dist-tags': { latest: last.version },
+        versions: versions.map(item => ({ version: item.version, publishTimestamp: 1_790_000_000, source: { type: 'npm', package: item.name, registry: `${base}/npm/` } })),
+      })
+    }
+    state.index = JSON.stringify(index)
+    served.set('/index.json', { type: 'application/json', body: state.index })
   }
-  served.set('/index.json', { type: 'application/json', body: JSON.stringify(index) })
-  return { server, base, requested, index: JSON.stringify(index) }
+  for (const pkg of packages) publish(pkg)
+  return state
 }
 
 const tddSkill = (extra: Partial<Package & { dist: Record<string, string> }> = {}) => ({
@@ -170,6 +184,34 @@ test('the package manifest must match the index and keep its payload inside the 
       await close(npm.server)
     }
   }
+})
+
+test('installs an npm entry, records its spec, and updates when latest moves', async (t) => {
+  const base = mkdtempSync(join(tmpdir(), 'loadout-npm-'))
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const npm = await registry([tddSkill()])
+  t.after(() => close(npm.server))
+  const homes = { dshHome: join(base, 'dsh'), agentsHome: join(base, 'agents') }
+  const service = createIndexService(homes, { invalidate: () => {}, trash: async path => rm(path, { recursive: true, force: true }) })
+  const source = `${npm.base}/index.json`
+  await service.addSource(source, undefined)
+
+  const first = await service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false })
+  assert.equal(first.action, 'installed')
+  assert.match(await readFile(join(homes.agentsHome, 'skills/tdd/SKILL.md'), 'utf8'), /name: tdd/)
+  const installed = JSON.parse(await readFile(join(homes.agentsHome, '.loadout-manager/installed.json'), 'utf8')) as { items: Record<string, { path: string, version: string }> }
+  assert.deepEqual([installed.items['skill/tdd']?.path, installed.items['skill/tdd']?.version], ['@team-skills/tdd@1.2.0', '1.2.0'])
+
+  const next = tddSkill({ version: '1.3.0' })
+  npm.publish({ ...next, files: { ...next.files, 'skill/refs/notes.md': 'Notes 1.3.0' } })
+  const view = await service.refresh(undefined, {})
+  assert.deepEqual(view.entries.map(entry => [entry.name, entry.version, entry.installs[0]?.version, entry.installs[0]?.updateAvailable]), [['tdd', '1.3.0', '1.2.0', true]])
+
+  const second = await service.install({ source, kind: 'skill', name: 'tdd', projectRoot: undefined, force: false })
+  assert.equal(second.action, 'updated')
+  assert.equal(await readFile(join(homes.agentsHome, 'skills/tdd/refs/notes.md'), 'utf8'), 'Notes 1.3.0')
+  const after = await service.state(undefined)
+  assert.deepEqual(after.entries.map(entry => [entry.installs[0]?.version, entry.installs[0]?.updateAvailable]), [['1.3.0', false]])
 })
 
 function listen(handler: (request: IncomingMessage, response: ServerResponse) => void): Promise<Server> {
