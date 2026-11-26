@@ -1,6 +1,6 @@
 /**
- * Publish the npm packages of the Catalog fixture (`test/fixtures/index/packages/`)
- * to a registry, so `test/fixtures/index` can be added as a source in a running
+ * Publish the npm packages of the npm Catalog fixture (`test/fixtures/index-npm/packages/`)
+ * to a registry, so `test/fixtures/index-npm` can be added as a source in a running
  * DSH. A version the registry already has is skipped. The registry and an
  * account that may publish to it come from the environment:
  *
@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const packages = resolve(dirname(fileURLToPath(import.meta.url)), '../test/fixtures/index/packages')
+const packages = resolve(dirname(fileURLToPath(import.meta.url)), '../test/fixtures/index-npm/packages')
 const { NPM_REGISTRY: registryText, NEXUS_LOGIN: login, NEXUS_PASSWORD: password } = process.env
 if (registryText === undefined || login === undefined || password === undefined) {
   console.error('Set NPM_REGISTRY, NEXUS_LOGIN, and NEXUS_PASSWORD.')
