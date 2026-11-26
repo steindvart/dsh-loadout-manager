@@ -1,17 +1,19 @@
 /**
  * Reading index sources: a git repository (fetched into a cache clone), a
  * local directory, or an HTTP JSON document. Also materializes one entry into
- * a staging directory – copying a skill tree or fetching a rule file – so the
- * installer can validate it before it replaces anything.
+ * a staging directory – copying a skill tree, fetching a rule file, or
+ * unpacking the npm package a format 2 entry pins – so the installer can
+ * validate it before it replaces anything.
  */
 
 import { execFile } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { gunzip } from 'node:zlib'
-import { INDEX_FILE, parseIndexDocument, type IndexSkillEntry } from './index-doc.ts'
+import { INDEX_FILE, parseIndexDocument, relativePath, type IndexSkillEntry, type NpmPin } from './index-doc.ts'
 import type { IndexSource } from './index-sources.ts'
 import {
   MAX_ARCHIVE_BYTES, MAX_INDEX_BYTES, MAX_RULE_BYTES, MAX_SKILL_BYTES, MAX_SKILL_FILES, cacheDir, cacheFile, copySkillTree, digestFile, digestTree,
@@ -26,6 +28,9 @@ const GIT_MAX_BUFFER = 16 * 1024 * 1024
 const ARCHIVE_EXTENSIONS = ['.tar.gz', '.tgz', '.zip']
 /** A tar stream adds headers and padding to the files it holds; this leaves room for them. */
 const MAX_TAR_BYTES = MAX_SKILL_BYTES + 4 * 1024 * 1024
+/** A packument lists every version of a package; long histories with READMEs grow large. */
+const MAX_PACKUMENT_BYTES = 8 * 1024 * 1024
+const MAX_PACKAGE_JSON_BYTES = 1024 * 1024
 const gunzipAsync = promisify(gunzip)
 
 export interface FetchOptions {
@@ -98,6 +103,11 @@ export async function scanGitCheckout(source: IndexSource, dir: string): Promise
   const document = parseIndexDocument(text, `${source.id}/${INDEX_FILE}`)
   const skills: CachedSkill[] = []
   for (const entry of document.skills) {
+    // A format 2 entry lives in an npm registry, not in the clone.
+    if (entry.npm !== undefined) {
+      skills.push(entry)
+      continue
+    }
     const item = await treeEntry(dir, entry.path)
     if (item.type !== 'tree') throw new Error(`${source.id}: ${notTree(entry.path, item.mode)}`)
     const skillFile = await treeEntry(dir, childPath(entry.path, 'SKILL.md'))
@@ -106,6 +116,10 @@ export async function scanGitCheckout(source: IndexSource, dir: string): Promise
   }
   const rules: CachedRule[] = []
   for (const entry of document.rules) {
+    if (entry.npm !== undefined) {
+      rules.push(entry)
+      continue
+    }
     const item = await treeEntry(dir, entry.path)
     if (item.mode === SYMLINK_MODE) throw new Error(`${source.id}: ${entry.path} is a symbolic link; index entries may not be links`)
     if (item.type !== 'blob') throw new Error(`${source.id}: ${entry.path} is not a file in the source`)
@@ -130,13 +144,17 @@ async function refreshLocal(source: IndexSource): Promise<CachedIndex> {
   const document = parseIndexDocument(text, `${source.id}/${INDEX_FILE}`)
   const skills: CachedSkill[] = []
   for (const entry of document.skills) {
+    if (entry.npm !== undefined) {
+      skills.push(entry)
+      continue
+    }
     const dir = await resolveEntry(source.id, entry.path, 'directory')
     await resolveEntry(source.id, childPath(entry.path, 'SKILL.md'), 'file')
     skills.push({ ...entry, digest: await digestTree(dir) })
   }
   const rules: CachedRule[] = []
   for (const entry of document.rules) {
-    rules.push({ ...entry, digest: await digestFile(await resolveEntry(source.id, entry.path, 'file')) })
+    rules.push(entry.npm !== undefined ? entry : { ...entry, digest: await digestFile(await resolveEntry(source.id, entry.path, 'file')) })
   }
   return {
     format: 1,
@@ -169,6 +187,12 @@ async function refreshHttp(source: IndexSource, { fetchImpl = fetch, signal }: F
 
 /** Write a skill's files into `staging`, which must not exist yet. */
 export async function stageSkill(cache: CachedIndex, entry: CachedSkill, options: FetchOptions, staging: string): Promise<void> {
+  if (entry.npm !== undefined) {
+    await withNpmPayload(cache, entry.npm, 'skill', entry.name, options, async (root, path) => {
+      await copySkillTree(await resolveEntry(root, path, 'directory'), staging)
+    })
+    return
+  }
   if (cache.kind === 'git') {
     const dir = repoDir(options.dshHome, cache.source)
     await assertHead(dir, cache)
@@ -184,6 +208,12 @@ export async function stageSkill(cache: CachedIndex, entry: CachedSkill, options
 
 /** Read a rule file from the source, bounded by `MAX_RULE_BYTES`. */
 export async function ruleContent(cache: CachedIndex, entry: CachedRule, options: FetchOptions): Promise<Uint8Array> {
+  if (entry.npm !== undefined) {
+    return await withNpmPayload(cache, entry.npm, 'rule', entry.name, options, async (root, path) => {
+      if (!path.toLowerCase().endsWith('.md')) throw new Error(`${entry.npm?.package ?? entry.name}: loadout.path must name a .md file`)
+      return await readBytes(await resolveEntry(root, path, 'file'), MAX_RULE_BYTES)
+    })
+  }
   if (cache.kind === 'git') {
     const dir = repoDir(options.dshHome, cache.source)
     await assertHead(dir, cache)
@@ -229,11 +259,21 @@ async function stageHttpSkill(cache: CachedIndex, entry: IndexSkillEntry, option
 async function stageArchive(cache: CachedIndex, url: string, options: FetchOptions, staging: string): Promise<void> {
   const fetchImpl = options.fetchImpl ?? fetch
   const { bytes } = await fetchBytes(url, MAX_ARCHIVE_BYTES, DOWNLOAD_TIMEOUT_MS, fetchImpl, options.signal)
+  const zip = new URL(url).pathname.toLowerCase().endsWith('.zip')
+  await withUnpacked(cache, bytes, zip, options, async (extracted) => {
+    await copySkillTree(await skillRoot(extracted), staging)
+  })
+}
+
+/**
+ * Unpack an archive into a temporary directory under the source cache, run
+ * `use` on it, and remove the directory whatever `use` does.
+ */
+async function withUnpacked<T>(cache: CachedIndex, bytes: Uint8Array, zip: boolean, options: FetchOptions, use: (extracted: string) => Promise<T>): Promise<T> {
   const parent = join(cacheDir(options.dshHome, cache.source), 'tmp')
   await mkdir(parent, { recursive: true })
   const temp = await mkdtemp(join(parent, 'archive-'))
   try {
-    const zip = new URL(url).pathname.toLowerCase().endsWith('.zip')
     const archive = join(temp, zip ? 'archive.zip' : 'archive.tar')
     await writeFile(archive, zip ? bytes : await inflate(bytes))
     const extracted = join(temp, 'extracted')
@@ -250,11 +290,98 @@ async function stageArchive(cache: CachedIndex, url: string, options: FetchOptio
     } else {
       await runTool('tar', ['-xf', archive, '-C', extracted, '--no-same-owner', '--no-same-permissions'], options.signal)
     }
-    const root = await skillRoot(extracted)
-    await copySkillTree(root, staging)
+    return await use(extracted)
   } finally {
     await removeDirectory(temp)
   }
+}
+
+/**
+ * Fetch the package a format 2 entry pins, check it, and run `use` on the
+ * unpacked package with the payload path its `package.json` declares. The
+ * registry's packument names the tarball and its integrity; the tarball must
+ * stay on the registry origin and match that integrity before it is unpacked.
+ */
+async function withNpmPayload<T>(
+  cache: CachedIndex, pin: NpmPin, kind: 'skill' | 'rule', name: string, options: FetchOptions,
+  use: (packageRoot: string, payload: string) => Promise<T>,
+): Promise<T> {
+  const fetchImpl = options.fetchImpl ?? fetch
+  const spec = `${pin.package}@${pin.version}`
+  const packumentUrl = `${pin.registry}${pin.package.replace('/', '%2f')}`
+  const { bytes: packumentBytes } = await fetchBytes(packumentUrl, MAX_PACKUMENT_BYTES, INDEX_TIMEOUT_MS, fetchImpl, options.signal)
+  const dist = distOf(parseJson(packumentBytes, packumentUrl), pin.version, spec)
+  const tarballUrl = resolveUrl(pin.registry, dist.tarball)
+  const { bytes } = await fetchBytes(tarballUrl, MAX_ARCHIVE_BYTES, DOWNLOAD_TIMEOUT_MS, fetchImpl, options.signal)
+  verifyIntegrity(bytes, dist, spec)
+  return await withUnpacked(cache, bytes, false, options, async (extracted) => {
+    const root = await packageRoot(extracted, spec)
+    const manifest = parseJson(await readBytes(join(root, 'package.json'), MAX_PACKAGE_JSON_BYTES), `${spec} package.json`)
+    if (manifest.name !== pin.package || manifest.version !== pin.version) {
+      throw new Error(`${spec}: package.json names "${String(manifest.name)}@${String(manifest.version)}"`)
+    }
+    const loadout = manifest.loadout
+    if (typeof loadout !== 'object' || loadout === null || Array.isArray(loadout)) throw new Error(`${spec}: package.json has no "loadout" field`)
+    const fields = loadout as Record<string, unknown>
+    if (fields.kind !== kind) throw new Error(`${spec}: loadout.kind is ${JSON.stringify(fields.kind)}, the index lists a ${kind}`)
+    if (fields.name !== name) throw new Error(`${spec}: loadout.name is ${JSON.stringify(fields.name)}, the index lists "${name}"`)
+    return await use(root, relativePath(fields.path, `${spec} package.json`, 'loadout.path'))
+  })
+}
+
+interface Dist {
+  tarball: string
+  integrity?: string
+  shasum?: string
+}
+
+function distOf(packument: Record<string, unknown>, version: string, spec: string): Dist {
+  const versions = packument.versions
+  const entry = typeof versions === 'object' && versions !== null ? (versions as Record<string, unknown>)[version] : undefined
+  const dist = typeof entry === 'object' && entry !== null ? (entry as Record<string, unknown>).dist : undefined
+  if (typeof dist !== 'object' || dist === null) throw new Error(`${spec} is not published in the registry`)
+  const { tarball, integrity, shasum } = dist as Record<string, unknown>
+  if (typeof tarball !== 'string') throw new Error(`${spec}: the registry names no tarball`)
+  return {
+    tarball,
+    ...typeof integrity === 'string' ? { integrity } : {},
+    ...typeof shasum === 'string' ? { shasum } : {},
+  }
+}
+
+/** Check the tarball against its sha512 integrity, or its sha1 shasum when the registry publishes only that. */
+function verifyIntegrity(bytes: Uint8Array, dist: Dist, spec: string): void {
+  const sha512 = (dist.integrity ?? '').split(/\s+/).filter(item => item.startsWith('sha512-')).map(item => item.slice('sha512-'.length).split('?')[0])
+  if (sha512.length > 0) {
+    const actual = createHash('sha512').update(bytes).digest('base64')
+    if (!sha512.includes(actual)) throw new Error(`${spec}: the tarball does not match its published integrity`)
+    return
+  }
+  if (dist.shasum !== undefined) {
+    if (createHash('sha1').update(bytes).digest('hex') !== dist.shasum.toLowerCase()) throw new Error(`${spec}: the tarball does not match its published integrity`)
+    return
+  }
+  throw new Error(`${spec}: the registry publishes no integrity for the tarball`)
+}
+
+/** The unpacked package directory: the archive root or its single top-level directory, holding package.json. */
+async function packageRoot(extracted: string, spec: string): Promise<string> {
+  if (existsSync(join(extracted, 'package.json'))) return extracted
+  const dirs = (await readdir(extracted, { withFileTypes: true })).filter(entry => entry.isDirectory())
+  const [only] = dirs
+  if (dirs.length === 1 && only !== undefined && existsSync(join(extracted, only.name, 'package.json'))) return join(extracted, only.name)
+  throw new Error(`${spec}: the tarball holds no package.json`)
+}
+
+function parseJson(bytes: Uint8Array, label: string): Record<string, unknown> {
+  let value: unknown
+  try {
+    value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
+  } catch (error) {
+    throw new Error(`${label} is not valid JSON: ${messageOf(error)}`, { cause: error })
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error(`${label} is not a JSON object`)
+  return value as Record<string, unknown>
 }
 
 /** Inflate a gzip stream, refusing one that grows past `MAX_TAR_BYTES`. */
