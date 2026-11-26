@@ -2,7 +2,7 @@
 
 A DSH plugin that manages the agent's _loadout_: which skills and rules it carries. The loadout lives in the project's `.agents/` and in the home directories. The plugin has a Host part (skill catalog filter, rules injected into the context, the index catalog) and a Client part (the management panel in the Web GUI). The Catalog subpage installs skills and rules from indexes the user configures.
 
-Status: the first version is installed and verified on a live DSH. Notes on the DSH API gathered for the implementation are in [research/](research/).
+Status: the first version and the Catalog are installed and verified on a live DSH. Notes on the DSH API gathered for the implementation are in [research/](research/).
 
 ## Topics
 
