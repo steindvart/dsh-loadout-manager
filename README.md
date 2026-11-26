@@ -28,9 +28,35 @@ A rule is a Markdown file in `~/.dsh/rules/`, `~/.agents/rules/`, or `<project>/
 
 ### Catalog
 
-An index is a JSON file that lists skills and rules. Point the plugin at a git repository, a local directory, or an HTTP URL to `loadout-index.json`, then open the Catalog page from the Loadout Manager header. Search across sources, install an entry into the chosen scope, update it when the source publishes newer content or a newer version, and delete an installed copy from the same row. The page shows where each installed copy came from and marks local edits; an update asks before replacing them.
+The Catalog page installs skills and rules from indexes. An index is a `loadout-index.json` file that lists them. The plugin reads it from three kinds of source, so a team can publish its skills wherever it already keeps files:
 
-A minimal index:
+| Source | What to enter | How an update is noticed |
+| --- | --- | --- |
+| Local directory | An absolute path, such as `/srv/shared/skills`, with the index at its root | The digest of the entry's files changes |
+| Git repository | `https://github.com/owner/repo`, `owner/repo`, `ssh://…`, or `git@host:path`; the plugin reads the default branch | The entry's git tree or blob id changes |
+| HTTP | The URL of the index file, for example in a Nexus raw repository: `https://nexus.example/repository/skills/loadout-index.json` | The entry's `version` changes |
+
+Add a source with the form on the Catalog page, which opens from the Loadout Manager header, or list it in `~/.agents/loadout-indexes.json`:
+
+```json
+{
+  "format": 1,
+  "indexes": [
+    "/srv/shared/skills",
+    "https://github.com/owner/team-skills",
+    "https://nexus.example/repository/skills/loadout-index.json"
+  ]
+}
+```
+
+For Nexus, enter the file URL under `/repository/`. A link copied from the Nexus web UI contains `#`; the plugin refuses it and shows the file URL to use instead.
+
+Any source can serve either index format:
+
+- Format 1 lists paths next to the index: a skill directory with `SKILL.md` or a rule `.md` file. Over HTTP a skill can also be a `.tar.gz` or `.zip` archive.
+- Format 2 lists npm packages. Each skill or rule names its versions, the package, and the registry, such as a Nexus npm repository. The plugin installs the version tagged `latest` and checks the tarball against the integrity the registry publishes. The package declares what to install in a `loadout` field of its `package.json`.
+
+A minimal format 1 index:
 
 ```json
 {
@@ -45,9 +71,9 @@ A minimal index:
 }
 ```
 
-Sources are listed in `~/.agents/loadout-indexes.json`. A source can be a git repository (`https://github.com/owner/repo` or `owner/repo`), an absolute local directory, or an HTTP URL to the index file. [docs/indexes.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/indexes.md) covers sources, the index format, and HTTP archives; [docs/catalog.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/catalog.md) covers installs and updates.
+On the page you search across all sources, install an entry into the chosen scope, update it when its source publishes newer content or a newer version, and delete an installed copy from the same row. Each row shows which index an installed copy came from. If the name is already taken by a skill you wrote yourself, by a copy from another index, or by a copy with local edits, the row says so and replaces that copy only after you confirm. The replaced copy goes to the trash.
 
-An index with `"format": 2` lists npm packages instead of paths: each skill or rule names its versions, the package, and the registry, and the plugin installs the version tagged `latest` from that registry. The package declares what to install in a `loadout` field of its `package.json`; [docs/indexes.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/indexes.md#format-2-npm-packages) has the format.
+[docs/indexes.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/indexes.md) covers sources, both index formats, and HTTP archives; [docs/catalog.md](https://github.com/steindvart/dsh-loadout-manager/blob/main/docs/catalog.md) covers installs, updates, and replacements.
 
 ### MCP management
 
@@ -91,7 +117,7 @@ The `autoUpdate` switch (off by default) sits on the plugin's page in **Plugins*
 - Built-in skills from `app.asar` can be turned off but not deleted.
 - HTTP indexes report updates by `version`; a changed file with the same version looks current. HTTP authentication is not supported, and archives need `tar` or `unzip`.
 - npm entries install the version tagged `latest` only, from registries that allow anonymous reads.
-- Index entries are third-party content. The plugin validates paths and sizes and asks before replacing a locally changed copy; it does not review what a skill or rule tells the agent.
+- Index entries are third-party content. The plugin validates paths and sizes and asks before replacing a copy that this index did not install or that has local edits; it does not review what a skill or rule tells the agent.
 
 ## Development
 
