@@ -57,6 +57,7 @@ function fakeHost(window: Window, state: (body: Requests['state']) => StateView,
     calls.push([op, body])
     const value = op === 'state' ? state(body)
       : op === 'index-refresh' || op === 'index-state' ? index
+      : op === 'index-remove-source' ? { ...index, sources: [] }
       : op === 'index-install' ? { source: 'owner/repo', kind: 'skill', name: 'tdd', level: 'global', path: '/home/me/.agents/skills/tdd', action: 'installed' }
       : op === 'mcp-probe' ? { ok: true, serverName: 'mcp-servers/everything', serverVersion: '1.0.0', tools: ['echo', 'add'], truncated: false, durationMs: 120 }
       : { ok: true }
@@ -341,8 +342,8 @@ test('a locally changed update asks for confirmation before replacing the copy',
   await act(async () => { root.unmount() })
 })
 
-/** Render the page with `index`, open the Catalog subpage, and return helpers to drive it. */
-async function openCatalog(index: IndexView) {
+/** Render the Loadout Manager page with `index` for the Catalog and return helpers to drive it. */
+async function openPage(index: IndexView = indexView) {
   const { window, plugin } = loadBundle()
   window.localStorage.clear()
   const calls = fakeHost(window, () => ({ global: level('/home/me/.agents') }), index)
@@ -360,8 +361,6 @@ async function openCatalog(index: IndexView) {
   const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
   await act(async () => { root.render(React.createElement(Page!, { t, useWorkspaces: () => [] })) })
   await settle()
-  await act(async () => { (document.getElementById('dshlo-open-catalog') as HTMLButtonElement).click() })
-  await settle()
   return {
     calls,
     act,
@@ -371,6 +370,14 @@ async function openCatalog(index: IndexView) {
     confirmButton: () => document.querySelector('button[data-tone="dangerText"]') as HTMLButtonElement,
     unmount: () => act(async () => { root.unmount() }),
   }
+}
+
+/** Render the page with `index`, open the Catalog subpage, and return helpers to drive it. */
+async function openCatalog(index: IndexView) {
+  const page = await openPage(index)
+  await page.act(async () => { (document.getElementById('dshlo-open-catalog') as HTMLButtonElement).click() })
+  await page.settle()
+  return page
 }
 
 test('a same-named skill that no index installed is replaced only after confirmation', async () => {
@@ -416,5 +423,30 @@ test('a copy from another index names that index and is replaced only after conf
   assert.deepEqual(page.calls.filter(([op]) => op === 'index-install'), [
     ['index-install', { source: 'owner/repo', kind: 'skill', name: 'tdd', force: true }],
   ])
+  await page.unmount()
+})
+
+test('a skill row moves the skill to the trash after a confirmation styled like the others', async () => {
+  const page = await openPage()
+  await page.act(async () => { (document.querySelector('button[aria-label="Delete"]') as HTMLButtonElement).click() })
+  assert.ok(page.text().includes('Move to the trash?'))
+  assert.equal(page.confirmButton()?.textContent, 'Move to trash', 'the confirm button has the dangerText tone')
+  assert.equal(page.calls.filter(([op]) => op === 'remove').length, 0, 'removal waits for confirmation')
+  await page.act(async () => { page.confirmButton().click() })
+  await page.settle()
+  assert.deepEqual(page.calls.filter(([op]) => op === 'remove'), [['remove', { path: '/home/me/.agents/skills/tdd' }]])
+  await page.unmount()
+})
+
+test('removing an index source asks for confirmation under the whole row', async () => {
+  const page = await openCatalog(indexView)
+  await page.act(async () => { (document.querySelector('button[aria-label="Remove"]') as HTMLButtonElement).click() })
+  const confirm = page.confirmButton().parentElement!
+  assert.ok(confirm.textContent?.startsWith('Remove this index?'))
+  assert.ok(confirm.previousElementSibling?.contains(page.button('Refresh')), 'the confirmation follows the line with Refresh, so it aligns to the right edge of the row')
+  assert.equal(page.calls.filter(([op]) => op === 'index-remove-source').length, 0, 'removal waits for confirmation')
+  await page.act(async () => { page.confirmButton().click() })
+  await page.settle()
+  assert.deepEqual(page.calls.filter(([op]) => op === 'index-remove-source'), [['index-remove-source', { source: 'owner/repo' }]])
   await page.unmount()
 })

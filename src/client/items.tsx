@@ -233,7 +233,7 @@ function Row({ t, scope, locked, reload, entry }: RowProps & { entry: Item }): R
             <button
               type="button"
               className={css.btn}
-              data-tone="primary"
+              data-tone="dangerText"
               disabled={busy}
               onClick={() => {
                 void run(async () => {
