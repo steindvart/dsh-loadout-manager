@@ -192,7 +192,7 @@ test('installs an npm entry, records its spec, and updates when latest moves', a
   const npm = await registry([tddSkill()])
   t.after(() => close(npm.server))
   const homes = { dshHome: join(base, 'dsh'), agentsHome: join(base, 'agents') }
-  const service = createIndexService(homes, { invalidate: () => {}, trash: async path => rm(path, { recursive: true, force: true }) })
+  const service = createIndexService(homes, { invalidate: () => {}, trash: async (path) => { await rm(path, { recursive: true, force: true }); return undefined } })
   const source = `${npm.base}/index.json`
   await service.addSource(source, undefined)
 

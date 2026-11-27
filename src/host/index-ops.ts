@@ -13,6 +13,7 @@ import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promise
 import { dirname, join, resolve } from 'node:path'
 import type { Homes } from './inventory.ts'
 import { OperationError } from './errors.ts'
+import type { Trash } from './trash.ts'
 import { parseFrontmatter, type FrontmatterValue } from './frontmatter.ts'
 import { isStale, refreshSource, ruleContent, stageSkill } from './index-fetch.ts'
 import { classifySource, indexesPath, parseIndexesFile, serializeIndexesFile, type IndexSource } from './index-sources.ts'
@@ -31,7 +32,7 @@ export const INDEX_TTL_MS = 10 * 60 * 1000
 export interface IndexHooks {
   invalidate(): void
   /** Move a replaced copy aside; on failure the copy stays next to the install. */
-  trash(path: string): Promise<void>
+  trash: Trash
 }
 
 /** One pass of the periodic auto-update. */
@@ -336,7 +337,8 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
           const left: string[] = []
           for (const { backup } of backups) {
             try {
-              await hooks.trash(backup)
+              const movedTo = await hooks.trash(backup)
+              if (movedTo !== undefined) left.push(movedTo)
             } catch {
               left.push(backup)
             }
