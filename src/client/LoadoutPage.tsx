@@ -43,6 +43,7 @@ export function LoadoutPage({ t, useWorkspaces = noWorkspaces }: LoadoutPageProp
   const [subpage, setSubpage] = useState<Subpage>('loadout')
   const [data, setData] = useState<{ for: string | undefined, value: StateView } | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
+  const [notice, setNotice] = useState<{ for: string, text: string } | undefined>(undefined)
 
   const reload = useCallback(async () => {
     try {
@@ -147,6 +148,14 @@ export function LoadoutPage({ t, useWorkspaces = noWorkspaces }: LoadoutPageProp
           ? <CatalogPanel key={`catalog:${scopeValue}`} t={t} scope={scope} onChanged={reload} />
           : (
             <div className={css.tabpanel} role="tabpanel" id="dshlo-tabpanel" aria-labelledby={`dshlo-tab-${kind?.id ?? ''}`}>
+              {notice !== undefined && notice.for === scopeValue
+                ? (
+                  <div className={css.notice} role="status">
+                    <span>{notice.text}</span>
+                    <button type="button" className={css.btn} data-tone="outline" onClick={() => { setNotice(undefined) }}>{t('dismiss')}</button>
+                  </div>
+                )
+                : null}
               {error !== undefined
                 ? (
                   <div className={css.error} role="alert">
@@ -166,6 +175,7 @@ export function LoadoutPage({ t, useWorkspaces = noWorkspaces }: LoadoutPageProp
                     scope={scope}
                     locked={locked}
                     reload={reload}
+                    notify={text => { setNotice({ for: scopeValue, text }) }}
                   />
                 )
                 : null}

@@ -48,14 +48,15 @@ const indexView: IndexView = {
   ],
 }
 
-function fakeHost(window: Window, state: (body: Requests['state']) => StateView, index: IndexView = indexView) {
+function fakeHost(window: Window, state: (body: Requests['state']) => StateView, index: IndexView = indexView, values: Record<string, unknown> = {}) {
   const calls: Array<[string, unknown]> = []
   // In a browser `window` is `globalThis`; here the bundle reads the global, so replace both.
   globalThis.fetch = window.fetch = async (url: RequestInfo | URL, init?: RequestInit) => {
     const op = String(url).split('/').pop() ?? ''
     const body = JSON.parse(String(init?.body ?? '{}')) as Requests['state']
     calls.push([op, body])
-    const value = op === 'state' ? state(body)
+    const value = op in values ? values[op]
+      : op === 'state' ? state(body)
       : op === 'index-refresh' || op === 'index-state' ? index
       : op === 'index-install' ? { source: 'owner/repo', kind: 'skill', name: 'tdd', level: 'global', path: '/home/me/.agents/skills/tdd', action: 'installed' }
       : op === 'mcp-probe' ? { ok: true, serverName: 'mcp-servers/everything', serverVersion: '1.0.0', tools: ['echo', 'add'], truncated: false, durationMs: 120 }
@@ -268,7 +269,8 @@ test('the catalog subpage removes an installed copy after confirmation', async (
       installs: [{ level: 'global', version: '1.0.0', installedAt: 1, updateAvailable: false, modified: false, foreign: false, unmanaged: false, installedFrom: 'owner/repo', path: '/home/me/.agents/skills/tdd' }],
     }],
   }
-  const calls = fakeHost(window, () => ({ global: level('/home/me/.agents') }), installed)
+  const movedTo = '/home/me/.dsh/.trash/2026-11-27T10-15-00/tdd'
+  const calls = fakeHost(window, () => ({ global: level('/home/me/.agents') }), installed, { remove: { path: '/home/me/.agents/skills/tdd', trashed: true, movedTo } })
   let Page: ComponentType<Record<string, unknown>> | undefined
   plugin.apply({
     effect: (f: () => unknown) => f(),
@@ -298,6 +300,41 @@ test('the catalog subpage removes an installed copy after confirmation', async (
   await settle()
   assert.deepEqual(calls.filter(([op]) => op === 'remove'), [['remove', { path: '/home/me/.agents/skills/tdd' }]])
   assert.deepEqual(calls.filter(([op]) => op === 'index-state').length, 1)
+  assert.ok(text().includes(`The system trash is unavailable, so tdd was moved to ${movedTo}.`), 'the row says where the copy went')
+  await act(async () => { root.unmount() })
+})
+
+test('a skill deleted without the system trash leaves a notice with its new path', async () => {
+  const { window, plugin } = loadBundle()
+  window.localStorage.clear()
+  const movedTo = '/home/me/.dsh/.trash/2026-11-27T10-15-00/tdd'
+  const calls = fakeHost(window, () => ({ global: level('/home/me/.agents') }), indexView, { remove: { path: '/home/me/.agents/skills/tdd', trashed: true, movedTo } })
+  let Page: ComponentType<Record<string, unknown>> | undefined
+  plugin.apply({
+    effect: (f: () => unknown) => f(),
+    locale: { register: () => () => {}, bind: () => (key: string) => key },
+    slots: { inject: (_n: string, f: () => unknown) => f(), register: (o: { name: string }, c: ComponentType<Record<string, unknown>>) => { if (o.name === 'main') Page = c } },
+  })
+  const React = require('react') as typeof import('react')
+  const { createRoot } = require('react-dom/client') as typeof import('react-dom/client')
+  const { act } = require('react-dom/test-utils') as { act(callback: () => Promise<void>): Promise<void> }
+  const t = (key: keyof typeof en, params?: Record<string, unknown>) => en[key].replace(/\{(\w+)\}/g, (_m, name: string) => String(params?.[name] ?? ''))
+  const root = createRoot(document.getElementById('root')!)
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
+  const text = () => document.body.textContent ?? ''
+  const button = (label: string) => [...document.querySelectorAll('button')].find(item => item.textContent === label)!
+  await act(async () => { root.render(React.createElement(Page!, { t, useWorkspaces: () => [] })) })
+  await settle()
+
+  await act(async () => { (document.querySelector('button[aria-label="Delete"]') as HTMLButtonElement).click() })
+  await act(async () => { button('Move to trash').click() })
+  await settle()
+  assert.deepEqual(calls.filter(([op]) => op === 'remove'), [['remove', { path: '/home/me/.agents/skills/tdd' }]])
+  const notice = document.querySelector('[role="status"]')
+  assert.equal(notice?.textContent?.includes(`The system trash is unavailable, so tdd was moved to ${movedTo}.`), true, 'the notice outlives the deleted row')
+
+  await act(async () => { button('Dismiss').click() })
+  assert.equal(text().includes(movedTo), false)
   await act(async () => { root.unmount() })
 })
 
