@@ -21,19 +21,6 @@ body:
     validations:
       required: true
 
-  - type: dropdown
-    id: area
-    attributes:
-      label: Area
-      options:
-        - Skills
-        - Instructions and rules
-        - MCP servers
-        - Catalog and indexes
-        - Other
-    validations:
-      required: true
-
   - type: textarea
     id: steps-to-reproduce
     attributes:
