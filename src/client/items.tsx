@@ -134,14 +134,17 @@ function Row({ t, scope, locked, reload, notify, entry }: RowProps & { entry: It
   const target = scope.workspacePath === undefined ? {} : { workspacePath: scope.workspacePath }
   const { item } = entry
 
-  const run = useCallback(async (operation: () => Promise<unknown>) => {
+  /** Run `operation`, then reload; true when both succeed. */
+  const run = useCallback(async (operation: () => Promise<unknown>): Promise<boolean> => {
     setBusy(true)
     setError(undefined)
     try {
       await operation()
       await reload()
+      return true
     } catch (failure) {
       setError(messageOf(failure))
+      return false
     } finally {
       setBusy(false)
     }
@@ -233,15 +236,14 @@ function Row({ t, scope, locked, reload, notify, entry }: RowProps & { entry: It
             t={t}
             message={t('confirmDelete')}
             action={t('confirm')}
-            tone="dangerText"
             busy={busy}
             onCancel={() => { setConfirming(false) }}
             onConfirm={() => {
+              // Closed only after the reload, so focus leaves with the row instead of landing on its trash button first.
               void run(async () => {
                 const { movedTo } = await call('remove', { ...target, path: deletePath })
-                setConfirming(false)
                 if (movedTo !== undefined) notify(t('movedToDshTrash', { name: item.name, path: movedTo }))
-              })
+              }).then((done) => { if (done) setConfirming(false) })
             }}
           />
         )

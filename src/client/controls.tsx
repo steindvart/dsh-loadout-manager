@@ -60,15 +60,16 @@ export function Switch({ t, checked, disabled, label, onChange }: {
 
 /**
  * A confirmation under a row, announced as an alert dialog named by its
- * question. Opening it moves focus to Cancel; Escape cancels. When it closes
- * with focus still inside, focus returns to the control that opened it.
+ * question. Opening it moves focus to Cancel; Escape cancels. The confirm
+ * button stays focusable while `busy` and ignores presses. When it closes
+ * with focus inside, focus returns to the control that opened it or, when
+ * that control is gone, to the row, its neighbours, or what holds them.
  */
-export function Confirm({ t, message, action, tone, busy, onCancel, onConfirm }: {
+export function Confirm({ t, message, action, busy, onCancel, onConfirm }: {
   t: T
   message: string
   /** The confirm button's label. */
   action: string
-  tone: 'primary' | 'dangerText'
   busy: boolean
   onCancel(): void
   onConfirm(): void
@@ -76,13 +77,16 @@ export function Confirm({ t, message, action, tone, busy, onCancel, onConfirm }:
   const id = useId()
   const box = useRef<HTMLDivElement>(null)
   const cancel = useRef<HTMLButtonElement>(null)
-  // A layout effect: its cleanup runs before React detaches the box, so it can still see focus inside.
+  // A layout effect: its cleanup runs before React detaches the box, so it can still see focus and the row.
   useLayoutEffect(() => {
-    const opener = document.activeElement as HTMLElement | null
+    const opener = document.activeElement
     const node = box.current
     cancel.current?.focus()
     return () => {
-      if (node?.contains(document.activeElement) === true && opener?.isConnected === true) opener.focus()
+      if (node === null || !node.contains(document.activeElement)) return
+      const places = placesAround(node)
+      // After the commit, when the opener or the whole row may be gone.
+      queueMicrotask(() => { returnFocus(opener, places) })
     }
   }, [])
   return (
@@ -99,9 +103,40 @@ export function Confirm({ t, message, action, tone, busy, onCancel, onConfirm }:
     >
       <span id={id}>{message}</span>
       <button ref={cancel} type="button" className={css.btn} data-tone="outline" onClick={onCancel}>{t('cancel')}</button>
-      <button type="button" className={css.btn} data-tone={tone} disabled={busy} onClick={onConfirm}>{action}</button>
+      <button type="button" className={css.btn} data-tone="dangerText" aria-disabled={busy} onClick={() => { if (!busy) onConfirm() }}>{action}</button>
     </div>
   )
+}
+
+const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+
+/** The row holding `box`, then at each level up its next and previous sibling and its parent, nearest first. */
+function placesAround(box: Element): Element[] {
+  const places: Element[] = []
+  for (let at = box.closest(`.${css.row}`) ?? box.parentElement; at !== null && at !== document.body; at = at.parentElement) {
+    places.push(at)
+    if (at.nextElementSibling !== null) places.push(at.nextElementSibling)
+    if (at.previousElementSibling !== null) places.push(at.previousElementSibling)
+  }
+  return places
+}
+
+/** Focus `opener` if it can still take focus, else the first focusable control in the first place still on the page. */
+function returnFocus(opener: Element | null, places: readonly Element[]): void {
+  const active = document.activeElement
+  if (active !== null && active !== document.body) return
+  if (opener?.isConnected === true && opener.matches(FOCUSABLE)) {
+    (opener as HTMLElement).focus()
+    return
+  }
+  for (const place of places) {
+    if (!place.isConnected) continue
+    const target = place.matches(FOCUSABLE) ? place : place.querySelector(FOCUSABLE)
+    if (target !== null) {
+      (target as HTMLElement).focus()
+      return
+    }
+  }
 }
 
 const iconProps = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true } as const

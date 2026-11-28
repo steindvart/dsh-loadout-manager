@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { IndexEntryView, IndexInstallView, IndexSourceView, IndexView } from '../shared/api.ts'
 import { CallError, call, messageOf } from './api.ts'
-import { Confirm, type T } from './controls.tsx'
+import { Confirm, TrashIcon, type T } from './controls.tsx'
 import css from './Loadout.module.css'
 import type { Scope } from './items.tsx'
 
@@ -102,8 +102,9 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
       const result = await call('index-install', { ...target(), source: entry.source, kind: entry.kind, name: entry.name, force })
       if (result.note !== undefined) setRowNote(rest => ({ ...rest, [key]: result.note as string }))
       else setRowNote(rest => without(rest, key))
-      setConfirmKey(undefined)
+      // The confirmation closes with the refreshed row, so focus moves within the row as it is now.
       setView(await call('index-state', target()))
+      setConfirmKey(undefined)
       await onChanged()
     } catch (failure) {
       if (failure instanceof CallError && REPLACE_CODES.some(code => failure.code.endsWith(code))) {
@@ -126,9 +127,9 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
       const { movedTo } = await call('remove', { ...target(), path })
       if (movedTo !== undefined) setRowNote(rest => ({ ...rest, [key]: t('movedToDshTrash', { name: entry.name, path: movedTo }) }))
       else setRowNote(rest => without(rest, key))
+      setView(await call('index-state', target()))
       setRemoveConfirmKey(undefined)
       setConfirmKey(undefined)
-      setView(await call('index-state', target()))
       await onChanged()
     } catch (failure) {
       setRowError(rest => ({ ...rest, [key]: messageOf(failure) }))
@@ -205,7 +206,7 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
                       {sourceBusy === source.source ? t('loading') : t('catalogRefresh')}
                     </button>
                     <button type="button" className={css.btn} data-tone="danger" aria-label={t('catalogRemove')} title={t('catalogRemove')} disabled={sourceBusy !== undefined} onClick={() => { setRemovingSource(source.source) }}>
-                      <TrashGlyph />
+                      <TrashIcon />
                     </button>
                   </div>
                 </div>
@@ -215,7 +216,6 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
                       t={t}
                       message={t('catalogRemoveConfirm')}
                       action={t('catalogRemove')}
-                      tone="dangerText"
                       busy={sourceBusy !== undefined}
                       onCancel={() => { setRemovingSource(undefined) }}
                       onConfirm={() => { void removeSource(source.source) }}
@@ -369,7 +369,7 @@ function EntryRow({
                 disabled={busy}
                 onClick={onRemoveConfirm}
               >
-                <TrashGlyph />
+                <TrashIcon />
               </button>
             )}
         </div>
@@ -380,7 +380,6 @@ function EntryRow({
             t={t}
             message={replaceMessage(t, here, sourceName)}
             action={foreign || unmanaged ? t('catalogReplaceCopy') : t('catalogReplace')}
-            tone="dangerText"
             busy={busy}
             onCancel={onCancel}
             onConfirm={() => { onInstall(true) }}
@@ -389,7 +388,7 @@ function EntryRow({
         : null}
       {confirmingRemove
         ? (
-          <Confirm t={t} message={t('confirmDelete')} action={t('confirm')} tone="dangerText" busy={busy} onCancel={onRemoveCancel} onConfirm={onRemove} />
+          <Confirm t={t} message={t('confirmDelete')} action={t('confirm')} busy={busy} onCancel={onRemoveCancel} onConfirm={onRemove} />
         )
         : null}
     </div>
@@ -454,13 +453,3 @@ function without(record: Readonly<Record<string, string>>, key: string): Record<
   delete next[key]
   return next
 }
-
-/** A small trash glyph, matching the page's other icon buttons. */
-function TrashGlyph(): ReactNode {
-  return (
-    <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.3} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M2.5 4.5h11M6.5 4.5V3h3v1.5M4 4.5l.7 8.6a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9l.7-8.6M6.7 7v4.5M9.3 7v4.5" />
-    </svg>
-  )
-}
-
