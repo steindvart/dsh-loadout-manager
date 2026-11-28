@@ -18,9 +18,9 @@ import { McpUnavailableError, probeMcp, readMcpServers, restartMcp, setMcpEnable
 import { createIndexService, type AutoUpdateResult, type IndexService } from './index-ops.ts'
 import { loadoutPath, scanInventory, type Homes, type InstructionItem, type Inventory, type RuleItem, type SkillItem } from './inventory.ts'
 import { findProjectRoot } from './paths.ts'
-import { OperationError } from './errors.ts'
-import { createTrash, type Trash } from './trash.ts'
-import { messageOf, withPresetScope } from './shadow.ts'
+import { messageOf, OperationError } from './errors.ts'
+import { createTrash, TrashLeftoverError, type Trash } from './trash.ts'
+import { withPresetScope } from './shadow.ts'
 
 const READ_LIMIT = 256 * 1024
 
@@ -179,10 +179,20 @@ export function createOperations(ctx: Context, homes: Homes, { invalidate, trash
       const rule = inventory.rules.find(item => item.file === path)
       if (skill === undefined && rule === undefined) throw new OperationError('not-found', `not a listed skill or rule: ${path}`)
       if (skill?.readOnly === true) throw new OperationError('read-only', `${path} is inside the application archive and cannot be deleted`)
-      const movedTo = await trash(path)
       const level = skill?.level ?? rule?.level
-      await index.forget(path, level === 'project' ? projectRoot : undefined)
-      invalidate()
+      const forget = async (): Promise<void> => {
+        await index.forget(path, level === 'project' ? projectRoot : undefined)
+        invalidate()
+      }
+      let movedTo: string | undefined
+      try {
+        movedTo = await trash(path)
+      } catch (error) {
+        // The entry reached the DSH trash; only a staging folder stayed behind.
+        if (error instanceof TrashLeftoverError) await forget()
+        throw error
+      }
+      await forget()
       return { path, trashed: true, ...movedTo !== undefined ? { movedTo } : {} }
     },
 

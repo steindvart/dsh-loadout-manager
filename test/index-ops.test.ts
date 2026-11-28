@@ -1,10 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { readFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { createIndexService } from '../src/host/index-ops.ts'
 import { classifySource } from '../src/host/index-sources.ts'
 import { cacheDir } from '../src/host/index-store.ts'
@@ -89,7 +89,7 @@ test('installs a rule, detects a source update, and replaces the copy', async (t
   assert.equal(await readFile(join(homes.agentsHome, 'rules/style.md'), 'utf8'), '---\nname: Style\n---\nEven shorter.\n')
 })
 
-test('without the system trash the replaced copy goes to the DSH trash and the note names it', async (t) => {
+test('without the system trash the replaced copy goes to the DSH trash under its own name, and the note names it', async (t) => {
   const { base, homes, source } = setup({})
   t.after(() => rm(base, { recursive: true, force: true }))
   const service = createIndexService(homes, {
@@ -104,7 +104,9 @@ test('without the system trash the replaced copy goes to the DSH trash and the n
   const updated = await service.install({ source: id, kind: 'rule', name: 'style', projectRoot: undefined, force: false })
   const moved = /the previous copy is at (.+)$/.exec(updated.note ?? '')?.[1]
   assert.ok(moved?.startsWith(join(homes.dshHome, '.trash')), `the note names the DSH trash: ${updated.note}`)
+  assert.equal(basename(moved!), 'style.md', 'the copy keeps its original name')
   assert.equal(await readFile(moved!, 'utf8'), '---\nname: Style\n---\nShort functions.\n')
+  assert.deepEqual(readdirSync(join(homes.agentsHome, '.loadout-manager/backups')), [], 'no empty backup folder is left')
   assert.equal(await readFile(join(homes.agentsHome, 'rules/style.md'), 'utf8'), '---\nname: Style\n---\nEven shorter.\n')
 })
 

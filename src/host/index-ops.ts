@@ -9,11 +9,11 @@
 
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { mkdir, mkdtemp, readFile, rename, rm, rmdir, writeFile } from 'node:fs/promises'
+import { basename, dirname, join, resolve } from 'node:path'
 import type { Homes } from './inventory.ts'
-import { OperationError } from './errors.ts'
-import type { Trash } from './trash.ts'
+import { messageOf, OperationError } from './errors.ts'
+import { TrashLeftoverError, type Trash } from './trash.ts'
 import { parseFrontmatter, type FrontmatterValue } from './frontmatter.ts'
 import { isStale, refreshSource, ruleContent, stageSkill } from './index-fetch.ts'
 import { classifySource, indexesPath, parseIndexesFile, serializeIndexesFile, type IndexSource } from './index-sources.ts'
@@ -322,7 +322,8 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
           const backups: Backup[] = []
           try {
             for (const path of replaced) {
-              const backup = join(dirname(manifest), 'backups', `${kind}-${name}-${randomUUID()}`)
+              // A folder per backup keeps the original name, which the trash keeps too.
+              const backup = join(dirname(manifest), 'backups', randomUUID(), basename(path))
               await mkdir(dirname(backup), { recursive: true })
               await rename(path, backup)
               backups.push({ path, backup })
@@ -339,8 +340,9 @@ export function createIndexService(homes: Homes, hooks: IndexHooks): IndexServic
             try {
               const movedTo = await hooks.trash(backup)
               if (movedTo !== undefined) left.push(movedTo)
-            } catch {
-              left.push(backup)
+              await rmdir(dirname(backup)).catch(() => {})
+            } catch (error) {
+              left.push(error instanceof TrashLeftoverError ? error.movedTo : backup)
             }
           }
           const note = left.length === 0 ? undefined : `the previous copy is at ${left.join(', ')}`
@@ -495,9 +497,8 @@ interface Backup {
 /** Undo a failed swap: drop the new copy if it landed, then put every moved copy back. */
 async function rollback(target: string, renamed: boolean, backups: readonly Backup[]): Promise<void> {
   if (renamed) await rm(target, { recursive: true, force: true })
-  for (const { path, backup } of backups) await rename(backup, path)
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+  for (const { path, backup } of backups) {
+    await rename(backup, path)
+    await rmdir(dirname(backup)).catch(() => {})
+  }
 }

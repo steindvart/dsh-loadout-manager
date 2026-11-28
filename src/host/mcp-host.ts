@@ -17,7 +17,8 @@ import { readLevels } from './inventory.ts'
 import { mcpEnabled, type Loadout } from './loadout.ts'
 import { deniedTools, statusView, toolsByServer } from './mcp.ts'
 import { findProjectRoot } from './paths.ts'
-import { cwdOf, messageOf } from './shadow.ts'
+import { messageOf } from './errors.ts'
+import { cwdOf } from './shadow.ts'
 
 const MANAGER_PACKAGE = '@deepseek-ai/dsh-mcp-manager'
 
