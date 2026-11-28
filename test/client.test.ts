@@ -330,8 +330,13 @@ test('a skill deleted without the system trash leaves a notice with its new path
   await act(async () => { button('Move to trash').click() })
   await settle()
   assert.deepEqual(calls.filter(([op]) => op === 'remove'), [['remove', { path: '/home/me/.agents/skills/tdd' }]])
-  const notice = document.querySelector('[role="status"]')
-  assert.equal(notice?.textContent?.includes(`The system trash is unavailable, so tdd was moved to ${movedTo}.`), true, 'the notice outlives the deleted row')
+  const notice = `The system trash is unavailable, so tdd was moved to ${movedTo}.`
+  assert.equal(document.querySelector('[role="status"]')?.textContent?.includes(notice), true, 'the notice outlives the deleted row')
+
+  await act(async () => { (document.getElementById('dshlo-tab-mcp') as HTMLButtonElement).click() })
+  assert.equal(text().includes(notice), false, 'another tab does not show it')
+  await act(async () => { (document.getElementById('dshlo-tab-skills') as HTMLButtonElement).click() })
+  assert.equal(text().includes(notice), true)
 
   await act(async () => { button('Dismiss').click() })
   assert.equal(text().includes(movedTo), false)

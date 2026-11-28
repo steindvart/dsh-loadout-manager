@@ -221,7 +221,7 @@ export const ru: Record<LoadoutKey, string> = {
   confirmDelete: 'Переместить в корзину?',
   cancel: 'Отмена',
   confirm: 'В корзину',
-  movedToDshTrash: 'Системная корзина недоступна, поэтому {name} перемещён в {path}.',
+  movedToDshTrash: 'Системная корзина недоступна, поэтому {name} теперь в {path}.',
   dismiss: 'Закрыть',
   loading: 'Загрузка…',
   retry: 'Повторить',
