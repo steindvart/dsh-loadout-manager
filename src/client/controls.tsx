@@ -60,10 +60,11 @@ export function Switch({ t, checked, disabled, label, onChange }: {
 
 /**
  * A confirmation under a row, announced as an alert dialog named by its
- * question. Opening it moves focus to Cancel; Escape cancels. The confirm
- * button stays focusable while `busy` and ignores presses. When it closes
- * with focus inside, focus returns to the control that opened it or, when
- * that control is gone, to the row, its neighbours, or what holds them.
+ * question. Opening it from its row moves focus to Cancel; Escape cancels.
+ * While `busy` both buttons stay focusable but ignore presses, and Escape
+ * does nothing. When it closes with focus inside, focus returns to the
+ * control that opened it or, when that control is gone, to the row, its
+ * neighbours, or what holds them.
  */
 export function Confirm({ t, message, action, busy, onCancel, onConfirm }: {
   t: T
@@ -81,7 +82,9 @@ export function Confirm({ t, message, action, busy, onCancel, onConfirm }: {
   useLayoutEffect(() => {
     const opener = document.activeElement
     const node = box.current
-    cancel.current?.focus()
+    // Shown again without a press in its row, as when a search filter brings the row back, it leaves focus where it is.
+    const row = node?.closest(`.${css.row}`) ?? node?.parentElement
+    if (opener === null || opener === document.body || row?.contains(opener) === true) cancel.current?.focus()
     return () => {
       if (node === null || !node.contains(document.activeElement)) return
       const places = placesAround(node)
@@ -98,11 +101,11 @@ export function Confirm({ t, message, action, busy, onCancel, onConfirm }: {
       onKeyDown={(event) => {
         if (event.key !== 'Escape') return
         event.stopPropagation()
-        onCancel()
+        if (!busy) onCancel()
       }}
     >
       <span id={id}>{message}</span>
-      <button ref={cancel} type="button" className={css.btn} data-tone="outline" onClick={onCancel}>{t('cancel')}</button>
+      <button ref={cancel} type="button" className={css.btn} data-tone="outline" aria-disabled={busy} onClick={() => { if (!busy) onCancel() }}>{t('cancel')}</button>
       <button type="button" className={css.btn} data-tone="dangerText" aria-disabled={busy} onClick={() => { if (!busy) onConfirm() }}>{action}</button>
     </div>
   )

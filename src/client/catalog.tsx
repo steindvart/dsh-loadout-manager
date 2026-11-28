@@ -102,9 +102,11 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
       const result = await call('index-install', { ...target(), source: entry.source, kind: entry.kind, name: entry.name, force })
       if (result.note !== undefined) setRowNote(rest => ({ ...rest, [key]: result.note as string }))
       else setRowNote(rest => without(rest, key))
-      // The confirmation closes with the refreshed row, so focus moves within the row as it is now.
       setView(await call('index-state', target()))
+      // Close the confirmation and free the row in the same render, before the slower page reload,
+      // so focus lands on the row's own controls as they are now.
       setConfirmKey(undefined)
+      setActionBusy(undefined)
       await onChanged()
     } catch (failure) {
       if (failure instanceof CallError && REPLACE_CODES.some(code => failure.code.endsWith(code))) {
@@ -115,7 +117,8 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
         setRowError(rest => ({ ...rest, [key]: messageOf(failure) }))
       }
     } finally {
-      setActionBusy(undefined)
+      // Another row may have started its own action during the reload.
+      setActionBusy(current => current === key ? undefined : current)
     }
   }
 
@@ -128,13 +131,16 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
       if (movedTo !== undefined) setRowNote(rest => ({ ...rest, [key]: t('movedToDshTrash', { name: entry.name, path: movedTo }) }))
       else setRowNote(rest => without(rest, key))
       setView(await call('index-state', target()))
+      // As in install(): the row is free again when its confirmation closes.
       setRemoveConfirmKey(undefined)
       setConfirmKey(undefined)
+      setActionBusy(undefined)
       await onChanged()
     } catch (failure) {
       setRowError(rest => ({ ...rest, [key]: messageOf(failure) }))
     } finally {
-      setActionBusy(undefined)
+      // Another row may have started its own action during the reload.
+      setActionBusy(current => current === key ? undefined : current)
     }
   }
 

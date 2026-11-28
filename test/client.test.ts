@@ -142,7 +142,7 @@ test('the plugin configuration page switches autoUpdate through the Host form', 
 
   // The summary view is a one-liner for a row without its own description.
   await act(async () => { root.render(React.createElement(Config!, { view: 'summary', form, t })) })
-  assert.equal(document.querySelector('[role=switch]'), null)
+  assert.ok(document.querySelector('[role=switch]') === null, 'the summary view has no switch')
   assert.ok(document.body.textContent?.includes(en['config.autoUpdate.title']))
 
   await act(async () => { root.render(React.createElement(Config!, { view: 'page', form, t })) })
@@ -517,14 +517,14 @@ async function checkConfirmation(page: Awaited<ReturnType<typeof openPage>>, ope
 
   await open()
   await page.act(async () => { page.button('Cancel').click() })
-  assert.equal(document.querySelector('[role="alertdialog"]'), null)
+  assert.ok(document.querySelector('[role="alertdialog"]') === null, 'Cancel closes the confirmation')
   assert.ok(document.activeElement === opener, 'Cancel returns focus to the opener')
 
   await open()
   await page.act(async () => {
     document.activeElement!.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
   })
-  assert.equal(document.querySelector('[role="alertdialog"]'), null, 'Escape closes the confirmation')
+  assert.ok(document.querySelector('[role="alertdialog"]') === null, 'Escape closes the confirmation')
   assert.ok(document.activeElement === opener, 'Escape returns focus to the opener')
 }
 
@@ -591,7 +591,7 @@ test('after a skill is deleted, focus moves to the next row', async () => {
   await page.act(async () => { confirm.click() })
   await page.settle()
   assert.equal(document.querySelectorAll('button[aria-label="Delete"]').length, 1, 'the deleted row is gone')
-  assert.equal(document.querySelector('[role="alertdialog"]'), null)
+  assert.ok(document.querySelector('[role="alertdialog"]') === null, 'the confirmation closed with the row')
   const row = document.activeElement?.closest('[data-state]')
   assert.ok(row?.textContent?.includes('lint'), 'focus is in the remaining row')
   await page.unmount()
@@ -612,6 +612,11 @@ test('a failed delete keeps the confirmation open with focus inside', async () =
   assert.ok(document.activeElement === confirm, 'the busy confirm button keeps focus')
   await page.act(async () => { confirm.click() })
   assert.equal(page.calls.filter(([op]) => op === 'remove').length, 1, 'a second press while busy sends nothing')
+  const cancel = page.button('Cancel')
+  assert.equal(cancel.getAttribute('aria-disabled'), 'true', 'Cancel waits for the operation too')
+  await page.act(async () => { cancel.click() })
+  await page.act(async () => { confirm.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+  assert.ok(document.querySelector('[role="alertdialog"]'), 'neither Cancel nor Escape closes a busy confirmation')
 
   answer()
   await page.settle()
@@ -621,18 +626,82 @@ test('a failed delete keeps the confirmation open with focus inside', async () =
   await page.unmount()
 })
 
+/** The Catalog row holding `element`. */
+function rowOf(element: Element | null): Element | null {
+  return element?.closest('[class*="_row_"]') ?? null
+}
+
+/** A `state` answer that can be held back, so a test sees the page while the reload after an operation is pending. */
+function heldState() {
+  let hold: Promise<StateView> | undefined
+  let release = (): void => {}
+  return {
+    state: () => hold ?? { global: level('/home/me/.agents') },
+    hold: () => { hold = new Promise((resolve) => { release = () => { hold = undefined; resolve({ global: level('/home/me/.agents') }) } }) },
+    release: () => { release() },
+  }
+}
+
 test('after a Catalog copy is deleted, focus moves to the row\'s Install button', async () => {
-  const page = await openCatalog(installedIndex, { 'index-state': indexView, remove: { path: '/home/me/.agents/skills/tdd', trashed: true } })
+  const reload = heldState()
+  const page = await openCatalog(installedIndex, { 'index-state': indexView, 'remove': { path: '/home/me/.agents/skills/tdd', trashed: true }, 'state': reload.state })
   const trash = document.querySelector('button[aria-label="Delete"]') as HTMLButtonElement
   trash.focus()
   await page.act(async () => { trash.click() })
   const confirm = page.confirmButton()
   confirm.focus()
+  reload.hold()
   await page.act(async () => { confirm.click() })
   await page.settle()
-  await page.settle()
-  assert.equal(document.querySelector('[role="alertdialog"]'), null)
+  assert.ok(document.querySelector('[role="alertdialog"]') === null, 'the confirmation closed')
   assert.equal(document.activeElement?.textContent, 'Install')
+  assert.ok(rowOf(document.activeElement)?.textContent?.includes('tdd'), 'focus stays in the same row while the page reloads')
+  reload.release()
+  await page.settle()
+  await page.unmount()
+})
+
+test('after a Catalog copy is replaced, focus moves to the row\'s trash button', async () => {
+  const reload = heldState()
+  const page = await openCatalog({
+    ...indexView,
+    entries: [{
+      ...indexView.entries[0]!,
+      installs: [{ level: 'global', updateAvailable: false, modified: false, foreign: false, unmanaged: true, path: '/home/me/.agents/skills/tdd' }],
+    }, indexView.entries[1]!],
+  }, { 'index-state': installedIndex, 'state': reload.state })
+  const replace = page.button('Replace')
+  replace.focus()
+  await page.act(async () => { replace.click() })
+  const confirm = page.confirmButton()
+  confirm.focus()
+  reload.hold()
+  await page.act(async () => { confirm.click() })
+  await page.settle()
+  assert.ok(document.querySelector('[role="alertdialog"]') === null, 'the confirmation closed')
+  assert.equal(document.activeElement?.getAttribute('aria-label'), 'Delete')
+  assert.ok(rowOf(document.activeElement)?.textContent?.includes('tdd'), 'focus stays in the same row while the page reloads')
+  reload.release()
+  await page.settle()
+  await page.unmount()
+})
+
+test('a confirmation shown again by the search filter leaves focus in the search field', async () => {
+  const page = await openCatalog(installedIndex)
+  const trash = document.querySelector('button[aria-label="Delete"]') as HTMLButtonElement
+  trash.focus()
+  await page.act(async () => { trash.click() })
+  const search = document.querySelector('input[type="search"]') as HTMLInputElement
+  const type = (value: string) => page.act(async () => {
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!.call(search, value)
+    search.dispatchEvent(new window.Event('input', { bubbles: true }))
+  })
+  search.focus()
+  await type('z')
+  assert.ok(document.querySelector('[role="alertdialog"]') === null, 'the filter hides the row and its confirmation')
+  await type('')
+  assert.ok(document.querySelector('[role="alertdialog"]'), 'the confirmation comes back with the row')
+  assert.ok(document.activeElement === search, 'it does not take focus from the search field')
   await page.unmount()
 })
 
