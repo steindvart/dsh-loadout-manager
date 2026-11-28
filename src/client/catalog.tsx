@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { IndexEntryView, IndexInstallView, IndexSourceView, IndexView } from '../shared/api.ts'
 import { CallError, call, messageOf } from './api.ts'
-import type { T } from './controls.tsx'
+import { Confirm, TrashIcon, type T } from './controls.tsx'
 import css from './Loadout.module.css'
 import type { Scope } from './items.tsx'
 
@@ -102,8 +102,11 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
       const result = await call('index-install', { ...target(), source: entry.source, kind: entry.kind, name: entry.name, force })
       if (result.note !== undefined) setRowNote(rest => ({ ...rest, [key]: result.note as string }))
       else setRowNote(rest => without(rest, key))
-      setConfirmKey(undefined)
       setView(await call('index-state', target()))
+      // Close the confirmation and free the row in the same render, before the slower page reload,
+      // so focus lands on the row's own controls as they are now.
+      setConfirmKey(undefined)
+      setActionBusy(undefined)
       await onChanged()
     } catch (failure) {
       if (failure instanceof CallError && REPLACE_CODES.some(code => failure.code.endsWith(code))) {
@@ -114,7 +117,8 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
         setRowError(rest => ({ ...rest, [key]: messageOf(failure) }))
       }
     } finally {
-      setActionBusy(undefined)
+      // Another row may have started its own action during the reload.
+      setActionBusy(current => current === key ? undefined : current)
     }
   }
 
@@ -126,14 +130,17 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
       const { movedTo } = await call('remove', { ...target(), path })
       if (movedTo !== undefined) setRowNote(rest => ({ ...rest, [key]: t('movedToDshTrash', { name: entry.name, path: movedTo }) }))
       else setRowNote(rest => without(rest, key))
+      setView(await call('index-state', target()))
+      // As in install(): the row is free again when its confirmation closes.
       setRemoveConfirmKey(undefined)
       setConfirmKey(undefined)
-      setView(await call('index-state', target()))
+      setActionBusy(undefined)
       await onChanged()
     } catch (failure) {
       setRowError(rest => ({ ...rest, [key]: messageOf(failure) }))
     } finally {
-      setActionBusy(undefined)
+      // Another row may have started its own action during the reload.
+      setActionBusy(current => current === key ? undefined : current)
     }
   }
 
@@ -205,17 +212,20 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
                       {sourceBusy === source.source ? t('loading') : t('catalogRefresh')}
                     </button>
                     <button type="button" className={css.btn} data-tone="danger" aria-label={t('catalogRemove')} title={t('catalogRemove')} disabled={sourceBusy !== undefined} onClick={() => { setRemovingSource(source.source) }}>
-                      <TrashGlyph />
+                      <TrashIcon />
                     </button>
                   </div>
                 </div>
                 {removingSource === source.source
                   ? (
-                    <div className={css.confirm}>
-                      {t('catalogRemoveConfirm')}
-                      <button type="button" className={css.btn} data-tone="outline" onClick={() => { setRemovingSource(undefined) }}>{t('cancel')}</button>
-                      <button type="button" className={css.btn} data-tone="dangerText" disabled={sourceBusy !== undefined} onClick={() => { void removeSource(source.source) }}>{t('catalogRemove')}</button>
-                    </div>
+                    <Confirm
+                      t={t}
+                      message={t('catalogRemoveConfirm')}
+                      action={t('catalogRemove')}
+                      busy={sourceBusy !== undefined}
+                      onCancel={() => { setRemovingSource(undefined) }}
+                      onConfirm={() => { void removeSource(source.source) }}
+                    />
                   )
                   : null}
               </div>
@@ -365,29 +375,26 @@ function EntryRow({
                 disabled={busy}
                 onClick={onRemoveConfirm}
               >
-                <TrashGlyph />
+                <TrashIcon />
               </button>
             )}
         </div>
       </div>
       {confirming
         ? (
-          <div className={css.confirm}>
-            {replaceMessage(t, here, sourceName)}
-            <button type="button" className={css.btn} data-tone="outline" onClick={onCancel}>{t('cancel')}</button>
-            <button type="button" className={css.btn} data-tone="dangerText" disabled={busy} onClick={() => { onInstall(true) }}>
-              {foreign || unmanaged ? t('catalogReplaceCopy') : t('catalogReplace')}
-            </button>
-          </div>
+          <Confirm
+            t={t}
+            message={replaceMessage(t, here, sourceName)}
+            action={foreign || unmanaged ? t('catalogReplaceCopy') : t('catalogReplace')}
+            busy={busy}
+            onCancel={onCancel}
+            onConfirm={() => { onInstall(true) }}
+          />
         )
         : null}
       {confirmingRemove
         ? (
-          <div className={css.confirm}>
-            {t('confirmDelete')}
-            <button type="button" className={css.btn} data-tone="outline" onClick={onRemoveCancel}>{t('cancel')}</button>
-            <button type="button" className={css.btn} data-tone="dangerText" disabled={busy} onClick={onRemove}>{t('confirm')}</button>
-          </div>
+          <Confirm t={t} message={t('confirmDelete')} action={t('confirm')} busy={busy} onCancel={onRemoveCancel} onConfirm={onRemove} />
         )
         : null}
     </div>
@@ -452,13 +459,3 @@ function without(record: Readonly<Record<string, string>>, key: string): Record<
   delete next[key]
   return next
 }
-
-/** A small trash glyph, matching the page's other icon buttons. */
-function TrashGlyph(): ReactNode {
-  return (
-    <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.3} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M2.5 4.5h11M6.5 4.5V3h3v1.5M4 4.5l.7 8.6a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9l.7-8.6M6.7 7v4.5M9.3 7v4.5" />
-    </svg>
-  )
-}
-

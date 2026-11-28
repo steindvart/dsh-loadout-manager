@@ -55,14 +55,17 @@ function fakeHost(window: Window, state: (body: Requests['state']) => StateView,
     const op = String(url).split('/').pop() ?? ''
     const body = JSON.parse(String(init?.body ?? '{}')) as Requests['state']
     calls.push([op, body])
-    const value = op in values ? values[op]
+    const given = values[op]
+    // A function value answers per request and may return a promise to hold the answer back.
+    const value = op in values ? await (typeof given === 'function' ? (given as (body: unknown) => unknown)(body) : given)
       : op === 'state' ? state(body)
       : op === 'index-refresh' || op === 'index-state' ? index
       : op === 'index-remove-source' ? { ...index, sources: [], entries: [] }
       : op === 'index-install' ? { source: 'owner/repo', kind: 'skill', name: 'tdd', level: 'global', path: '/home/me/.agents/skills/tdd', action: 'installed' }
       : op === 'mcp-probe' ? { ok: true, serverName: 'mcp-servers/everything', serverVersion: '1.0.0', tools: ['echo', 'add'], truncated: false, durationMs: 120 }
       : { ok: true }
-    return new Response(JSON.stringify({ ok: true, value }), { headers: { 'content-type': 'application/json' } })
+    const envelope = value instanceof Error ? { ok: false, error: { code: value.name, message: value.message } } : { ok: true, value }
+    return new Response(JSON.stringify(envelope), { headers: { 'content-type': 'application/json' } })
   }
   return calls
 }
@@ -139,7 +142,7 @@ test('the plugin configuration page switches autoUpdate through the Host form', 
 
   // The summary view is a one-liner for a row without its own description.
   await act(async () => { root.render(React.createElement(Config!, { view: 'summary', form, t })) })
-  assert.equal(document.querySelector('[role=switch]'), null)
+  assert.ok(document.querySelector('[role=switch]') === null, 'the summary view has no switch')
   assert.ok(document.body.textContent?.includes(en['config.autoUpdate.title']))
 
   await act(async () => { root.render(React.createElement(Config!, { view: 'page', form, t })) })
@@ -385,10 +388,10 @@ test('a locally changed update asks for confirmation before replacing the copy',
 })
 
 /** Render the Loadout Manager page with `index` for the Catalog and return helpers to drive it. */
-async function openPage(index: IndexView = indexView) {
+async function openPage(index: IndexView = indexView, values: Record<string, unknown> = {}, state: (body: Requests['state']) => StateView = () => ({ global: level('/home/me/.agents') })) {
   const { window, plugin } = loadBundle()
   window.localStorage.clear()
-  const calls = fakeHost(window, () => ({ global: level('/home/me/.agents') }), index)
+  const calls = fakeHost(window, state, index, values)
   let Page: ComponentType<Record<string, unknown>> | undefined
   plugin.apply({
     effect: (f: () => unknown) => f(),
@@ -415,8 +418,8 @@ async function openPage(index: IndexView = indexView) {
 }
 
 /** Render the page with `index`, open the Catalog subpage, and return helpers to drive it. */
-async function openCatalog(index: IndexView) {
-  const page = await openPage(index)
+async function openCatalog(index: IndexView, values: Record<string, unknown> = {}) {
+  const page = await openPage(index, values)
   await page.act(async () => { (document.getElementById('dshlo-open-catalog') as HTMLButtonElement).click() })
   await page.settle()
   return page
@@ -433,7 +436,7 @@ test('a same-named skill that no index installed is replaced only after confirma
   assert.ok(page.text().includes('Same name, not from an index'))
   assert.equal(document.querySelector('button[aria-label="Delete"]'), null, 'the page does not offer to delete a copy it did not install')
   await page.act(async () => { page.button('Replace').click() })
-  assert.ok(page.text().includes('/home/me/.agents/skills/tdd already exists and was not installed from an index.'))
+  assert.ok(page.text().includes('/home/me/.agents/skills/tdd already exists and was not installed from an index. Installing replaces it, and the old copy goes to the trash.'))
   assert.equal(page.calls.filter(([op]) => op === 'index-install').length, 0, 'nothing is replaced before the confirmation')
   await page.act(async () => { page.confirmButton().click() })
   await page.settle()
@@ -485,11 +488,243 @@ test('removing an index source asks for confirmation under the whole row', async
   await page.act(async () => { (document.querySelector('button[aria-label="Remove"]') as HTMLButtonElement).click() })
   const confirm = page.confirmButton().parentElement!
   assert.ok(confirm.textContent?.startsWith('Remove this index?'))
-  assert.equal(confirm.previousElementSibling, page.button('Refresh').parentElement?.parentElement, 'the confirmation follows the row line, so it aligns to the right edge of the row')
+  assert.ok(confirm.previousElementSibling === page.button('Refresh').parentElement?.parentElement, 'the confirmation follows the row line, so it aligns to the right edge of the row')
   assert.equal(page.calls.filter(([op]) => op === 'index-remove-source').length, 0, 'removal waits for confirmation')
   await page.act(async () => { page.confirmButton().click() })
   await page.settle()
   assert.deepEqual(page.calls.filter(([op]) => op === 'index-remove-source'), [['index-remove-source', { source: 'owner/repo' }]])
   assert.ok(!page.text().includes('Remove this index?'), 'the confirmation closes once the source is removed')
+  await page.unmount()
+})
+
+/**
+ * Open a confirmation from `opener` the way a keyboard user does, then check
+ * that it is announced, takes focus, and returns it to `opener` on Cancel and
+ * on Escape.
+ */
+async function checkConfirmation(page: Awaited<ReturnType<typeof openPage>>, opener: HTMLButtonElement, message: string) {
+  const open = async () => {
+    opener.focus()
+    await page.act(async () => { opener.click() })
+    const dialog = document.querySelector('[role="alertdialog"]')
+    assert.ok(dialog, 'the confirmation is announced as an alert dialog')
+    assert.equal(document.getElementById(dialog.getAttribute('aria-labelledby') ?? '')?.textContent, message, 'the question names the dialog')
+    assert.equal(opener.disabled, false, 'the opener stays enabled while the confirmation is open')
+    assert.equal(document.activeElement?.textContent, 'Cancel', 'focus moves to Cancel')
+    assert.ok(dialog.contains(document.activeElement))
+    return dialog
+  }
+
+  await open()
+  await page.act(async () => { page.button('Cancel').click() })
+  assert.ok(document.querySelector('[role="alertdialog"]') === null, 'Cancel closes the confirmation')
+  assert.ok(document.activeElement === opener, 'Cancel returns focus to the opener')
+
+  await open()
+  await page.act(async () => {
+    document.activeElement!.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  })
+  assert.ok(document.querySelector('[role="alertdialog"]') === null, 'Escape closes the confirmation')
+  assert.ok(document.activeElement === opener, 'Escape returns focus to the opener')
+}
+
+const installedIndex: IndexView = {
+  ...indexView,
+  entries: [{
+    ...indexView.entries[0]!,
+    installs: [{ level: 'global', version: '1.0.0', installedAt: 1, updateAvailable: false, modified: false, foreign: false, unmanaged: false, installedFrom: 'owner/repo', path: '/home/me/.agents/skills/tdd' }],
+  }],
+}
+
+test('deleting a skill asks in a confirmation that takes and returns focus', async () => {
+  const page = await openPage(indexView)
+  await checkConfirmation(page, document.querySelector('button[aria-label="Delete"]') as HTMLButtonElement, 'Move to the trash?')
+  assert.equal(page.calls.filter(([op]) => op === 'remove').length, 0)
+  await page.unmount()
+})
+
+test('removing a Catalog source asks in a confirmation that takes and returns focus', async () => {
+  const page = await openCatalog(indexView)
+  await checkConfirmation(page, document.querySelector('button[aria-label="Remove"]') as HTMLButtonElement, 'Remove this index? Already installed items stay.')
+  assert.equal(page.calls.filter(([op]) => op === 'index-remove-source').length, 0)
+  await page.unmount()
+})
+
+test('deleting a Catalog copy asks in a confirmation that takes and returns focus', async () => {
+  const page = await openCatalog(installedIndex)
+  await checkConfirmation(page, document.querySelector('button[aria-label="Delete"]') as HTMLButtonElement, 'Move to the trash?')
+  assert.equal(page.calls.filter(([op]) => op === 'remove').length, 0)
+  await page.unmount()
+})
+
+test('replacing a Catalog copy asks in a confirmation that takes and returns focus', async () => {
+  const page = await openCatalog({
+    ...indexView,
+    entries: [{
+      ...indexView.entries[0]!,
+      installs: [{ level: 'global', updateAvailable: false, modified: false, foreign: false, unmanaged: true, path: '/home/me/.agents/skills/tdd' }],
+    }],
+  })
+  await checkConfirmation(page, page.button('Replace'), '/home/me/.agents/skills/tdd already exists and was not installed from an index. Installing replaces it, and the old copy goes to the trash.')
+  assert.equal(page.calls.filter(([op]) => op === 'index-install').length, 0)
+  await page.unmount()
+})
+
+/** A Host failure with `code` for `fakeHost` values. */
+function failure(code: string, message: string): Error {
+  return Object.assign(new Error(message), { name: code })
+}
+
+test('after a skill is deleted, focus moves to the next row', async () => {
+  const root = '/home/me/.agents'
+  const base = level(root)
+  const lint = { ...base.skills[0]!, name: 'lint', file: `${root}/skills/lint/SKILL.md`, entry: `${root}/skills/lint` }
+  let removed = false
+  const page = await openPage(indexView, { remove: () => { removed = true; return { path: `${root}/skills/tdd`, trashed: true } } }, () => ({
+    global: { ...base, skills: removed ? [lint] : [base.skills[0]!, lint] },
+  }))
+  const trash = document.querySelector('button[aria-label="Delete"]') as HTMLButtonElement
+  trash.focus()
+  await page.act(async () => { trash.click() })
+  const confirm = page.button('Move to trash')
+  confirm.focus()
+  await page.act(async () => { confirm.click() })
+  await page.settle()
+  assert.equal(document.querySelectorAll('button[aria-label="Delete"]').length, 1, 'the deleted row is gone')
+  assert.ok(document.querySelector('[role="alertdialog"]') === null, 'the confirmation closed with the row')
+  const row = document.activeElement?.closest('[data-state]')
+  assert.ok(row?.textContent?.includes('lint'), 'focus is in the remaining row')
+  await page.unmount()
+})
+
+test('a failed delete keeps the confirmation open with focus inside', async () => {
+  let answer = (): void => {}
+  const held = new Promise<void>((resolve) => { answer = resolve })
+  const page = await openPage(indexView, { remove: () => held.then(() => failure('dsh-loadout-manager/trash', 'Cannot move to the trash')) })
+  const trash = document.querySelector('button[aria-label="Delete"]') as HTMLButtonElement
+  trash.focus()
+  await page.act(async () => { trash.click() })
+  const confirm = page.button('Move to trash')
+  confirm.focus()
+  await page.act(async () => { confirm.click() })
+  assert.equal(confirm.getAttribute('aria-disabled'), 'true', 'the confirm button is marked busy')
+  assert.equal(confirm.disabled, false, 'and stays focusable')
+  assert.ok(document.activeElement === confirm, 'the busy confirm button keeps focus')
+  await page.act(async () => { confirm.click() })
+  assert.equal(page.calls.filter(([op]) => op === 'remove').length, 1, 'a second press while busy sends nothing')
+  const cancel = page.button('Cancel')
+  assert.equal(cancel.getAttribute('aria-disabled'), 'true', 'Cancel waits for the operation too')
+  await page.act(async () => { cancel.click() })
+  await page.act(async () => { confirm.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+  assert.ok(document.querySelector('[role="alertdialog"]'), 'neither Cancel nor Escape closes a busy confirmation')
+
+  answer()
+  await page.settle()
+  assert.ok(page.text().includes('Cannot move to the trash'))
+  assert.ok(document.querySelector('[role="alertdialog"]'), 'the confirmation stays open')
+  assert.ok(document.activeElement === confirm, 'focus stays on the confirm button')
+  await page.unmount()
+})
+
+/** The Catalog row holding `element`. */
+function rowOf(element: Element | null): Element | null {
+  return element?.closest('[class*="_row_"]') ?? null
+}
+
+/** A `state` answer that can be held back, so a test sees the page while the reload after an operation is pending. */
+function heldState() {
+  let hold: Promise<StateView> | undefined
+  let release = (): void => {}
+  return {
+    state: () => hold ?? { global: level('/home/me/.agents') },
+    hold: () => { hold = new Promise((resolve) => { release = () => { hold = undefined; resolve({ global: level('/home/me/.agents') }) } }) },
+    release: () => { release() },
+  }
+}
+
+test('after a Catalog copy is deleted, focus moves to the row\'s Install button', async () => {
+  const reload = heldState()
+  const page = await openCatalog(installedIndex, { 'index-state': indexView, 'remove': { path: '/home/me/.agents/skills/tdd', trashed: true }, 'state': reload.state })
+  const trash = document.querySelector('button[aria-label="Delete"]') as HTMLButtonElement
+  trash.focus()
+  await page.act(async () => { trash.click() })
+  const confirm = page.confirmButton()
+  confirm.focus()
+  reload.hold()
+  await page.act(async () => { confirm.click() })
+  await page.settle()
+  assert.ok(document.querySelector('[role="alertdialog"]') === null, 'the confirmation closed')
+  assert.equal(document.activeElement?.textContent, 'Install')
+  assert.ok(rowOf(document.activeElement)?.textContent?.includes('tdd'), 'focus stays in the same row while the page reloads')
+  reload.release()
+  await page.settle()
+  await page.unmount()
+})
+
+test('after a Catalog copy is replaced, focus moves to the row\'s trash button', async () => {
+  const reload = heldState()
+  const page = await openCatalog({
+    ...indexView,
+    entries: [{
+      ...indexView.entries[0]!,
+      installs: [{ level: 'global', updateAvailable: false, modified: false, foreign: false, unmanaged: true, path: '/home/me/.agents/skills/tdd' }],
+    }, indexView.entries[1]!],
+  }, { 'index-state': installedIndex, 'state': reload.state })
+  const replace = page.button('Replace')
+  replace.focus()
+  await page.act(async () => { replace.click() })
+  const confirm = page.confirmButton()
+  confirm.focus()
+  reload.hold()
+  await page.act(async () => { confirm.click() })
+  await page.settle()
+  assert.ok(document.querySelector('[role="alertdialog"]') === null, 'the confirmation closed')
+  assert.equal(document.activeElement?.getAttribute('aria-label'), 'Delete')
+  assert.ok(rowOf(document.activeElement)?.textContent?.includes('tdd'), 'focus stays in the same row while the page reloads')
+  reload.release()
+  await page.settle()
+  await page.unmount()
+})
+
+test('a confirmation shown again by the search filter leaves focus in the search field', async () => {
+  const page = await openCatalog(installedIndex)
+  const trash = document.querySelector('button[aria-label="Delete"]') as HTMLButtonElement
+  trash.focus()
+  await page.act(async () => { trash.click() })
+  const search = document.querySelector('input[type="search"]') as HTMLInputElement
+  const type = (value: string) => page.act(async () => {
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!.call(search, value)
+    search.dispatchEvent(new window.Event('input', { bubbles: true }))
+  })
+  search.focus()
+  await type('z')
+  assert.ok(document.querySelector('[role="alertdialog"]') === null, 'the filter hides the row and its confirmation')
+  await type('')
+  assert.ok(document.querySelector('[role="alertdialog"]'), 'the confirmation comes back with the row')
+  assert.ok(document.activeElement === search, 'it does not take focus from the search field')
+  await page.unmount()
+})
+
+test('a replace confirmation opened by the Host returns focus to the row on Cancel', async () => {
+  const unmanaged: IndexView = {
+    ...indexView,
+    entries: [{
+      ...indexView.entries[0]!,
+      installs: [{ level: 'global', updateAvailable: false, modified: false, foreign: false, unmanaged: true, path: '/home/me/.agents/skills/tdd' }],
+    }],
+  }
+  const page = await openCatalog(indexView, {
+    'index-install': failure('dsh-loadout-manager/unmanaged', 'Not installed from an index'),
+    'index-state': unmanaged,
+  })
+  const install = page.button('Install')
+  install.focus()
+  await page.act(async () => { install.click() })
+  await page.settle()
+  assert.ok(document.querySelector('[role="alertdialog"]'), 'the Host asks to confirm the replacement')
+  assert.equal(document.activeElement?.textContent, 'Cancel')
+  await page.act(async () => { page.button('Cancel').click() })
+  await page.settle()
+  assert.equal(document.activeElement?.textContent, 'Replace', 'focus returns to the row\'s action, now reading Replace')
   await page.unmount()
 })
