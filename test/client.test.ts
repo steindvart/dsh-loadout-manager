@@ -57,7 +57,7 @@ function fakeHost(window: Window, state: (body: Requests['state']) => StateView,
     calls.push([op, body])
     const value = op === 'state' ? state(body)
       : op === 'index-refresh' || op === 'index-state' ? index
-      : op === 'index-remove-source' ? { ...index, sources: [] }
+      : op === 'index-remove-source' ? { ...index, sources: [], entries: [] }
       : op === 'index-install' ? { source: 'owner/repo', kind: 'skill', name: 'tdd', level: 'global', path: '/home/me/.agents/skills/tdd', action: 'installed' }
       : op === 'mcp-probe' ? { ok: true, serverName: 'mcp-servers/everything', serverVersion: '1.0.0', tools: ['echo', 'add'], truncated: false, durationMs: 120 }
       : { ok: true }
@@ -443,10 +443,11 @@ test('removing an index source asks for confirmation under the whole row', async
   await page.act(async () => { (document.querySelector('button[aria-label="Remove"]') as HTMLButtonElement).click() })
   const confirm = page.confirmButton().parentElement!
   assert.ok(confirm.textContent?.startsWith('Remove this index?'))
-  assert.ok(confirm.previousElementSibling?.contains(page.button('Refresh')), 'the confirmation follows the line with Refresh, so it aligns to the right edge of the row')
+  assert.equal(confirm.previousElementSibling, page.button('Refresh').parentElement?.parentElement, 'the confirmation follows the row line, so it aligns to the right edge of the row')
   assert.equal(page.calls.filter(([op]) => op === 'index-remove-source').length, 0, 'removal waits for confirmation')
   await page.act(async () => { page.confirmButton().click() })
   await page.settle()
   assert.deepEqual(page.calls.filter(([op]) => op === 'index-remove-source'), [['index-remove-source', { source: 'owner/repo' }]])
+  assert.ok(!page.text().includes('Remove this index?'), 'the confirmation closes once the source is removed')
   await page.unmount()
 })

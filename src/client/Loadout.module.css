@@ -189,6 +189,7 @@ html[data-platform='darwin'] .head { padding-top: calc(28px + var(--dsh-frame-to
 .btn:disabled { cursor: not-allowed; opacity: .4; }
 .btn[data-tone='outline'] { color: var(--dsw-alias-label-primary); box-shadow: inset 0 0 0 var(--dsh-hairline-width, 0.5px) var(--dsh-button-outline-color, var(--dsw-alias-border-l3)); }
 .btn[data-tone='danger'] { color: var(--dsw-alias-state-error-primary); width: 28px; padding: 0; }
+.btn[data-tone='dangerText'] { color: var(--dsw-alias-state-error-primary); }
 
 @media (hover: hover) {
   .tab:hover { color: var(--dsw-alias-label-primary); }
@@ -213,7 +214,6 @@ html[data-platform='darwin'] .head { padding-top: calc(28px + var(--dsh-frame-to
 .tag { padding: 0 6px; border-radius: var(--dsw-radius-xs); background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; }
 .badge[data-tone='warn'] { color: var(--dsw-alias-state-warn-primary); }
 .badge[data-tone='info'] { color: var(--dsw-alias-state-business-primary); }
-.btn[data-tone='dangerText'] { color: var(--dsw-alias-state-error-primary); }
 
 /* Row extras and page states: Plugin Manager .status / .failure (13px). */
 .confirm { display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
