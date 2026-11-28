@@ -221,6 +221,9 @@ html[data-platform='darwin'] .head { padding-top: calc(28px + var(--dsh-frame-to
 .confirm { display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
 .error { font-size: 13px; line-height: 20px; color: var(--dsw-alias-state-error-primary); overflow-wrap: anywhere; }
 .error:has(button) { display: flex; align-items: center; gap: 10px; }
+.notice { display: flex; align-items: center; gap: 10px; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
+/* Out of the flow while empty, so the tab panel's gap does not count it. */
+.notice:empty { position: absolute; }
 .empty { font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-tertiary); }
 .preview { margin: 0; max-height: 260px; overflow: auto; padding: 10px 12px; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-3); font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
 

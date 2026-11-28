@@ -482,6 +482,8 @@ Recommendation: for `loadout.json` (global and project) and the rule directories
 
 Recommendation: `execFile('gio', ['trash', '--', absPath])` from the Host. If `gio` is missing (ENOENT) or returns an error, show the error in the UI and do not delete. Implementing the freedesktop Trash specification by hand (`$XDG_DATA_HOME/Trash`, `.trashinfo`, trash cans on other volumes) is a fallback for the future, not needed in the first version. Paths inside `app.asar` (for example, `dsh-doc`) cannot be deleted; hide the button for them.
 
+Later decision ([issue #1](https://github.com/steindvart/dsh-loadout-manager/issues/1)): when `gio trash` fails, the Host moves the entry into `$DSH_HOME/.trash` instead of reporting an error; see [panel.md](../panel.md).
+
 ## 9. `$DSH_HOME` and `$DSH_AGENTS_HOME`
 
 Source: `$P/dsh-home-paths/src/index.ts`.
@@ -521,7 +523,7 @@ There is no separate notion of "open" workspaces: the registry holds all registe
 5. **The model catalog updates on the next pre-step** after `invalidate()`, with an appended replacement message (append-only). Every `on ↔ manual/off` switch in a live session costs one such message.
 6. **Rules: a `source.kind` of our own** (for example, `dsh-loadout-manager-rules`), `form: 'instructions'`, and `baseline`, `baselineIdentity`, and `changes[{action, scope, path, digest}]` fields modeled on `agent-instructions`. Restore the state from `session.deriveMessages()`: `eventAt` is deprecated for new code. Insert after the last `agent-instructions` message, otherwise after the last claimed one. Spread the decision. On `reject` and on an empty first step insert nothing. Catch changes with stat on every pre-step, as `agent-instructions` does; the context needs no watcher. The listener is a root one and receives every agent, so decide whether the `minimal` preset needs rules.
 7. **Client ↔ Host communication – exact Fetch routes** `ctx.connection.fetch.register({ path: '/api/dsh-loadout-manager/<op>', methods: ['POST'], requestBody: 'buffered', fetch })`, owner only. Typert Remote is unavailable from plain JS. The SPEC should be corrected: "Remote or Service" → "a Fetch route under `/api`".
-8. **Trash – `gio trash`.** The Host is a Node process without Electron, and `shell.trashItem` is unavailable. On an error, delete nothing.
+8. **Trash – `gio trash`.** The Host is a Node process without Electron, and `shell.trashItem` is unavailable. On an error, delete nothing permanently: the entry goes to `$DSH_HOME/.trash` (see section 8).
 9. **Paths:** `ctx.dshHomePath()` for `$DSH_HOME`, our own resolution of `$DSH_AGENTS_HOME` (an empty value = unset, expand `~`).
 10. **Workspaces:** `ctx.workspaceRegistry.list()` on the Host, `ctx.workspaces.list` on the Client. Compute `projectRoot` for a workspace group as DSH does: the nearest ancestor with `.git` (file or directory), otherwise the path itself.
 11. **YAML for rules.** `skill-filesystem` uses the `yaml` npm package. If the plugin needs full YAML in rule frontmatter, add `yaml` to the bundle's `dependencies`. Otherwise limit parsing to `name`/`description` by hand and document the limitation.

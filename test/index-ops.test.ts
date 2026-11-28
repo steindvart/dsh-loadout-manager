@@ -1,13 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { readFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { createIndexService } from '../src/host/index-ops.ts'
 import { classifySource } from '../src/host/index-sources.ts'
 import { cacheDir } from '../src/host/index-store.ts'
+import { createTrash } from '../src/host/trash.ts'
 
 function tree(files: Record<string, string>): string {
   const base = mkdtempSync(join(tmpdir(), 'loadout-index-ops-'))
@@ -38,7 +39,7 @@ function setup(sourceFiles: Record<string, string>) {
   let invalidations = 0
   const service = createIndexService(homes, {
     invalidate: () => { invalidations += 1 },
-    trash: async (path) => { trashed.push(path); await rm(path, { recursive: true, force: true }) },
+    trash: async (path) => { trashed.push(path); await rm(path, { recursive: true, force: true }); return undefined },
   })
   return { base, homes, service, trashed, invalidations: () => invalidations, source: join(base, 'source') }
 }
@@ -85,6 +86,27 @@ test('installs a rule, detects a source update, and replaces the copy', async (t
   const second = await service.install({ source, kind: 'rule', name: 'style', projectRoot: undefined, force: false })
   assert.equal(second.action, 'updated')
   assert.equal(trashed.length, 1, 'the previous rule file is trashed')
+  assert.equal(await readFile(join(homes.agentsHome, 'rules/style.md'), 'utf8'), '---\nname: Style\n---\nEven shorter.\n')
+})
+
+test('without the system trash the replaced copy goes to the DSH trash under its own name, and the note names it', async (t) => {
+  const { base, homes, source } = setup({})
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const service = createIndexService(homes, {
+    invalidate: () => undefined,
+    trash: createTrash(homes.dshHome, { system: async () => { throw new Error('gio is not installed') } }),
+  })
+  const id = (await service.addSource(source, undefined)).sources[0]!.source
+  await service.install({ source: id, kind: 'rule', name: 'style', projectRoot: undefined, force: false })
+  writeFileSync(join(source, 'rules/style.md'), '---\nname: Style\n---\nEven shorter.\n')
+  await service.refresh(undefined, {})
+
+  const updated = await service.install({ source: id, kind: 'rule', name: 'style', projectRoot: undefined, force: false })
+  const moved = /the previous copy is at (.+)$/.exec(updated.note ?? '')?.[1]
+  assert.ok(moved?.startsWith(join(homes.dshHome, '.trash')), `the note names the DSH trash: ${updated.note}`)
+  assert.equal(basename(moved!), 'style.md', 'the copy keeps its original name')
+  assert.equal(await readFile(moved!, 'utf8'), '---\nname: Style\n---\nShort functions.\n')
+  assert.deepEqual(readdirSync(join(homes.agentsHome, '.loadout-manager/backups')), [], 'no empty backup folder is left')
   assert.equal(await readFile(join(homes.agentsHome, 'rules/style.md'), 'utf8'), '---\nname: Style\n---\nEven shorter.\n')
 })
 
@@ -320,7 +342,7 @@ test('an install waits for a running refresh of the same source', async (t) => {
   t.after(() => rm(base, { recursive: true, force: true }))
   const service = createIndexService({ dshHome: join(base, 'dsh'), agentsHome: join(base, 'agents') }, {
     invalidate: () => undefined,
-    trash: async (path) => { await rm(path, { recursive: true, force: true }) },
+    trash: async (path) => { await rm(path, { recursive: true, force: true }); return undefined },
   })
   const events: string[] = []
   let hold: Promise<void> = Promise.resolve()

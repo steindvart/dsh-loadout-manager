@@ -12,7 +12,7 @@ The rule identifier (its key in `loadout.json`) is built from the file name rath
 | global | `~/.dsh/rules/` (`$DSH_HOME/rules`) |
 | global | `~/.agents/rules/` (`$DSH_AGENTS_HOME/rules`) |
 
-Each rule is switched on and off on its own and is moved to the trash after confirmation. A rule is on by default.
+Each rule is switched on and off on its own and is moved to the trash after confirmation, or into `$DSH_HOME/.trash` when there is no system trash (see [panel.md](panel.md)). A rule is on by default.
 
 Enabled rules enter the request context on a par with AGENTS.md: the same `<system-reminder>` format, the same priority ("workspace instructions"), a separate message right after the `dsh-agent-instructions` baseline.
 

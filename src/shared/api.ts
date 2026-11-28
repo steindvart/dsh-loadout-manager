@@ -206,7 +206,8 @@ export interface Responses {
   'state': StateView
   'set-skill': { name: string, level: Level, state: SkillState, loadoutPath: string, note?: string }
   'set-rule': { id: string, level: Level, enabled: boolean, loadoutPath: string }
-  'remove': { path: string, trashed: true }
+  /** `movedTo`: the system trash was unavailable, so the entry went into `<DSH home>/.trash` at this path. */
+  'remove': { path: string, trashed: true, movedTo?: string }
   'read': { path: string, text: string, truncated: boolean }
   'mcp-set': { name: string, level: Level, enabled: boolean, savedTo: string }
   'mcp-restart': { name: string }

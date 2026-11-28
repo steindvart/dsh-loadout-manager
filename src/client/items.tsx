@@ -115,6 +115,8 @@ interface RowProps {
   scope: Scope
   locked: boolean
   reload(): Promise<void>
+  /** A page-level notice that outlives the row, such as where a deleted entry went. */
+  notify(text: string): void
 }
 
 type Item =
@@ -124,7 +126,7 @@ type Item =
 
 type Entry = Item | { kind: 'mcp', item: McpServerView }
 
-function Row({ t, scope, locked, reload, entry }: RowProps & { entry: Item }): ReactNode {
+function Row({ t, scope, locked, reload, notify, entry }: RowProps & { entry: Item }): ReactNode {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   const [confirming, setConfirming] = useState(false)
@@ -237,8 +239,9 @@ function Row({ t, scope, locked, reload, entry }: RowProps & { entry: Item }): R
               disabled={busy}
               onClick={() => {
                 void run(async () => {
-                  await call('remove', { ...target, path: deletePath })
+                  const { movedTo } = await call('remove', { ...target, path: deletePath })
                   setConfirming(false)
+                  if (movedTo !== undefined) notify(t('movedToDshTrash', { name: item.name, path: movedTo }))
                 })
               }}
             >

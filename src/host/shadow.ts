@@ -17,6 +17,7 @@ import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import type { SkillCandidate, SkillDefinition, SkillLookupOptions, SkillProvider, SkillProviderControl } from '@deepseek-ai/dsh-skill'
 import type { ScopeKey } from '@deepseek-ai/dsh-scope'
 import type {} from '@deepseek-ai/dsh-working-directory'
+import { messageOf } from './errors.ts'
 import { readLevels, shadowsFor, type Homes } from './inventory.ts'
 import { findProjectRoot } from './paths.ts'
 import { PLUGIN_NAME } from '../shared/identity.ts'
@@ -155,10 +156,6 @@ export async function cwdOf(ctx: Context, agent: Agent, signal?: AbortSignal): P
   const workingDirectory = ctx.get('workingDirectory')
   if (workingDirectory === undefined) return undefined
   return workingDirectory.ensure(agent, signal)
-}
-
-export function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 async function mtimeOf(path: string): Promise<number> {

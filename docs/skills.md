@@ -14,7 +14,7 @@ A skill whose frontmatter already sets `disable-model-invocation: true` shows as
 
 The Catalog subpage installs skills from indexes into `$DSH_AGENTS_HOME/skills` (Global) or `<project>/.agents/skills` (Workspace); since those are the `user-agents` and `project-agents` roots, the usual rank rules apply. See [catalog.md](catalog.md).
 
-Deletion moves the `<name>/` directory or the `<name>.md` file to the trash after confirmation in the UI.
+Deletion moves the `<name>/` directory or the `<name>.md` file to the trash after confirmation in the UI. Without a system trash it goes to `$DSH_HOME/.trash/<UTC time>/<name>`, which DSH does not scan, so the skill leaves the agent's context; see [panel.md](panel.md).
 
 ## Skill filter: a shadow provider in the agent layer
 
