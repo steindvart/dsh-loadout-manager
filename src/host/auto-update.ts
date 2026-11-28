@@ -15,7 +15,7 @@
 import type { Context, Volatile } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type { Operations } from './operations.ts'
-import { messageOf } from './shadow.ts'
+import { messageOf } from './errors.ts'
 
 export const AUTO_UPDATE_INTERVAL_MS = 30 * 60 * 1000
 

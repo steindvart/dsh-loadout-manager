@@ -89,7 +89,7 @@ function serviceIn(base: string) {
   const homes = { dshHome: join(base, 'dsh'), agentsHome: join(base, 'agents') }
   const service = createIndexService(homes, {
     invalidate: () => {},
-    trash: async path => rm(path, { recursive: true, force: true }),
+    trash: async (path) => { await rm(path, { recursive: true, force: true }); return undefined },
   })
   return { homes, service }
 }

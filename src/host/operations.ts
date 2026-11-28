@@ -4,7 +4,6 @@
  * returned, so a caller cannot reach arbitrary files.
  */
 
-import { execFile } from 'node:child_process'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { basename, dirname, resolve } from 'node:path'
 import { homedir } from 'node:os'
@@ -19,8 +18,9 @@ import { McpUnavailableError, probeMcp, readMcpServers, restartMcp, setMcpEnable
 import { createIndexService, type AutoUpdateResult, type IndexService } from './index-ops.ts'
 import { loadoutPath, scanInventory, type Homes, type InstructionItem, type Inventory, type RuleItem, type SkillItem } from './inventory.ts'
 import { findProjectRoot } from './paths.ts'
-import { OperationError } from './errors.ts'
-import { messageOf, withPresetScope } from './shadow.ts'
+import { messageOf, OperationError } from './errors.ts'
+import { createTrash, TrashLeftoverError, type Trash } from './trash.ts'
+import { withPresetScope } from './shadow.ts'
 
 const READ_LIMIT = 256 * 1024
 
@@ -35,7 +35,7 @@ export interface Operations {
   /** `level` pins the loadout.json to write; omitted, the winner's level is used. */
   setSkill(request: Target & { name: string, state: string, level?: Level | undefined }): Promise<Responses['set-skill']>
   setRule(request: Target & { id: string, enabled: unknown }): Promise<Responses['set-rule']>
-  /** Move a scanned skill entry or rule file to the trash. User-only. */
+  /** Move a scanned skill entry or rule file to the trash, else into the DSH trash. User-only. */
   remove(request: Requests['remove']): Promise<Responses['remove']>
   /** Text of a scanned skill, rule, or instruction file, for the inline preview. */
   read(request: Requests['read']): Promise<Responses['read']>
@@ -58,10 +58,10 @@ export interface Operations {
 export interface OperationHooks {
   /** Called after `loadout.json` or a skill file changed. */
   invalidate(): void
-  trash?: (path: string) => Promise<void>
+  trash?: Trash
 }
 
-export function createOperations(ctx: Context, homes: Homes, { invalidate, trash = gioTrash }: OperationHooks): Operations {
+export function createOperations(ctx: Context, homes: Homes, { invalidate, trash = createTrash(homes.dshHome) }: OperationHooks): Operations {
   const index: IndexService = createIndexService(homes, { invalidate, trash })
 
   async function inventoryFor({ workspacePath, cwd }: Target): Promise<{ projectRoot: string | undefined, inventory: Inventory }> {
@@ -179,11 +179,21 @@ export function createOperations(ctx: Context, homes: Homes, { invalidate, trash
       const rule = inventory.rules.find(item => item.file === path)
       if (skill === undefined && rule === undefined) throw new OperationError('not-found', `not a listed skill or rule: ${path}`)
       if (skill?.readOnly === true) throw new OperationError('read-only', `${path} is inside the application archive and cannot be deleted`)
-      await trash(path)
       const level = skill?.level ?? rule?.level
-      await index.forget(path, level === 'project' ? projectRoot : undefined)
-      invalidate()
-      return { path, trashed: true }
+      const forget = async (): Promise<void> => {
+        await index.forget(path, level === 'project' ? projectRoot : undefined)
+        invalidate()
+      }
+      let movedTo: string | undefined
+      try {
+        movedTo = await trash(path)
+      } catch (error) {
+        // The entry reached the DSH trash; only a staging folder stayed behind.
+        if (error instanceof TrashLeftoverError) await forget()
+        throw error
+      }
+      await forget()
+      return { path, trashed: true, ...movedTo !== undefined ? { movedTo } : {} }
     },
 
     async read({ workspacePath, path }) {
@@ -288,18 +298,4 @@ async function writeAtomic(path: string, text: string): Promise<void> {
   const temporary = `${path}.${process.pid}.${Date.now()}.tmp`
   await writeFile(temporary, text)
   await rename(temporary, path)
-}
-
-/** `gio trash`; on any failure the file stays where it is. */
-export function gioTrash(path: string): Promise<void> {
-  return new Promise((resolvePromise, reject) => {
-    execFile('gio', ['trash', '--', path], { timeout: 15_000 }, (error, _stdout, stderr) => {
-      if (error === null) {
-        resolvePromise()
-        return
-      }
-      const reason = (error as NodeJS.ErrnoException).code === 'ENOENT' ? 'gio is not installed' : (stderr.trim() || error.message)
-      reject(new OperationError('trash-unavailable', `could not move ${path} to the trash: ${reason}. Nothing was deleted.`))
-    })
-  })
 }

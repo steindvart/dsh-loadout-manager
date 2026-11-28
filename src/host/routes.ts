@@ -8,9 +8,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import { routePath, type Envelope, type IndexKind, type Operation, type Responses } from '../shared/api.ts'
-import { OperationError } from './errors.ts'
+import { messageOf, OperationError } from './errors.ts'
 import type { Operations } from './operations.ts'
-import { messageOf } from './shadow.ts'
 
 type Body = Record<string, unknown>
 type Handlers = { [Op in Operation]: (body: Body) => Promise<Responses[Op]> }

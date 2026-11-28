@@ -7,3 +7,7 @@ export class OperationError extends Error {
     this.code = code
   }
 }
+
+export function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}

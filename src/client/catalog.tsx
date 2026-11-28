@@ -123,7 +123,9 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
     setActionBusy(key)
     setRowError(rest => without(rest, key))
     try {
-      await call('remove', { ...target(), path })
+      const { movedTo } = await call('remove', { ...target(), path })
+      if (movedTo !== undefined) setRowNote(rest => ({ ...rest, [key]: t('movedToDshTrash', { name: entry.name, path: movedTo }) }))
+      else setRowNote(rest => without(rest, key))
       setRemoveConfirmKey(undefined)
       setConfirmKey(undefined)
       setView(await call('index-state', target()))

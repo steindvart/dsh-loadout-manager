@@ -43,6 +43,7 @@ export function LoadoutPage({ t, useWorkspaces = noWorkspaces }: LoadoutPageProp
   const [subpage, setSubpage] = useState<Subpage>('loadout')
   const [data, setData] = useState<{ for: string | undefined, value: StateView } | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
+  const [notices, setNotices] = useState<{ for: string, texts: readonly string[] } | undefined>(undefined)
 
   const reload = useCallback(async () => {
     try {
@@ -83,6 +84,12 @@ export function LoadoutPage({ t, useWorkspaces = noWorkspaces }: LoadoutPageProp
   const locked = group?.error !== undefined
   const counts = group === undefined ? {} : Object.fromEntries(KINDS.map(item => [item.id, countOf(item, group)]))
   const catalogOpen = subpage === 'catalog'
+  // Notices belong to the list they were raised on: this scope and this tab.
+  const noticeKey = `${scopeValue}:${kind?.id ?? ''}`
+  const shownNotices = notices?.for === noticeKey ? notices.texts : []
+  const notify = (text: string): void => {
+    setNotices(current => ({ for: noticeKey, texts: current?.for === noticeKey ? [...current.texts, text] : [text] }))
+  }
 
   const scopeHint = workspacePath === undefined
     ? <span>{workspaces.length === 0 ? t('noWorkspaces') : t('globalHint')}</span>
@@ -147,6 +154,17 @@ export function LoadoutPage({ t, useWorkspaces = noWorkspaces }: LoadoutPageProp
           ? <CatalogPanel key={`catalog:${scopeValue}`} t={t} scope={scope} onChanged={reload} />
           : (
             <div className={css.tabpanel} role="tabpanel" id="dshlo-tabpanel" aria-labelledby={`dshlo-tab-${kind?.id ?? ''}`}>
+              {/* Always mounted, so screen readers announce text added to it. */}
+              <div className={css.notice} role="status">
+                {shownNotices.length > 0
+                  ? (
+                    <>
+                      <div>{shownNotices.map((text, at) => <div key={at}>{text}</div>)}</div>
+                      <button type="button" className={css.btn} data-tone="outline" onClick={() => { setNotices(undefined) }}>{t('dismiss')}</button>
+                    </>
+                  )
+                  : null}
+              </div>
               {error !== undefined
                 ? (
                   <div className={css.error} role="alert">
@@ -166,6 +184,7 @@ export function LoadoutPage({ t, useWorkspaces = noWorkspaces }: LoadoutPageProp
                     scope={scope}
                     locked={locked}
                     reload={reload}
+                    notify={notify}
                   />
                 )
                 : null}

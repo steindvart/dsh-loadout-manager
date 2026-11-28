@@ -13,6 +13,7 @@ import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { gunzip } from 'node:zlib'
+import { messageOf } from './errors.ts'
 import { INDEX_FILE, parseIndexDocument, relativePath, type IndexSkillEntry, type NpmPin } from './index-doc.ts'
 import type { IndexSource } from './index-sources.ts'
 import {
@@ -565,9 +566,5 @@ function safeArchivePath(path: string): boolean {
   const normalized = path.replaceAll('\\', '/')
   if (normalized.startsWith('/') || /^[A-Za-z]:/.test(normalized)) return false
   return normalized.split('/').every(part => part !== '..')
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
