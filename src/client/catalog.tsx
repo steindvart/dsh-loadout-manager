@@ -193,15 +193,6 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
                       <span>{t('catalogItems', { count: source.itemCount })}</span>
                     </div>
                     {source.error !== undefined ? <div className={css.error} role="alert">{source.error}</div> : null}
-                    {removingSource === source.source
-                      ? (
-                        <div className={css.confirm}>
-                          {t('catalogRemoveConfirm')}
-                          <button type="button" className={css.btn} data-tone="outline" onClick={() => { setRemovingSource(undefined) }}>{t('cancel')}</button>
-                          <button type="button" className={css.btn} data-tone="dangerText" disabled={sourceBusy !== undefined} onClick={() => { void removeSource(source.source) }}>{t('catalogRemove')}</button>
-                        </div>
-                      )
-                      : null}
                   </div>
                   <div className={css.controls}>
                     <button
@@ -218,6 +209,15 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
                     </button>
                   </div>
                 </div>
+                {removingSource === source.source
+                  ? (
+                    <div className={css.confirm}>
+                      {t('catalogRemoveConfirm')}
+                      <button type="button" className={css.btn} data-tone="outline" onClick={() => { setRemovingSource(undefined) }}>{t('cancel')}</button>
+                      <button type="button" className={css.btn} data-tone="dangerText" disabled={sourceBusy !== undefined} onClick={() => { void removeSource(source.source) }}>{t('catalogRemove')}</button>
+                    </div>
+                  )
+                  : null}
               </div>
             ))}
         </div>

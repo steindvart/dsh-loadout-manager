@@ -235,7 +235,7 @@ function Row({ t, scope, locked, reload, notify, entry }: RowProps & { entry: It
             <button
               type="button"
               className={css.btn}
-              data-tone="primary"
+              data-tone="dangerText"
               disabled={busy}
               onClick={() => {
                 void run(async () => {
