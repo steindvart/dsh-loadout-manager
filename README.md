@@ -115,7 +115,7 @@ The `autoUpdate` switch (off by default) sits on the plugin's page in **Plugins*
 
 - In a session whose agent has not started yet, the `/` menu also lists skills that are off.
 - Rules reach only agents whose preset includes `dsh-agent-instructions`. The Minimal preset does not.
-- Deletion uses `gio trash`. Where `gio` is missing, including Windows and macOS, the entry moves to `~/.dsh/.trash` (or `$DSH_HOME/.trash`), and the panel shows the new path. The plugin never empties that folder, so clear it by hand.
+- Deletion uses `gio trash`. Where `gio` is missing or fails (Windows and macOS have none), the entry moves to `~/.dsh/.trash` (or `$DSH_HOME/.trash`), and the panel shows the new path. The plugin never empties that folder, so clear it by hand.
 - Built-in skills from `app.asar` can be turned off but not deleted.
 - HTTP indexes report updates by `version`; a changed file with the same version looks current. HTTP authentication is not supported, and archives need `tar` or `unzip`.
 - npm entries install the version tagged `latest` only, from registries that allow anonymous reads.

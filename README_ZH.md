@@ -117,7 +117,7 @@ dsh plugin --profile <配置名> add dsh-loadout-manager
 
 - 在智能体尚未启动的会话中，`/` 菜单也会列出已停用的技能。
 - 只有预设中包含 `dsh-agent-instructions` 的智能体才会收到规则，Minimal 预设不包含它。
-- 删除通过 `gio trash` 完成。在没有 `gio` 的系统上（包括 Windows 和 macOS），文件会移到 `~/.dsh/.trash`（或 `$DSH_HOME/.trash`），面板显示新路径。插件不会清空该文件夹，需要手动清理。
+- 删除通过 `gio trash` 完成。如果没有 `gio`（例如 Windows 和 macOS）或它执行失败，文件会移到 `~/.dsh/.trash`（或 `$DSH_HOME/.trash`），面板显示新路径。插件不会清空该文件夹，需要手动清理。
 - 来自 `app.asar` 的内置技能可以停用，但不能删除。
 - HTTP 索引只按 `version` 判断更新：版本号不变而文件变化时不会显示更新。不支持 HTTP 认证，解压归档需要 `tar` 或 `unzip`。
 - npm 条目只安装带有 `latest` 标签的版本，且只能从允许匿名读取的注册表安装。
