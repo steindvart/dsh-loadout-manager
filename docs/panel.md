@@ -28,6 +28,8 @@ Catalog is a subpage, not a tab. The Catalog button in the header replaces the t
 
 Grouped by source: above each group a 14/500 heading with the item count, the rows themselves in a card (`--dsw-alias-settings-card-fill` / `-stroke`, as in the Models and Agent presets sections). On the right of a row: Open, a 28×28 delete button, and the switch; the delete confirmation and the file text appear under the row.
 
+Confirmations here and in the Catalog behave the same. The question with its Cancel and confirm buttons is an alert dialog named by the question. Opening it moves focus to Cancel, Escape cancels it, and closing it returns focus to the button that opened it, if that button is still on the page. That button stays enabled while the confirmation is open; only a running operation disables it.
+
 The panel derives custom roots from the `path` of registry candidates with `source: 'custom'` (the default preset scope, `acquireScope()`) and scans those roots with its own scanner, so overridden duplicates show too. Custom skills are global. Files inside `app.asar` (`dsh-doc`, `office*`) are read-only: they can be switched but not deleted.
 
 A row has the name and description (from frontmatter), the version for a skill when present (`metadata.version` per the Agent Skills format, otherwise top-level `version`), the path, the switch (three-way for a skill), Open, and Delete.

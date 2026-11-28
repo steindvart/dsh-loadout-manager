@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { IndexEntryView, IndexInstallView, IndexSourceView, IndexView } from '../shared/api.ts'
 import { CallError, call, messageOf } from './api.ts'
-import type { T } from './controls.tsx'
+import { Confirm, type T } from './controls.tsx'
 import css from './Loadout.module.css'
 import type { Scope } from './items.tsx'
 
@@ -211,11 +211,15 @@ export function CatalogPanel({ t, scope, onChanged }: CatalogPanelProps): ReactN
                 </div>
                 {removingSource === source.source
                   ? (
-                    <div className={css.confirm}>
-                      {t('catalogRemoveConfirm')}
-                      <button type="button" className={css.btn} data-tone="outline" onClick={() => { setRemovingSource(undefined) }}>{t('cancel')}</button>
-                      <button type="button" className={css.btn} data-tone="dangerText" disabled={sourceBusy !== undefined} onClick={() => { void removeSource(source.source) }}>{t('catalogRemove')}</button>
-                    </div>
+                    <Confirm
+                      t={t}
+                      message={t('catalogRemoveConfirm')}
+                      action={t('catalogRemove')}
+                      tone="dangerText"
+                      busy={sourceBusy !== undefined}
+                      onCancel={() => { setRemovingSource(undefined) }}
+                      onConfirm={() => { void removeSource(source.source) }}
+                    />
                   )
                   : null}
               </div>
@@ -372,22 +376,20 @@ function EntryRow({
       </div>
       {confirming
         ? (
-          <div className={css.confirm}>
-            {replaceMessage(t, here, sourceName)}
-            <button type="button" className={css.btn} data-tone="outline" onClick={onCancel}>{t('cancel')}</button>
-            <button type="button" className={css.btn} data-tone="dangerText" disabled={busy} onClick={() => { onInstall(true) }}>
-              {foreign || unmanaged ? t('catalogReplaceCopy') : t('catalogReplace')}
-            </button>
-          </div>
+          <Confirm
+            t={t}
+            message={replaceMessage(t, here, sourceName)}
+            action={foreign || unmanaged ? t('catalogReplaceCopy') : t('catalogReplace')}
+            tone="dangerText"
+            busy={busy}
+            onCancel={onCancel}
+            onConfirm={() => { onInstall(true) }}
+          />
         )
         : null}
       {confirmingRemove
         ? (
-          <div className={css.confirm}>
-            {t('confirmDelete')}
-            <button type="button" className={css.btn} data-tone="outline" onClick={onRemoveCancel}>{t('cancel')}</button>
-            <button type="button" className={css.btn} data-tone="dangerText" disabled={busy} onClick={onRemove}>{t('confirm')}</button>
-          </div>
+          <Confirm t={t} message={t('confirmDelete')} action={t('confirm')} tone="dangerText" busy={busy} onCancel={onRemoveCancel} onConfirm={onRemove} />
         )
         : null}
     </div>

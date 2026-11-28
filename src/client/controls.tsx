@@ -1,6 +1,6 @@
 /** Own controls and glyphs (Harness primitives are not importable by plugins). */
 
-import type { ReactNode } from 'react'
+import { useId, useLayoutEffect, useRef, type ReactNode } from 'react'
 import type { SkillState } from '../shared/api.ts'
 import type { LoadoutKey } from './locale.ts'
 import css from './Loadout.module.css'
@@ -55,6 +55,52 @@ export function Switch({ t, checked, disabled, label, onChange }: {
       disabled={disabled}
       onClick={() => { onChange(!checked) }}
     />
+  )
+}
+
+/**
+ * A confirmation under a row, announced as an alert dialog named by its
+ * question. Opening it moves focus to Cancel; Escape cancels. When it closes
+ * with focus still inside, focus returns to the control that opened it.
+ */
+export function Confirm({ t, message, action, tone, busy, onCancel, onConfirm }: {
+  t: T
+  message: string
+  /** The confirm button's label. */
+  action: string
+  tone: 'primary' | 'dangerText'
+  busy: boolean
+  onCancel(): void
+  onConfirm(): void
+}): ReactNode {
+  const id = useId()
+  const box = useRef<HTMLDivElement>(null)
+  const cancel = useRef<HTMLButtonElement>(null)
+  // A layout effect: its cleanup runs before React detaches the box, so it can still see focus inside.
+  useLayoutEffect(() => {
+    const opener = document.activeElement as HTMLElement | null
+    const node = box.current
+    cancel.current?.focus()
+    return () => {
+      if (node?.contains(document.activeElement) === true && opener?.isConnected === true) opener.focus()
+    }
+  }, [])
+  return (
+    <div
+      ref={box}
+      className={css.confirm}
+      role="alertdialog"
+      aria-labelledby={id}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        event.stopPropagation()
+        onCancel()
+      }}
+    >
+      <span id={id}>{message}</span>
+      <button ref={cancel} type="button" className={css.btn} data-tone="outline" onClick={onCancel}>{t('cancel')}</button>
+      <button type="button" className={css.btn} data-tone={tone} disabled={busy} onClick={onConfirm}>{action}</button>
+    </div>
   )
 }
 

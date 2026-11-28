@@ -433,7 +433,7 @@ test('a same-named skill that no index installed is replaced only after confirma
   assert.ok(page.text().includes('Same name, not from an index'))
   assert.equal(document.querySelector('button[aria-label="Delete"]'), null, 'the page does not offer to delete a copy it did not install')
   await page.act(async () => { page.button('Replace').click() })
-  assert.ok(page.text().includes('/home/me/.agents/skills/tdd already exists and was not installed from an index.'))
+  assert.ok(page.text().includes('/home/me/.agents/skills/tdd already exists and was not installed from an index. Installing replaces it, and the old copy goes to the trash.'))
   assert.equal(page.calls.filter(([op]) => op === 'index-install').length, 0, 'nothing is replaced before the confirmation')
   await page.act(async () => { page.confirmButton().click() })
   await page.settle()
@@ -485,11 +485,84 @@ test('removing an index source asks for confirmation under the whole row', async
   await page.act(async () => { (document.querySelector('button[aria-label="Remove"]') as HTMLButtonElement).click() })
   const confirm = page.confirmButton().parentElement!
   assert.ok(confirm.textContent?.startsWith('Remove this index?'))
-  assert.equal(confirm.previousElementSibling, page.button('Refresh').parentElement?.parentElement, 'the confirmation follows the row line, so it aligns to the right edge of the row')
+  assert.ok(confirm.previousElementSibling === page.button('Refresh').parentElement?.parentElement, 'the confirmation follows the row line, so it aligns to the right edge of the row')
   assert.equal(page.calls.filter(([op]) => op === 'index-remove-source').length, 0, 'removal waits for confirmation')
   await page.act(async () => { page.confirmButton().click() })
   await page.settle()
   assert.deepEqual(page.calls.filter(([op]) => op === 'index-remove-source'), [['index-remove-source', { source: 'owner/repo' }]])
   assert.ok(!page.text().includes('Remove this index?'), 'the confirmation closes once the source is removed')
+  await page.unmount()
+})
+
+/**
+ * Open a confirmation from `opener` the way a keyboard user does, then check
+ * that it is announced, takes focus, and returns it to `opener` on Cancel and
+ * on Escape.
+ */
+async function checkConfirmation(page: Awaited<ReturnType<typeof openPage>>, opener: HTMLButtonElement, message: string) {
+  const open = async () => {
+    opener.focus()
+    await page.act(async () => { opener.click() })
+    const dialog = document.querySelector('[role="alertdialog"]')
+    assert.ok(dialog, 'the confirmation is announced as an alert dialog')
+    assert.equal(document.getElementById(dialog.getAttribute('aria-labelledby') ?? '')?.textContent, message, 'the question names the dialog')
+    assert.equal(opener.disabled, false, 'the opener stays enabled while the confirmation is open')
+    assert.equal(document.activeElement?.textContent, 'Cancel', 'focus moves to Cancel')
+    assert.ok(dialog.contains(document.activeElement))
+    return dialog
+  }
+
+  await open()
+  await page.act(async () => { page.button('Cancel').click() })
+  assert.equal(document.querySelector('[role="alertdialog"]'), null)
+  assert.ok(document.activeElement === opener, 'Cancel returns focus to the opener')
+
+  await open()
+  await page.act(async () => {
+    document.activeElement!.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  })
+  assert.equal(document.querySelector('[role="alertdialog"]'), null, 'Escape closes the confirmation')
+  assert.ok(document.activeElement === opener, 'Escape returns focus to the opener')
+}
+
+const installedIndex: IndexView = {
+  ...indexView,
+  entries: [{
+    ...indexView.entries[0]!,
+    installs: [{ level: 'global', version: '1.0.0', installedAt: 1, updateAvailable: false, modified: false, foreign: false, unmanaged: false, installedFrom: 'owner/repo', path: '/home/me/.agents/skills/tdd' }],
+  }],
+}
+
+test('deleting a skill asks in a confirmation that takes and returns focus', async () => {
+  const page = await openPage(indexView)
+  await checkConfirmation(page, document.querySelector('button[aria-label="Delete"]') as HTMLButtonElement, 'Move to the trash?')
+  assert.equal(page.calls.filter(([op]) => op === 'remove').length, 0)
+  await page.unmount()
+})
+
+test('removing a Catalog source asks in a confirmation that takes and returns focus', async () => {
+  const page = await openCatalog(indexView)
+  await checkConfirmation(page, document.querySelector('button[aria-label="Remove"]') as HTMLButtonElement, 'Remove this index? Already installed items stay.')
+  assert.equal(page.calls.filter(([op]) => op === 'index-remove-source').length, 0)
+  await page.unmount()
+})
+
+test('deleting a Catalog copy asks in a confirmation that takes and returns focus', async () => {
+  const page = await openCatalog(installedIndex)
+  await checkConfirmation(page, document.querySelector('button[aria-label="Delete"]') as HTMLButtonElement, 'Move to the trash?')
+  assert.equal(page.calls.filter(([op]) => op === 'remove').length, 0)
+  await page.unmount()
+})
+
+test('replacing a Catalog copy asks in a confirmation that takes and returns focus', async () => {
+  const page = await openCatalog({
+    ...indexView,
+    entries: [{
+      ...indexView.entries[0]!,
+      installs: [{ level: 'global', updateAvailable: false, modified: false, foreign: false, unmanaged: true, path: '/home/me/.agents/skills/tdd' }],
+    }],
+  })
+  await checkConfirmation(page, page.button('Replace'), '/home/me/.agents/skills/tdd already exists and was not installed from an index. Installing replaces it, and the old copy goes to the trash.')
+  assert.equal(page.calls.filter(([op]) => op === 'index-install').length, 0)
   await page.unmount()
 })

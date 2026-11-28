@@ -3,7 +3,7 @@
 import { useCallback, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { InstructionView, Level, LevelView, McpServerView, Responses, RuleView, SkillView } from '../shared/api.ts'
 import { call, messageOf } from './api.ts'
-import { SkillStateControl, Switch, TrashIcon, type T } from './controls.tsx'
+import { Confirm, SkillStateControl, Switch, TrashIcon, type T } from './controls.tsx'
 import css from './Loadout.module.css'
 import { McpRow } from './mcp.tsx'
 
@@ -217,7 +217,7 @@ function Row({ t, scope, locked, reload, notify, entry }: RowProps & { entry: It
                 data-tone="danger"
                 aria-label={t('delete')}
                 title={t('delete')}
-                disabled={busy || confirming}
+                disabled={busy}
                 onClick={() => { setConfirming(true) }}
               >
                 <TrashIcon />
@@ -229,25 +229,21 @@ function Row({ t, scope, locked, reload, notify, entry }: RowProps & { entry: It
       </div>
       {confirming
         ? (
-          <div className={css.confirm}>
-            {t('confirmDelete')}
-            <button type="button" className={css.btn} data-tone="outline" onClick={() => { setConfirming(false) }}>{t('cancel')}</button>
-            <button
-              type="button"
-              className={css.btn}
-              data-tone="dangerText"
-              disabled={busy}
-              onClick={() => {
-                void run(async () => {
-                  const { movedTo } = await call('remove', { ...target, path: deletePath })
-                  setConfirming(false)
-                  if (movedTo !== undefined) notify(t('movedToDshTrash', { name: item.name, path: movedTo }))
-                })
-              }}
-            >
-              {t('confirm')}
-            </button>
-          </div>
+          <Confirm
+            t={t}
+            message={t('confirmDelete')}
+            action={t('confirm')}
+            tone="dangerText"
+            busy={busy}
+            onCancel={() => { setConfirming(false) }}
+            onConfirm={() => {
+              void run(async () => {
+                const { movedTo } = await call('remove', { ...target, path: deletePath })
+                setConfirming(false)
+                if (movedTo !== undefined) notify(t('movedToDshTrash', { name: item.name, path: movedTo }))
+              })
+            }}
+          />
         )
         : null}
       {error !== undefined ? <div className={css.error} role="alert">{error}</div> : null}
